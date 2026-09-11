@@ -19,6 +19,12 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 - "transferi duzentos reais para o João"
 - "caiu o salário, três mil reais" — palavras como *caiu*, *recebi* e *salário* viram entrada
 
+**Ler documento** (aba Lançar): fotografe ou escolha a fatura do cartão, o extrato do banco, um canhoto ou um boleto, em PDF ou foto. O app lê no próprio aparelho, monta os lançamentos e mostra para você conferir: o que parece já lançado vem desmarcado, e as parcelas da fatura (ex.: `03/10`) já reservam as seguintes. O PDF baixado do app do banco é o que lê melhor. Boleto: pelo código de barras ou digitando a linha digitável.
+
+**Fixo todo mês:** marque na conferência — ou em *Tornar fixo*, ao editar um lançamento — o que se repete todo mês: aluguel, escola, assinaturas.
+
+**Método 50-30-20** (aba Meta): divide a renda líquida em Necessidades, Desejos e Futuro. Os percentuais e o grupo de cada categoria são ajustáveis.
+
 **Sem internet** funciona normalmente: tudo é salvo no aparelho e vai para o Drive quando a conexão volta. O acesso ao Drive dura cerca de uma hora; depois disso aparece *Sincronizar* no topo — um toque e pronto.
 
 ## Onde ficam os dados
