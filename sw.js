@@ -1,6 +1,6 @@
 /* Caderneta — service worker: guarda o app no aparelho para abrir sem internet.
    Mude VERSAO a cada publicação para os aparelhos pegarem a versão nova. */
-const VERSAO = "caderneta-v2";
+const VERSAO = "caderneta-v3";
 const FONTES = "caderneta-fontes";
 const APP = ["./", "./index.html", "./manifest.webmanifest", "./config.js",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
@@ -16,8 +16,9 @@ self.addEventListener("activate", e => {
 self.addEventListener("message", e => { if (e.data === "skipWaiting") self.skipWaiting(); });
 
 /* rede primeiro; se não houver internet, a cópia guardada */
-function redePrimeiro(req, chave) {
-  return fetch(req).then(r => {
+function redePrimeiro(req, chave, modo) {
+  const pedido = modo ? new Request(req.url, { cache: modo, credentials: "same-origin" }) : req;
+  return fetch(pedido).then(r => {
     if (r.ok) { const cp = r.clone(); caches.open(VERSAO).then(c => c.put(chave || req, cp)); }
     return r;
   }).catch(() => caches.match(chave || req));
@@ -42,8 +43,8 @@ self.addEventListener("fetch", e => {
   if (url.origin !== self.location.origin) return;
 
   /* a página e a configuração: rede primeiro, para pegar atualizações */
-  if (req.mode === "navigate") { e.respondWith(redePrimeiro(req, "./index.html")); return; }
-  if (url.pathname.endsWith("/config.js")) { e.respondWith(redePrimeiro(req)); return; }
+  if (req.mode === "navigate") { e.respondWith(redePrimeiro(req, "./index.html", "no-cache")); return; }
+  if (url.pathname.endsWith("/config.js")) { e.respondWith(redePrimeiro(req, null, "no-store")); return; }
 
   /* ícones e o resto: cópia guardada primeiro */
   e.respondWith(caches.match(req).then(hit => hit || redePrimeiro(req)));
