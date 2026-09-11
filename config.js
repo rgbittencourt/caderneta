@@ -3,5 +3,5 @@
    (termina em .apps.googleusercontent.com).
    Enquanto estiver vazio, o app funciona só no aparelho, sem login com Google. */
 window.CADERNETA_CONFIG = {
-  googleClientId: ""
+  googleClientId: "1015822421649-lptngd0hgij19vppe5sk9qqe4mqasiqn.apps.googleusercontent.com"
 };
