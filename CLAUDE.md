@@ -33,7 +33,8 @@ Leia este arquivo inteiro antes de mudar qualquer coisa. Ao mudar arquitetura, f
    - 50-30-20: `grupoDe`, `migrarCfg`, `resumo5030`, `arco` + `chartDonut5030` (a rosca), `render5030`, `openMetodo`.
    - Ler documento: `htmlLeitorDoc`, `montarLeitorDoc`, `lerDoc`, `mostrarLidos`, `rascunhosDoc`, `pareceRepetido`, `openLinhaBoleto`.
    - Aba Análises: `renderAnalises` → `diagnostico` + `diagHTML` (achados com gravidade e botões de ação, guardados em `ACOES`), `htmlPagamentos`, `htmlParcelados`, `htmlDividas`.
-   - Dívidas: `TIPOS_DIVIDA`, `saldoPrice`, `quitar`, `estadoDivida`, `simulacao`, `openDivida`. Gastos que se repetem: `recorrentes`, `tornarFixo`.
+   - Dívidas: `TIPOS_DIVIDA`, `saldoPrice`, `quitar`, `normDivida`, `vencDivida`, `estadoDivida`, `consignadoNoMes`, `simulacao`, `openDivida`. Gastos que se repetem: `recorrentes`, `tornarFixo`.
+   - Extrato por conta e fatura do cartão, na aba Contas: `movsConta`, `linhaExt`, `htmlExtrato`, `bindExtrato` (a seleção fica em `S.ext`; `card:<id>` é cartão).
 9. **Partida** — `boot()` no fim do arquivo.
 
 Outros arquivos:
@@ -41,6 +42,7 @@ Outros arquivos:
   - Fatura: parcela `03/10` vira `i0=3, n=10`; `commit` cria da 3ª à 10ª a partir do mês da fatura (`d.ym`). Pagamento da fatura e estornos ficam de fora.
   - Extrato: C/D e sinal decidem entrada ou saída; sem marca, palavras como *recebido*, *salário* e *estorno* indicam entrada; a coluna de saldo é ignorada.
   - Tudo cai na conferência (`S.drafts`), com a caixa *Incluir* — desmarcada quando `pareceRepetido` acha o mesmo valor em até 3 dias ou a mesma parcela — e *Fixo todo mês*, que cria um gasto fixo ligado ao lançamento (`fix`).
+  - Os campos da ficha *Ler documento* aparecem conforme o tipo escolhido (atributo `data-doc`). Canhoto e boleto têm *Pago com* (guardado em `S.docPago`): essa escolha vence o que o documento diz e define débito, Pix, boleto ou cartão. Em branco, vale o que está escrito no documento. Cada linha ainda pode ser mudada uma a uma na conferência.
 - `sw.js` — guarda o app (`APP`) para uso offline. Página com `cache: "no-cache"` e `config.js` com `"no-store"`: rede primeiro, cópia guardada se não houver internet. Ícones: cópia guardada primeiro. Fontes do Google: cache próprio. APIs do Google: nunca passam pelo cache.
 - `config.js` — `googleClientId`. Vazio = app funciona só no aparelho, sem login.
 
@@ -55,9 +57,13 @@ Outros arquivos:
   - Compra no crédito não sai da conta no dia; sai no pagamento da fatura (`k:"p"`, `ref` = mês da fatura).
 - `cfg` — renda, teto, meta de saldo, contas (saldo inicial + acertos), cartões, categorias (com limite), categorias de entrada, gastos fixos, palavras aprendidas (`kwCat`, `kwCard`), meta de poupança; `cfg.u` = última alteração.
 - Gasto fixo: `cfg.fixed[]` → `{id, name, amount, day, cat, card, desde?, ate?, divida?}`. `desde` e `ate` (`AAAA-MM`) limitam os meses em que ele vale (`fixedFor`). Um lançamento ligado a ele (`fix` = id) marca o mês como pago. `openFix` preserva os campos extras ao salvar.
-- **Dívidas:** `cfg.dividas[]` → `{id, nome, tipo, parcela, restantes, juros, dia, card, desde, fixId}`.
-  - `parcela` em centavos; `juros` em % ao mês (`""` quando não informado); `desde` = mês do cadastro; `restantes` = parcelas que faltavam no cadastro.
-  - Cada dívida cria um gasto fixo (`fixId`) na categoria `divida`, de `desde` até `desde + restantes − 1`. Pagas = lançamentos com `fix === fixId` a partir de `desde`; faltam = `restantes − pagas`. Ao editar, a ficha mostra quantas faltam agora e guarda `restantes = faltam + pagas`.
+- **Dívidas:** `cfg.dividas[]` → `{id, nome, tipo, parcela, total, inicio, dia, juros, card, folha, fixId}`.
+  - `parcela` em centavos; `total` = parcelas do contrato; `inicio` = mês (`AAAA-MM`) da 1ª parcela; `dia` = dia do vencimento ou do desconto; `juros` em % ao mês (`""` quando não informado).
+  - **As parcelas andam pelo calendário:** a parcela `k` vence em `inicio + (k−1)` meses (`vencDivida`), e a que já venceu conta como paga. Não depende de lançar nada — consignado e débito automático acertam sozinhos.
+  - A ficha aceita as duas formas de contar: *Já estou pagando* → "parcela 4 de 12" (o app deduz o `inicio`), ou *Ainda vou começar* → data da 1ª parcela.
+  - `folha: true` = descontada direto do salário (consignado). Nesse caso **não** cria gasto fixo: a renda líquida já vem com o desconto, e contar de novo seria duplicar. A dívida continua em Análises, e `consignadoNoMes(ym)` leva o valor ao diagnóstico.
+  - `folha: false` cria um gasto fixo (`fixId`) na categoria `divida`, de `inicio` até `inicio + total − 1`.
+  - Formato da primeira versão (`restantes`/`desde`) vira o novo na leitura, em `normDivida`: `total = restantes`, `inicio = desde`.
   - Saldo pela tabela Price: `S = P·(1 − (1+i)^−n)/i`; juros que faltam = `P·n − S`. Sem juro informado: saldo = `P·n` e nenhuma simulação.
   - Simulação: adiantar 20% da parcela (mínimo R$ 50, arredondado em R$ 10). Meses até quitar pagando `Q`: `m = −ln(1 − S·i/Q)/ln(1+i)`. Economia = juros com `P` − juros com `P + E`.
 - **Junção entre aparelhos** (`mergeData`): lançamentos pela união por id; em conflito vence o `u` maior. O `cfg` inteiro vence pelo `u` maior. Toda escrita precisa passar por `commit`, `saveCfg` ou `saveMonth`, que atualizam `u` e agendam a sincronização.
@@ -73,6 +79,7 @@ Cada achado tem gravidade (crítico, atenção, informação, boa notícia), um 
 - **Teto:** no mês corrente, a projeção pelo ritmo (`monthStats().pace`) contra o teto e o limite por dia que ainda cabe; em mês passado, quanto fechou acima ou abaixo.
 - **50-30-20:** Necessidades ou Desejos acima da meta, com as duas maiores categorias do grupo; Futuro abaixo da meta, dizendo quanto da folga de Desejos cobriria a diferença.
 - **Renda comprometida** = (parcelas do mês + fixos vigentes, inclusive dívidas) ÷ renda. Acima de 30%: atenção. Acima de 50%: crítico.
+- **Consignado** não entra nessa conta: já saiu do salário. Aparece como aviso no fim do mesmo texto, com `consignadoNoMes`.
 - **Parcelas que terminam:** o primeiro mês, nos próximos 12, em que as parcelas caem pelo menos R$ 50 e 10% → "sobram R$ X por mês".
 - **Parece gasto fixo** (`recorrentes`): mesma chave (as duas primeiras palavras com mais de duas letras da descrição) em pelo menos 2 dos últimos 3 meses, uma vez por mês, com valores a até 15% da média, e ainda não marcado como fixo → botão *Marcar como fixo*.
 - **Assinaturas e telefone:** o valor do mês × 12.
@@ -119,7 +126,9 @@ Primeira publicação num computador novo: o dono autoriza no navegador (Git Cre
   - lançar por fala (*Ver exemplo* na aba Lançar);
   - restaurar um backup antigo (`app: "caderneta-casa"`);
   - sincronização com `fetch` simulado para a API do Drive: dois "aparelhos" com lançamentos diferentes → o Drive tem que terminar com a união;
-  - aba Análises com dados de exemplo: compra parcelada, uma dívida com juros, um gasto repetido em três meses (tem que aparecer *Parece gasto fixo*).
+  - aba Análises com dados de exemplo: compra parcelada, uma dívida com juros, um gasto repetido em três meses (tem que aparecer *Parece gasto fixo*);
+  - dívida das duas formas: "parcela 4 de 12" (tem que mostrar 4 pagas) e "1ª parcela em 01/10" (0 pagas, próxima na data);
+  - extrato da conta: o saldo da última linha tem que bater com `balanceOf` no fim do mês.
 - O login real com o Google só funciona na origem autorizada. Para testar em `localhost`, é preciso incluir `http://localhost:8765` nas origens do cliente OAuth.
 
 ## Situação e próximos passos

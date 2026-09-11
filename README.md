@@ -19,7 +19,7 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 - "transferi duzentos reais para o João"
 - "caiu o salário, três mil reais" — palavras como *caiu*, *recebi* e *salário* viram entrada
 
-**Ler documento** (aba Lançar): fotografe ou escolha a fatura do cartão, o extrato do banco, um canhoto ou um boleto, em PDF ou foto. O app lê no próprio aparelho, monta os lançamentos e mostra para você conferir: o que parece já lançado vem desmarcado, e as parcelas da fatura (ex.: `03/10`) já reservam as seguintes. O PDF baixado do app do banco é o que lê melhor. Boleto: pelo código de barras ou digitando a linha digitável.
+**Ler documento** (aba Lançar): fotografe ou escolha a fatura do cartão, o extrato do banco, um canhoto ou um boleto, em PDF ou foto. O app lê no próprio aparelho, monta os lançamentos e mostra para você conferir: o que parece já lançado vem desmarcado, e as parcelas da fatura (ex.: `03/10`) já reservam as seguintes. O PDF baixado do app do banco é o que lê melhor. Boleto: pelo código de barras ou digitando a linha digitável. Em canhoto e boleto, diga em *Pago com* como pagou — débito, Pix, boleto ou um cartão —, e os lançamentos daquele documento já vêm assim; na conferência ainda dá para mudar um a um.
 
 **Fixo todo mês:** marque na conferência — ou em *Tornar fixo*, ao editar um lançamento — o que se repete todo mês: aluguel, escola, assinaturas.
 
@@ -29,7 +29,11 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 - **Diagnóstico do mês, com sugestões:** o ritmo contra o teto, o 50-30-20, quanto da renda já sai comprometida, os gastos que parecem fixos, o cartão perto do limite e a categoria que vem subindo.
 - **Compras parceladas:** quando cada uma termina e quanto sobra por mês depois.
 - **Gastos por cartão e forma de pagamento.**
-- **Dívidas:** cadastre empréstimos e financiamentos com a parcela, quantas faltam e o juro ao mês. O app estima o saldo e os juros que faltam, mostra quando termina e quanto você economiza adiantando um pouco por mês. A parcela entra sozinha nos gastos fixos até a última.
+- **Dívidas:** cadastre consignados, empréstimos e financiamentos com o valor da parcela, o total de parcelas e o juro ao mês. Diga *Já estou pagando* — "parcela 4 de 12" — ou *Ainda vou começar*, com a data da primeira. O app estima o saldo e os juros que faltam, mostra quando termina e quanto você economiza adiantando um pouco por mês, e vai marcando as parcelas conforme elas vencem.
+  - *Descontada direto do salário* (consignado): a parcela não vira gasto, porque o salário já cai na conta com o desconto. A dívida continua aparecendo aqui.
+  - Nas outras, a parcela entra sozinha nos gastos fixos até a última.
+
+**Extrato** (aba Contas): escolha a conta ou o cartão. Na conta, aparece o saldo anterior, cada entrada e saída com o saldo depois dela, e o saldo no fim do mês; no cartão, a fatura daquele mês. Toque em qualquer linha para corrigir o lançamento.
 
 **Sem internet** funciona normalmente: tudo é salvo no aparelho e vai para o Drive quando a conexão volta. O acesso ao Drive dura cerca de uma hora; depois disso aparece *Sincronizar* no topo — um toque e pronto.
 

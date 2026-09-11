@@ -58,6 +58,17 @@ details.grp .in{padding:8px 14px 12px}
 .badge.info{background:var(--accent-soft);color:var(--accent)}
 .ins-a{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
 .ins-t,.ins-s{display:block}
+.segs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.seg{border:1px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:20px;padding:5px 12px;font:500 12.5px var(--f);cursor:pointer}
+.seg:hover{background:var(--surface-2)}
+.seg.on{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+.ext-h{display:flex;justify-content:space-between;gap:10px;padding:9px 2px;font-size:12.5px;color:var(--ink-2);border-bottom:1px solid var(--line)}
+.ext-h b{font-family:var(--f-m);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.ext-h.fim{border-bottom:0;border-top:1px solid var(--line-2);margin-top:-1px}
+.ext-d{font-family:var(--f-m);font-size:11.5px;color:var(--ink-3);width:40px;flex:none;font-variant-numeric:tabular-nums}
+.ext-v{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+.ext-s{font-family:var(--f-m);font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.ext-p{font-size:12px;color:var(--ink-3);padding:10px 2px 0;line-height:1.5}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1650,11 +1661,12 @@ function renderContas(){
         '<button class="btn ghost sm" data-editcard="'+c.id+'">Ajustar</button></div></div>'; }).join("")
       :'<div class="empty"><b>Nenhum cartão de crédito</b>Cadastre em Ajustes para acompanhar fatura e limite.</div>')+
     '</div></div>';
+  $("#p-contas").insertAdjacentHTML("beforeend",htmlExtrato());
   $$("[data-acct]").forEach(b=>b.onclick=()=>openAcct(b.dataset.acct));
   $$("[data-pay]").forEach(b=>b.onclick=()=>openPay(b.dataset.pay));
   $$("[data-editcard]").forEach(b=>b.onclick=()=>openCard(b.dataset.editcard));
   $("#addAcct").onclick=()=>openAcct("");
-  const bt=$("#btnTransf"); if(bt) bt.onclick=openTransfer; }
+  const bt=$("#btnTransf"); if(bt) bt.onclick=openTransfer; bindExtrato(); }
 
 /* =================== futuro =================== */
 function renderFuturo(){
@@ -2386,9 +2398,10 @@ function htmlLeitorDoc(){
     '<div class="fields">'+
     '<div class="f"><label>O que é</label><select id="docTipo"><option value="auto">Descobrir sozinho</option><option value="fatura">Fatura do cartão</option>'+
     '<option value="extrato">Extrato do banco</option><option value="cupom">Canhoto ou cupom</option><option value="boleto">Boleto</option></select></div>'+
-    '<div class="f"><label>Cartão da fatura</label><select id="docCard">'+optId(cartoes,(cartoes[0]||{}).id)+'</select></div>'+
-    '<div class="f"><label>Conta do extrato</label><select id="docConta">'+optId(contas,(contas[0]||{}).id)+'</select></div>'+
-    '<div class="f"><label>Mês da fatura</label><input type="month" id="docMes" value="'+S.ym+'"></div></div>'+
+    '<div class="f" data-doc="fatura"><label>Cartão da fatura</label><select id="docCard">'+optId(cartoes,(cartoes[0]||{}).id)+'</select></div>'+
+    '<div class="f" data-doc="extrato"><label>Conta do extrato</label><select id="docConta">'+optId(contas,(contas[0]||{}).id)+'</select></div>'+
+    '<div class="f" data-doc="fatura"><label>Mês da fatura</label><input type="month" id="docMes" value="'+S.ym+'"></div>'+
+    '<div class="f" data-doc="cupom boleto"><label>Pago com</label><select id="docPago"><option value="">Descobrir pelo documento</option>'+optId(S.cfg.cards,S.docPago||"")+'</select></div></div>'+
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'+
     '<button class="btn" id="docCamBtn">'+cam+'Fotografar</button>'+
     '<button class="btn ghost" id="docArqBtn">Escolher arquivo (PDF ou foto)</button>'+
@@ -2400,7 +2413,10 @@ function montarLeitorDoc(){
   const a=$("#docArq"), c=$("#docCam"); if(!a) return;
   $("#docCamBtn").onclick=()=>c.click(); $("#docArqBtn").onclick=()=>a.click();
   a.onchange=c.onchange=e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) lerDoc(f); };
-  $("#docLinhaBtn").onclick=()=>openLinhaBoleto(""); }
+  $("#docLinhaBtn").onclick=()=>openLinhaBoleto("");
+  const tp=$("#docTipo"), mostra=()=>$$("[data-doc]").forEach(f=>{ f.hidden=tp.value!=="auto"&&f.dataset.doc.split(" ").indexOf(tp.value)<0; });
+  tp.onchange=mostra; mostra();
+  $("#docPago").onchange=e=>{ S.docPago=e.target.value; }; }
 
 async function lerDoc(arquivo){
   const st=$("#docStatus"), tipo=$("#docTipo").value, mes=$("#docMes").value||S.ym;
@@ -2410,7 +2426,7 @@ async function lerDoc(arquivo){
     const r=await Leitor.ler(arquivo,{tipo,mes,onProgress:(p,etapa)=>{ st.textContent=(etapa||"lendo")+(p?" "+p+"%":""); }});
     st.textContent="";
     if(!r.linhas.length){ if(r.tipo==="boleto") openLinhaBoleto(r.erro); else toast(r.erro||"Não encontrei lançamentos. Tente o PDF do banco ou uma foto mais nítida."); return; }
-    mostrarLidos(r,{mes,card:$("#docCard").value,conta:$("#docConta").value});
+    mostrarLidos(r,{mes,card:$("#docCard").value,conta:$("#docConta").value,pago:$("#docPago").value});
   }catch(e){ st.textContent=""; toast((e&&e.message)||"Não consegui ler esse documento."); console.warn(e); }
   finally{ btns.forEach(b=>b.disabled=false); } }
 function mostrarLidos(r,op){
@@ -2428,16 +2444,16 @@ function rascunhosDoc(r,op){
   const debitoDaConta=conta=>S.cfg.cards.find(c=>c.type==="debito"&&(!conta||c.acct===conta))||S.cfg.cards.find(c=>c.type==="debito");
   const porBandeira=b=>{ if(!b) return null; const w=b.indexOf("master")===0?"master":b;
     return S.cfg.cards.find(c=>c.type==="credito"&&norm(c.alias+" "+c.n).split(" ").indexOf(w)>=0); };
-  const boletoCard=S.cfg.cards.find(c=>c.type==="boleto");
+  const boletoCard=S.cfg.cards.find(c=>c.type==="boleto"), pagoCom=op.pago?S.cfg.cards.find(c=>c.id===op.pago):null;
   return r.linhas.map(l=>{
     const d={id:uid(), raw:"", v:l.v, desc:l.desc, k:l.k||"g", n:l.n||1, i0:l.i0||1, date:l.d||hoje, time:"", msg:"", origem:r.tipo, incluir:true};
     if(r.tipo==="fatura"){ d.cardId=op.card; d.method="credito"; d.ym=op.mes||S.ym;
       d.raw="Fatura de "+ymLabel(d.ym)+(d.i0>1?" · parcela "+d.i0+" de "+d.n+" — as seguintes já ficam reservadas":""); }
     else if(r.tipo==="extrato"){ const c=debitoDaConta(op.conta); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id;
       d.method=d.k==="e"?"pix":"debito"; d.acct=op.conta||acctOf(d.cardId); d.raw="Extrato"; }
-    else if(r.tipo==="boleto"){ const c=boletoCard||debitoDaConta(); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id; d.method="boleto";
+    else if(r.tipo==="boleto"){ const c=pagoCom||boletoCard||debitoDaConta(); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id; d.method=pagoCom?pagoCom.type:"boleto";
       d.raw=l.vencimento?"Vence em "+l.vencimento.split("-").reverse().join("/"):"Boleto"; }
-    else { const c=porBandeira(l.bandeira)||S.cfg.cards.find(x=>x.type===(l.metodo||"credito"))||S.cfg.cards[0];
+    else { const c=pagoCom||porBandeira(l.bandeira)||S.cfg.cards.find(x=>x.type===(l.metodo||"credito"))||S.cfg.cards[0];
       d.cardId=c.id; d.method=c.type; d.raw="Canhoto"; }
     d.cat=(l.cat&&S.cfg.cats.some(c=>c.id===l.cat))?l.cat:guessCat(d.desc,S.cfg,d.k);
     const rep=pareceRepetido(d);
@@ -2463,7 +2479,7 @@ function openLinhaBoleto(erro){
   $("#lbX").onclick=closeSheet;
   $("#lbOk").onclick=()=>{ const r=Leitor.lerBoleto($("#lbT").value);
     if(!r.linhas.length){ toast(r.erro); return; }
-    r.tipo="boleto"; closeSheet(); mostrarLidos(r,{mes:S.ym}); }; }
+    r.tipo="boleto"; closeSheet(); mostrarLidos(r,{mes:S.ym,pago:S.docPago||""}); }; }
 
 /* =================== análises =================== */
 let ACOES={};
@@ -2518,9 +2534,9 @@ function diagnostico(ym){
     else add("good","Futuro no alvo","Você destinou <b>"+fmt(g.fut)+"</b> ("+Math.round(g.fut/renda*100)+"% da renda) para guardar ou pagar dívidas.");
     const parc=st.gastos.filter(t=>+t.n>1).reduce((s,t)=>s+t.v,0);
     const fixos=(S.cfg.fixed||[]).filter(f=>f.amount&&(!f.ate||ym<=f.ate)&&(!f.desde||ym>=f.desde)).reduce((s,f)=>s+f.amount,0);
-    const c=(parc+fixos)/renda;
+    const c=(parc+fixos)/renda, folha=consignadoNoMes(ym);
     if(c>0) add(c>0.5?"bad":c>0.3?"warn":"good",Math.round(c*100)+"% da renda já sai comprometida todo mês",
-      "Parcelas <b>"+fmt(parc)+"</b> + gastos fixos e dívidas <b>"+fmt(fixos)+"</b>."+(c>0.3?" Acima de 30%, sobra pouco para imprevistos.":"")); }
+      "Parcelas <b>"+fmt(parc)+"</b> + gastos fixos e dívidas <b>"+fmt(fixos)+"</b>."+(c>0.3?" Acima de 30%, sobra pouco para imprevistos.":"")+(folha?" Além disso, <b>"+fmt(folha)+"</b> de consignado já saem direto do salário.":"")); }
   const fut=futureMonths(13,ymOf(todayISO())), planos=openPlans();
   for(let k=1;k<fut.length;k++){ const cai=fut[k-1].parc-fut[k].parc;
     if(cai>=Math.max(5000,fut[k-1].parc*0.1)){ const fim=planos.filter(p=>p.last===fut[k-1].ym).map(p=>p.desc);
@@ -2591,12 +2607,24 @@ function quitar(saldo,Q,i){
   if(saldo*i>=Q) return null;
   const m=-Math.log(1-saldo*i/Q)/Math.log(1+i);
   return {meses:Math.ceil(m-1e-9),juros:Math.max(0,Math.round(Q*m-saldo))}; }
-/* as parcelas pagas são os lançamentos ligados ao gasto fixo da dívida */
+/* parcela k vence em inicio + (k-1) meses, no dia informado; a que já venceu conta como paga.
+   Assim consignado e débito automático andam sozinhos, sem precisar lançar cada parcela. */
+function normDivida(dv){
+  if(!dv.total&&dv.restantes){ dv.total=+dv.restantes; dv.inicio=dv.desde; }   /* formato da primeira versão */
+  if(!dv.inicio) dv.inicio=ymOf(todayISO());
+  return dv; }
+function vencDivida(dv,k){ const ym=ymShift(dv.inicio,k-1); return ym+"-"+pad(Math.min(+dv.dia||1,daysIn(ym))); }
 function estadoDivida(dv){
-  const pagos=allTx().filter(t=>t.fix&&t.fix===dv.fixId&&t.ym>=(dv.desde||"0000")).length;
-  const n=Math.max(0,(+dv.restantes||0)-pagos), i=(+dv.juros||0)/100, P=+dv.parcela||0;
-  const saldo=saldoPrice(P,i,n);
-  return {n,i,P,saldo,jurosRest:Math.max(0,P*n-saldo),pagos,fim:ymShift(dv.desde||ymOf(todayISO()),Math.max(1,+dv.restantes||1)-1)}; }
+  normDivida(dv);
+  const total=+dv.total||0, P=+dv.parcela||0, i=(+dv.juros||0)/100, hoje=todayISO();
+  let pagas=0; while(pagas<total&&vencDivida(dv,pagas+1)<=hoje) pagas++;
+  const n=total-pagas, saldo=saldoPrice(P,i,n);
+  return {n,i,P,saldo,jurosRest:Math.max(0,P*n-saldo),pagas,total,fim:ymShift(dv.inicio,Math.max(1,total)-1),
+    prox:n>0?{k:pagas+1,d:vencDivida(dv,pagas+1)}:null}; }
+/* parcelas descontadas direto do salário naquele mês: saem antes de a renda cair na conta */
+function consignadoNoMes(ym){
+  return (S.cfg.dividas||[]).filter(dv=>dv.folha).reduce((s,dv)=>{ normDivida(dv);
+    return s+(dv.inicio<=ym&&ym<=ymShift(dv.inicio,(+dv.total||1)-1)?(+dv.parcela||0):0); },0); }
 /* adiantar 20% da parcela (mínimo R$ 50): quantos meses antes termina e quanto economiza */
 function simulacao(e){
   if(!e||!e.n||e.i<=0) return null;
@@ -2606,58 +2634,87 @@ function simulacao(e){
   const meses=base.meses-com.meses, economia=base.juros-com.juros;
   return (meses<1||economia<1000)?null:{E,meses,economia}; }
 
+const diaMesAno=s=>s?s.slice(8,10)+"/"+s.slice(5,7)+"/"+s.slice(0,4):"";
 function htmlDividas(){
   const L=S.cfg.dividas||[], renda=S.cfg.income||0;
-  if(!L.length) return '<div class="card pad"><div class="empty"><b>Nenhuma dívida cadastrada</b>Cadastre empréstimos e financiamentos com a parcela, quantas faltam e o juro ao mês. O app calcula o saldo, quando termina e quanto você economiza adiantando.</div>'+
+  if(!L.length) return '<div class="card pad"><div class="empty"><b>Nenhuma dívida cadastrada</b>Cadastre consignados, empréstimos e financiamentos com o valor da parcela, em qual parcela você está e o juro ao mês. O app calcula o saldo, quando termina e quanto você economiza adiantando.</div>'+
     '<div style="text-align:center"><button class="btn" data-divnova>Cadastrar dívida</button></div></div>';
   const es=L.map(dv=>({dv,e:estadoDivida(dv)})), ativas=es.filter(x=>x.e.n>0);
   const saldo=ativas.reduce((s,x)=>s+x.e.saldo,0), mensal=ativas.reduce((s,x)=>s+x.e.P,0), juros=ativas.reduce((s,x)=>s+x.e.jurosRest,0);
+  const folha=ativas.filter(x=>x.dv.folha).reduce((s,x)=>s+x.e.P,0);
   const fim=ativas.map(x=>x.e.fim).sort().pop()||"";
   const cara=ativas.filter(x=>x.e.i>0).sort((a,b)=>b.e.i-a.e.i)[0];
   let h='<div class="kpis">'+tile("Saldo devedor",fmt(saldo),"estimado","flat")+
-    tile("Parcelas por mês",fmt(mensal),renda?Math.round(mensal/renda*100)+"% da renda":"","flat")+
+    tile("Parcelas por mês",fmt(mensal),folha?fmtN(folha)+" descontados do salário":(renda?Math.round(mensal/renda*100)+"% da renda":""),"flat")+
     tile("Juros que ainda vai pagar",fmt(juros),"pagando em dia","flat")+
     tile("Tudo quitado em",fim?ymLabel(fim):"—",ativas.length+(ativas.length===1?" dívida ativa":" dívidas ativas"),"flat")+'</div>';
   h+='<div class="grid g2" style="margin-top:12px">'+es.map(({dv,e})=>{
     const sim=simulacao(e);
+    const situacao=e.n===0?"quitada em "+ymLabel(e.fim)
+      : e.pagas?"paga "+e.pagas+" de "+e.total+" · próxima em "+diaMesAno(e.prox.d)
+      : "começa em "+diaMesAno(e.prox.d)+" · "+e.total+" parcelas";
     return '<div class="cardbox"><div class="cardbox-h"><span class="cardbox-n">'+esc(dv.nome)+
       (cara&&ativas.length>1&&cara.dv.id===dv.id?'<span class="badge">mais cara</span>':'')+(e.n===0?'<span class="badge info">quitada</span>':'')+'</span>'+
       '<span class="cardbox-v">'+fmtN(e.P)+'/mês</span></div>'+
-      '<div class="cardbox-s">'+esc(TIPOS_DIVIDA[dv.tipo]||"")+' · faltam '+e.n+(e.n===1?' parcela':' parcelas')+' · até '+ymLabel(e.fim)+
+      '<div class="cardbox-s">'+esc(TIPOS_DIVIDA[dv.tipo]||"")+' · '+(dv.folha?'descontada do salário':'paga com '+esc(cardName(dv.card)||"—"))+' · até '+ymLabel(e.fim)+
       (e.i>0?' · juros '+String(dv.juros).replace(".",",")+'% ao mês':' · juros não informado')+'</div>'+
-      '<div class="meter-s" style="margin:0"><span>saldo estimado '+fmtN(e.saldo)+'</span><span>'+(e.jurosRest?'juros a pagar '+fmtN(e.jurosRest):'')+'</span></div>'+
+      '<div class="meter"><i style="width:'+Math.round(e.pagas/Math.max(1,e.total)*100)+'%"></i></div>'+
+      '<div class="meter-s"><span>'+situacao+'</span><span>saldo '+fmtN(e.saldo)+'</span></div>'+
+      (e.jurosRest?'<div class="meter-s" style="margin-top:2px"><span>juros que faltam '+fmtN(e.jurosRest)+'</span></div>':'')+
       (sim?'<div class="note" style="margin-top:10px;font-size:12.5px"><b>Adiantando '+fmt(sim.E)+' por mês</b>termina '+sim.meses+(sim.meses===1?' mês':' meses')+' antes e economiza '+fmt(sim.economia)+' de juros.</div>':'')+
       '<div class="cardbox-a"><button class="btn ghost sm" data-div="'+dv.id+'">Editar</button></div></div>'; }).join("")+'</div>';
   return h+'<div style="margin-top:10px"><button class="btn ghost sm" data-divnova>Cadastrar outra dívida</button></div>'; }
 
 function openDivida(id){
-  const L=S.cfg.dividas||(S.cfg.dividas=[]);
-  const padrao=(S.cfg.cards.find(c=>c.type==="boleto")||S.cfg.cards.find(c=>c.type==="debito")||S.cfg.cards[0]||{}).id;
-  const dv=L.find(x=>x.id===id)||{id:uid(),nome:"",tipo:"pessoal",parcela:0,restantes:12,juros:"",dia:10,card:padrao};
-  const nova=!L.some(x=>x.id===dv.id), e=nova?null:estadoDivida(dv);
+  const L=S.cfg.dividas||(S.cfg.dividas=[]), cur=ymOf(todayISO());
+  const padrao=(S.cfg.cards.find(c=>c.type==="debito")||S.cfg.cards[0]||{}).id;
+  const dv=L.find(x=>x.id===id)||{id:uid(),nome:"",tipo:"consignado",parcela:0,total:"",inicio:cur,dia:1,juros:"",card:padrao,folha:true};
+  const nova=!L.some(x=>x.id===dv.id); normDivida(dv);
+  const [y1,m1]=dv.inicio.split("-").map(Number), [y2,m2]=cur.split("-").map(Number);
+  const sit=(nova||dv.inicio<=cur)?"pagando":"vai", atual=(y2-y1)*12+(m2-m1)+1;
+  const op=(v,sel,txt)=>'<option value="'+v+'"'+(v===sel?" selected":"")+'>'+txt+'</option>';
   sheet(nova?"Nova dívida":dv.nome,
-    '<div class="set"><div class="set-f"><label>Nome</label><input id="dvN" value="'+esc(dv.nome)+'" placeholder="Financiamento do carro"></div>'+
-    '<div class="two"><div class="set-f"><label>Tipo</label><select id="dvT">'+Object.keys(TIPOS_DIVIDA).map(k=>'<option value="'+k+'"'+(k===dv.tipo?" selected":"")+'>'+TIPOS_DIVIDA[k]+'</option>').join("")+'</select></div>'+
-    '<div class="set-f"><label>Parcela por mês</label><input id="dvP" inputmode="decimal" value="'+(dv.parcela?fmtN(dv.parcela):"")+'" placeholder="0,00"></div></div>'+
-    '<div class="two"><div class="set-f"><label>Parcelas que faltam</label><input id="dvR" inputmode="numeric" value="'+(e?e.n:dv.restantes)+'"></div>'+
-    '<div class="set-f"><label>Juros ao mês (%)</label><input id="dvJ" inputmode="decimal" value="'+(dv.juros===""?"":String(dv.juros).replace(".",","))+'" placeholder="ex.: 1,99"></div></div>'+
-    '<div class="two"><div class="set-f"><label>Dia do vencimento</label><input id="dvD" inputmode="numeric" value="'+dv.dia+'"></div>'+
-    '<div class="set-f"><label>Paga com</label><select id="dvC">'+optId(S.cfg.cards,dv.card)+'</select></div></div>'+
-    '<div class="set-f"><span class="hint">Conte a parcela deste mês se ainda não pagou. O juro ao mês está no contrato ou no app do banco; sem ele, o saldo fica como parcela × parcelas que faltam. A parcela entra nos gastos fixos, na categoria Dívidas e empréstimos, até a última.</span></div></div>',
+    '<div class="set">'+
+    '<div class="set-f"><label>Nome</label><input id="dvN" value="'+esc(dv.nome)+'" placeholder="Consignado do banco"></div>'+
+    '<div class="two"><div class="set-f"><label>Tipo</label><select id="dvT">'+Object.keys(TIPOS_DIVIDA).map(k=>op(k,dv.tipo,TIPOS_DIVIDA[k])).join("")+'</select></div>'+
+    '<div class="set-f"><label>Valor da parcela</label><input id="dvP" inputmode="decimal" value="'+(dv.parcela?fmtN(dv.parcela):"")+'" placeholder="0,00"></div></div>'+
+    '<div class="two"><div class="set-f"><label>Situação</label><select id="dvS">'+op("pagando",sit,"Já estou pagando")+op("vai",sit,"Ainda vou começar")+'</select></div>'+
+    '<div class="set-f"><label>Total de parcelas</label><input id="dvTot" inputmode="numeric" value="'+(dv.total||"")+'" placeholder="12"></div></div>'+
+    '<div class="two" id="dvPag"><div class="set-f"><label>Parcela de '+esc(ymLabel(cur))+'</label><input id="dvA" inputmode="numeric" value="'+(!nova&&sit==="pagando"?Math.min(atual,+dv.total||atual):"")+'" placeholder="ex.: 4"></div>'+
+    '<div class="set-f"><label>Dia do vencimento</label><input id="dvD" inputmode="numeric" value="'+(dv.dia||1)+'"></div></div>'+
+    '<div class="set-f" id="dvVai"><label>Data da 1ª parcela</label><input id="dvI" type="date" value="'+(!nova&&sit==="vai"?vencDivida(dv,1):"")+'"></div>'+
+    '<div class="set-f"><label style="display:flex;align-items:center;gap:9px;font-weight:500;color:var(--ink)"><input type="checkbox" id="dvF" style="width:20px;height:20px"'+(dv.folha?" checked":"")+'>Descontada direto do salário</label>'+
+    '<span class="hint">Consignado costuma ser assim: o salário já cai na conta com o desconto. Marcado, a parcela não vira gasto (senão contaria duas vezes), mas a dívida aparece aqui, com saldo e data de fim.</span></div>'+
+    '<div class="set-f" id="dvCF"><label>Paga com</label><select id="dvC">'+optId(S.cfg.cards,dv.card)+'</select>'+
+    '<span class="hint">A parcela entra nos gastos fixos, na categoria Dívidas e empréstimos, até a última.</span></div>'+
+    '<div class="set-f"><label>Juros ao mês (%)</label><input id="dvJ" inputmode="decimal" value="'+(dv.juros===""||dv.juros==null?"":String(dv.juros).replace(".",","))+'" placeholder="opcional, ex.: 1,85">'+
+    '<span class="hint">Está no contrato ou no app do banco. Sem ele, o saldo fica como parcela × parcelas que faltam.</span></div></div>',
     (nova?'':'<button class="btn danger" id="dvKill">Excluir</button>')+'<button class="btn" id="dvOk">Salvar</button>');
+  const ajusta=()=>{ const vai=$("#dvS").value==="vai"; $("#dvPag").hidden=vai; $("#dvVai").hidden=!vai; $("#dvCF").hidden=$("#dvF").checked; };
+  $("#dvS").onchange=ajusta; $("#dvF").onchange=ajusta;
+  $("#dvT").onchange=()=>{ $("#dvF").checked=$("#dvT").value==="consignado"; ajusta(); };
+  ajusta();
   $("#dvOk").onclick=()=>{
-    const nome=$("#dvN").value.trim(), P=toCents($("#dvP").value), R=Math.max(1,Math.min(480,parseInt($("#dvR").value)||0));
-    if(!nome||!P){ toast("Preencha nome e parcela."); return; }
+    const nome=$("#dvN").value.trim(), P=toCents($("#dvP").value), tot=parseInt($("#dvTot").value)||0;
+    if(!nome||!P||tot<1||tot>480){ toast("Preencha nome, valor da parcela e total de parcelas."); return; }
+    let inicio, dia;
+    if($("#dvS").value==="vai"){ const d=$("#dvI").value;
+      if(!d){ toast("Informe a data da 1ª parcela."); return; }
+      inicio=ymOf(d); dia=+d.slice(8,10)||1; }
+    else { const a=parseInt($("#dvA").value)||0;
+      if(a<1||a>tot){ toast("A parcela de "+ymLabel(cur)+" tem que estar entre 1 e "+tot+"."); return; }
+      inicio=ymShift(cur,-(a-1)); dia=Math.max(1,Math.min(31,parseInt($("#dvD").value)||1)); }
     const jt=String($("#dvJ").value).trim().replace(",","."), J=jt===""?"":Math.max(0,Math.min(30,parseFloat(jt)||0));
-    const pagos=nova?0:estadoDivida(dv).pagos;
-    Object.assign(dv,{nome,tipo:$("#dvT").value,parcela:P,restantes:R+pagos,juros:J,
-      dia:Math.max(1,Math.min(31,parseInt($("#dvD").value)||1)),card:$("#dvC").value,desde:dv.desde||ymOf(todayISO())});
+    const folha=$("#dvF").checked, ate=ymShift(inicio,tot-1);
+    Object.assign(dv,{nome,tipo:$("#dvT").value,parcela:P,total:tot,inicio,dia,juros:J,folha,card:$("#dvC").value});
+    delete dv.restantes; delete dv.desde;
     const F=S.cfg.fixed||(S.cfg.fixed=[]);
-    let fx=F.find(f=>f.id===dv.fixId); if(!fx){ fx={id:uid()}; F.push(fx); dv.fixId=fx.id; }
-    const ate=ymShift(dv.desde,dv.restantes-1);
-    Object.assign(fx,{name:nome,amount:P,day:dv.dia,cat:"divida",card:dv.card,desde:dv.desde,ate,divida:dv.id});
+    if(folha){ S.cfg.fixed=F.filter(f=>f.id!==dv.fixId); dv.fixId=""; }
+    else { let fx=F.find(f=>f.id===dv.fixId); if(!fx){ fx={id:uid()}; F.push(fx); dv.fixId=fx.id; }
+      Object.assign(fx,{name:nome,amount:P,day:dia,cat:"divida",card:dv.card,desde:inicio,ate,divida:dv.id}); }
     if(nova) L.push(dv);
-    saveCfg(); closeSheet(); render(); toast("Dívida salva. A parcela entra nos gastos fixos até "+ymLabel(ate)+"."); };
+    saveCfg(); closeSheet(); render();
+    toast(folha?"Dívida salva. Termina em "+ymLabel(ate)+".":"Dívida salva. A parcela entra nos gastos fixos até "+ymLabel(ate)+"."); };
   const k=$("#dvKill");
   if(k) k.onclick=()=>{ S.cfg.dividas=L.filter(x=>x.id!==dv.id); S.cfg.fixed=(S.cfg.fixed||[]).filter(f=>f.id!==dv.fixId);
     saveCfg(); closeSheet(); render(); toast("Dívida excluída"); }; }
@@ -2682,6 +2739,59 @@ function tornarFixo(t){
   (S.cfg.fixed=S.cfg.fixed||[]).push(fx);
   const m=S.months[t.ym]; if(m&&m.tx&&m.tx[t.id]){ m.tx[t.id].fix=fx.id; m.tx[t.id].u=Date.now(); saveMonth(t.ym); }
   saveCfg(); render(); toast(t.desc+" agora é fixo todo mês."); }
+
+/* =================== extrato por conta =================== */
+/* como o do banco: saldo anterior, cada movimento com o saldo depois dele e o saldo final.
+   Mesmas regras de balanceOf. No cartão de crédito, a fatura do mês. */
+function movsConta(acctId,ym){
+  const a=(S.cfg.accounts||[]).find(x=>x.id===acctId); if(!a) return [];
+  const out=[];
+  txOf(ym).forEach(t=>{
+    if(a.openDate&&t.d<a.openDate) return;
+    let v=0;
+    if(t.k==="t"){ if(t.acct===acctId) v=-t.v; else if(t.acct2===acctId) v=t.v; }
+    else if((t.acct||acctOf(t.card))===acctId){ if(t.k==="e") v=t.v; else if(t.k==="p"||t.method!=="credito") v=-t.v; }
+    if(v) out.push({t,v}); });
+  return out.sort((x,y)=>(x.t.d+(x.t.t||"")).localeCompare(y.t.d+(y.t.t||""))); }
+const diaMes=s=>s.slice(8,10)+"/"+s.slice(5,7);
+function linhaExt(t,v,saldo,hoje){
+  const sub=[t.k==="t"?"Entre contas":t.k==="p"?"Pagamento de fatura":catLabel(t),t.to?"para "+t.to:"",t.n>1?"parcela "+t.i+"/"+t.n:""].filter(Boolean).join(" · ");
+  return '<button class="row" data-ym="'+t.ym+'" data-id="'+t.id+'"><span class="ext-d">'+diaMes(t.d)+'</span>'+
+    '<span class="row-m"><span class="row-d">'+esc(t.desc)+'</span><span class="row-s"><span>'+esc(sub)+'</span>'+(t.d>hoje?'<span class="chip">agendado</span>':'')+'</span></span>'+
+    '<span class="ext-v"><span class="row-v'+(v>0?' plus':'')+'">'+(v>0?"+":"−")+fmtN(Math.abs(v))+'</span>'+(saldo!=null?'<span class="ext-s">'+fmtN(saldo)+'</span>':'')+'</span></button>'; }
+function htmlExtrato(){
+  const ops=(S.cfg.accounts||[]).map(a=>({id:a.id,n:a.n})).concat(creditCards().map(c=>({id:"card:"+c.id,n:c.n})));
+  if(!ops.length) return "";
+  if(!S.ext||!ops.some(o=>o.id===S.ext)) S.ext=ops[0].id;
+  const ym=S.ym, hoje=todayISO(), fimMes=ym+"-"+pad(daysIn(ym)), cartao=S.ext.indexOf("card:")===0;
+  const linhaSaldo=(rot,v,fim)=>'<div class="ext-h'+(fim?' fim':'')+'"><span>'+rot+'</span><b'+(v<0?' style="color:var(--bad)"':'')+'>'+fmtN(v)+'</b></div>';
+  let corpo;
+  if(cartao){
+    const cid=S.ext.slice(5), inv=cardInvoice(cid,ym);
+    const L=txOf(ym).filter(t=>t.card===cid&&t.k==="g"&&t.method==="credito").reverse();
+    const pg=allTx().filter(t=>t.k==="p"&&t.card===cid&&t.ref===ym);
+    corpo=linhaSaldo("Fatura de "+esc(ymLabel(ym)),inv.total)+
+      (L.length?L.map(t=>linhaExt(t,-t.v,null,hoje)).join(""):'<div class="empty" style="padding:14px">Nenhuma compra nesta fatura.</div>')+
+      pg.map(t=>linhaExt(t,t.v,null,hoje)).join("")+
+      linhaSaldo(inv.open>0?"Falta pagar":"Fatura paga",Math.max(0,inv.open),true);
+  } else {
+    const ant=ymShift(ym,-1), ini=balanceOf(S.ext,ant+"-31"), M=movsConta(S.ext,ym); let s=ini;
+    const agendado=M.some(m=>m.t.d>hoje);
+    const rotFim=fimMes<hoje?"Saldo em "+diaMes(fimMes):(ym>ymOf(hoje)||agendado)?"Saldo previsto em "+diaMes(fimMes):"Saldo hoje";
+    corpo=linhaSaldo("Saldo em "+diaMes(ant+"-"+pad(daysIn(ant))),ini)+
+      (M.length?M.map(m=>{ s+=m.v; return linhaExt(m.t,m.v,s,hoje); }).join(""):'<div class="empty" style="padding:14px">Nenhum movimento nesta conta em '+esc(ymLabel(ym))+'.</div>')+
+      linhaSaldo(rotFim,s,true);
+    const pend=fimMes>=hoje?fixedFor(ym).filter(f=>acctOf(f.card)===S.ext&&(S.cfg.cards.find(c=>c.id===f.card)||{}).type!=="credito"):[];
+    if(pend.length) corpo+='<div class="ext-p">Fixos ainda não lançados: '+pend.map(f=>esc(f.name)+" "+fmtN(f.amount)+" (dia "+f.day+")").join(" · ")+'</div>';
+  }
+  return '<div class="sec" id="extSec"><div class="sec-h"><h2 class="sec-t">Extrato de '+esc(ymLabel(ym))+'</h2>'+
+    (cartao?'':'<button class="sec-a" id="extAj">Corrigir saldo</button>')+'</div>'+
+    '<div class="card pad"><div class="segs">'+ops.map(o=>'<button class="seg'+(o.id===S.ext?' on':'')+'" data-ext="'+o.id+'">'+esc(o.n)+'</button>').join("")+'</div>'+
+    corpo+'</div></div>'; }
+function bindExtrato(){
+  $$("[data-ext]").forEach(b=>b.onclick=()=>{ S.ext=b.dataset.ext; renderContas(); });
+  const aj=$("#extAj"); if(aj) aj.onclick=()=>openAcct(S.ext);
+  const box=$("#extSec"); if(box) bindRows(box); }
 
 /* =================== partida =================== */
 $("#mPrev").onclick=()=>{ S.ym=ymShift(S.ym,-1); render(); };
