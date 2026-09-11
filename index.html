@@ -594,6 +594,9 @@ function authMsg(e){ const c=e&&e.code;
   if(c==="scope") return "Para guardar no Drive, marque a permissão do Google Drive na tela do Google.";
   if(c==="tap") return "Toque em Sincronizar para enviar ao Drive.";
   if(c==="other") return "Você entrou com outra conta Google ("+(e.email||"")+"). Entre com "+(S.user?S.user.email:"a sua")+".";
+  if(c==="auth"&&e.msg==="popup_failed_to_open") return "O navegador bloqueou a janela do Google. Permita janelas pop-up para este site e toque de novo.";
+  if(c==="auth"&&e.msg==="popup_closed") return "A janela do Google foi fechada antes de terminar. Toque de novo para entrar.";
+  if(c==="auth"&&e.msg==="access_denied") return "Você não autorizou o acesso na tela do Google. Sem ele, os dados não vão para o seu Drive.";
   if(c==="auth") return "O Google não liberou o acesso"+(e.msg?" ("+e.msg+")":"")+".";
   if(c==="http") return "O Drive respondeu com erro "+e.status+". Tente de novo em instantes.";
   return "Algo deu errado. Tente de novo."; }
