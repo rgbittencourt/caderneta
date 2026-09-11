@@ -69,6 +69,12 @@ details.grp .in{padding:8px 14px 12px}
 .ext-v{display:flex;flex-direction:column;align-items:flex-end;gap:1px}
 .ext-s{font-family:var(--f-m);font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .ext-p{font-size:12px;color:var(--ink-3);padding:10px 2px 0;line-height:1.5}
+.sec-as{display:flex;gap:14px;flex-wrap:wrap}
+.dup{background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--r);padding:11px 12px;margin-top:9px;font-size:12.5px;line-height:1.5}
+.dup.ok{background:var(--surface-2);border-color:var(--line);color:var(--ink-2)}
+.dup-l{margin-top:4px}
+.pisca{animation:pisca 1.5s ease-out 1}
+@keyframes pisca{0%,100%{box-shadow:var(--shadow)}35%{box-shadow:0 0 0 3px var(--accent-line)}}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1529,7 +1535,7 @@ function renderDrafts(){
         (TEM_DESTINO[d.method]?'<div class="f"><label>Para quem</label><input data-k="to" value="'+esc(d.to||"")+'"></div>':'')+
         '<div class="f"><label>Parcelas</label><input inputmode="numeric" data-k="n" value="'+d.n+'"></div>')+
     '<div class="f"><label>Data</label><input type="date" data-k="date" value="'+d.date+'"></div>'+(d.k!=="e"&&(+d.n||1)<=1?'<div class="f"><label>Fixo todo mês</label><input type="checkbox" data-k="fixo" style="width:20px;height:20px"'+(d.fixo?" checked":"")+'></div>':'')+(d.origem?'<div class="f"><label>Incluir</label><input type="checkbox" data-k="incluir" style="width:20px;height:20px"'+(d.incluir!==false?" checked":"")+'></div>':'')+'</div>'+
-    (d.msg?'<div class="draft-msg">'+esc(d.msg)+'</div>':'')+
+    (d.msg?'<div class="draft-msg">'+esc(d.msg)+'</div>':'')+dupHTML(d,i)+
     (d.raw?'<div class="raw">“'+esc(d.raw)+'”</div>':'')+'</div>').join("");
   $$(".draft",box).forEach(el=>{ const i=+el.dataset.i;
     $$("[data-k]",el).forEach(inp=>inp.oninput=()=>{
@@ -1545,6 +1551,9 @@ function renderDrafts(){
         $(".draft-v",el).textContent=d.v?((d.k==="e"?"+":"")+fmt(d.v)):"—";
         $(".draft-d",el).textContent=d.desc||"Sem descrição";
         el.classList.toggle("bad",!d.v); } }); });
+  $$("[data-dupm]",box).forEach(b=>b.onclick=()=>{ const d=S.drafts[+b.dataset.dupm]; d.incluir=false; d.dupResp=1; renderDrafts(); });
+  $$("[data-dupd]",box).forEach(b=>b.onclick=()=>{ const d=S.drafts[+b.dataset.dupd]; d.incluir=true; d.dupResp=1; renderDrafts(); });
+  $$("[data-dupv]",box).forEach(b=>b.onclick=()=>{ S.drafts[+b.dataset.dupv].dupResp=0; renderDrafts(); });
   $$("[data-x]",box).forEach(b=>b.onclick=()=>{ S.drafts.splice(+b.dataset.x,1); renderDrafts(); }); }
 
 function readInput(){
@@ -1562,7 +1571,9 @@ async function saveDrafts(){
   $("#dSave").disabled=true;
   for(const d of ok){ if(d.fixo&&d.k!=="e"&&(+d.n||1)<=1){ const fx={id:uid(),name:d.desc||"Gasto fixo",amount:d.v,day:+String(d.date).slice(8,10)||1,cat:d.cat,card:d.cardId}; (S.cfg.fixed=S.cfg.fixed||[]).push(fx); d.fix=fx.id; fixos++; } await commit(d); } if(fixos) await saveCfg();
   S.drafts=[]; render();
-  toast(ok.length+(ok.length>1?" lançamentos salvos":" lançamento salvo")+(fixos?" · "+fixos+" como fixo todo mês":"")); }
+  toast(ok.length+(ok.length>1?" lançamentos salvos":" lançamento salvo")+(fixos?" · "+fixos+" como fixo todo mês":""));
+  const sd=S.docSaldo; S.docSaldo=null;
+  if(sd&&sd.conta&&sd.saldo) setTimeout(()=>openAcerto(sd.conta,sd.saldo),700); }
 
 /* =================== mês =================== */
 function renderMes(){
@@ -2431,12 +2442,14 @@ async function lerDoc(arquivo){
   finally{ btns.forEach(b=>b.disabled=false); } }
 function mostrarLidos(r,op){
   S.drafts=rascunhosDoc(r,op);
+  S.docSaldo=(r.tipo==="extrato"&&r.saldos&&op.conta)?{conta:op.conta,saldo:saldoDoDoc(r,S.drafts)}:null;
   const rep=S.drafts.filter(d=>d.incluir===false).length, n=S.drafts.length;
   const de={fatura:"da fatura",extrato:"do extrato",cupom:"do canhoto",boleto:"do boleto"}[r.tipo]||"do documento";
   const st=$("#parseStatus"); st.hidden=false;
   st.textContent=n+(n>1?" lançamentos lidos ":" lançamento lido ")+de+
     (rep?" · "+rep+(rep>1?" parecem já lançados e ficaram desmarcados":" parece já lançado e ficou desmarcado"):"")+
-    (r.estornos?" · "+r.estornos+(r.estornos>1?" estornos ficaram de fora":" estorno ficou de fora"):"");
+    (r.estornos?" · "+r.estornos+(r.estornos>1?" estornos ficaram de fora":" estorno ficou de fora"):"")+
+    (S.docSaldo&&S.docSaldo.saldo?" · o banco diz saldo de "+fmt(S.docSaldo.saldo.v)+" em "+diaMesAno(S.docSaldo.saldo.d):"");
   renderDrafts(); $("#draftSec").scrollIntoView({behavior:"smooth",block:"start"}); }
 
 function rascunhosDoc(r,op){
@@ -2457,7 +2470,7 @@ function rascunhosDoc(r,op){
       d.cardId=c.id; d.method=c.type; d.raw="Canhoto"; }
     d.cat=(l.cat&&S.cfg.cats.some(c=>c.id===l.cat))?l.cat:guessCat(d.desc,S.cfg,d.k);
     const rep=pareceRepetido(d);
-    if(rep){ d.incluir=false; d.msg="Parece já lançado: "+rep.desc+" em "+rep.d.slice(8,10)+"/"+rep.d.slice(5,7)+". Marque Incluir se for outro."; }
+    if(rep){ d.incluir=false; d.dup={ym:rep.ym,id:rep.id,desc:rep.desc,d:rep.d,v:rep.v,card:rep.card||"",k:rep.k}; }
     return d; }); }
 
 /* o mesmo gasto já lançado por voz ou por outro documento: mesmo valor, mesma data (±3 dias) */
@@ -2785,13 +2798,96 @@ function htmlExtrato(){
     if(pend.length) corpo+='<div class="ext-p">Fixos ainda não lançados: '+pend.map(f=>esc(f.name)+" "+fmtN(f.amount)+" (dia "+f.day+")").join(" · ")+'</div>';
   }
   return '<div class="sec" id="extSec"><div class="sec-h"><h2 class="sec-t">Extrato de '+esc(ymLabel(ym))+'</h2>'+
-    (cartao?'':'<button class="sec-a" id="extAj">Corrigir saldo</button>')+'</div>'+
+    '<span class="sec-as">'+(cartao?'':'<button class="sec-a" id="extAj">Corrigir saldo</button>')+'<button class="sec-a" id="extImp">Importar '+(cartao?'fatura':'extrato')+'</button><button class="sec-a" id="extDup">Repetidos</button></span></div>'+
     '<div class="card pad"><div class="segs">'+ops.map(o=>'<button class="seg'+(o.id===S.ext?' on':'')+'" data-ext="'+o.id+'">'+esc(o.n)+'</button>').join("")+'</div>'+
     corpo+'</div></div>'; }
 function bindExtrato(){
   $$("[data-ext]").forEach(b=>b.onclick=()=>{ S.ext=b.dataset.ext; renderContas(); });
   const aj=$("#extAj"); if(aj) aj.onclick=()=>openAcct(S.ext);
+  const im=$("#extImp"); if(im) im.onclick=()=>importarPara(S.ext);
+  const dp=$("#extDup"); if(dp) dp.onclick=procurarRepetidos;
   const box=$("#extSec"); if(box) bindRows(box); }
+
+/* =================== importar, acertar saldo e repetidos =================== */
+/* leva ao leitor já sabendo de quem é o documento */
+function importarPara(alvo){
+  const cartao=alvo.indexOf("card:")===0, id=cartao?alvo.slice(5):alvo;
+  setView("lancar");
+  const t=$("#docTipo"); if(!t){ toast("Abra a aba Lançar para ler o documento."); return; }
+  t.value=cartao?"fatura":"extrato"; t.onchange();
+  if(cartao){ $("#docCard").value=id; $("#docMes").value=S.ym; } else $("#docConta").value=id;
+  const box=t.closest(".card");
+  if(box){ box.scrollIntoView({behavior:"smooth",block:"center"}); box.classList.add("pisca"); setTimeout(()=>box.classList.remove("pisca"),1600); }
+  toast(cartao?"Escolha a fatura do "+cardName(id)+" de "+ymLabel(S.ym):"Escolha o extrato de "+acctName(id));
+  $("#docArq").click(); }
+
+/* o saldo impresso no extrato vira acerto da conta */
+function saldoDoDoc(r,drafts){
+  const s=r.saldos||{}, datas=(drafts||[]).map(d=>d.date).filter(Boolean).sort();
+  if(s.final&&(s.final.d||datas.length)) return {v:s.final.v, d:s.final.d||datas[datas.length-1]};
+  if(s.anterior){
+    if(s.anterior.d) return {v:s.anterior.v, d:s.anterior.d};
+    if(datas.length) return {v:s.anterior.v, d:new Date(Date.parse(datas[0]+"T12:00:00")-86400000).toISOString().slice(0,10)}; }
+  return null; }
+function openAcerto(acctId,s){
+  const a=(S.cfg.accounts||[]).find(x=>x.id===acctId); if(!a||!s||!s.d) return;
+  const calc=balanceOf(acctId,s.d), dif=s.v-calc;
+  sheet("Conferir o saldo da conta",
+    '<div class="set"><div class="note"><b>'+esc(a.n)+'</b>O extrato diz que em '+diaMesAno(s.d)+' o saldo era '+fmt(s.v)+'.</div>'+
+    '<div class="linkrow"><div class="m"><div class="t">A Caderneta calcula</div><div class="s">no mesmo dia</div></div><span class="row-v">'+fmtN(calc)+'</span></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Diferença</div><div class="s">'+(dif===0?"está batendo":dif>0?"falta entrar dinheiro aqui":"tem gasto a mais aqui")+'</div></div>'+
+    '<span class="row-v'+(dif>0?" plus":"")+'">'+(dif>0?"+":"")+fmtN(dif)+'</span></div>'+
+    (dif?'<div class="set-f"><span class="hint">Acertando, a diferença fica registrada como acerto e o saldo passa a bater com o do banco. Faça isso depois de conferir os lançamentos do extrato: a diferença pode ser só coisa que ainda não foi lançada.</span></div>':'')+'</div>',
+    '<button class="btn ghost" id="acX">Deixar como está</button>'+(dif?'<button class="btn" id="acOk">Acertar</button>':''));
+  $("#acX").onclick=closeSheet;
+  const ok=$("#acOk");
+  if(ok) ok.onclick=()=>{ a.opening=(a.opening||0)+dif; a.adjust=(a.adjust||[]).concat([{d:s.d,delta:dif}]).slice(-20);
+    saveCfg(); closeSheet(); render(); toast("Saldo acertado em "+(dif>0?"+":"")+fmt(dif)); }; }
+
+/* na conferência: mostra o que já está lançado e pergunta antes de descartar */
+function dupHTML(d,i){
+  if(!d.dup) return "";
+  const t=d.dup;
+  if(d.dupResp) return '<div class="dup ok">'+(d.incluir?"Você disse que são dois lançamentos diferentes: este vai entrar.":"Você disse que é o mesmo: este não vai entrar.")+
+    ' <button class="mini" data-dupv="'+i+'">mudar</button></div>';
+  return '<div class="dup"><b>Isto já está lançado?</b>'+
+    '<div class="dup-l">Na Caderneta: <b>'+esc(t.desc)+'</b> · '+diaMesAno(t.d)+' · '+fmtN(t.v)+(t.card?' · '+esc(cardName(t.card)):'')+'</div>'+
+    '<div class="dup-l">No documento: <b>'+esc(d.desc)+'</b> · '+diaMesAno(d.date)+' · '+fmtN(d.v)+'</div>'+
+    '<div class="ins-a"><button class="mini" data-dupm="'+i+'">É o mesmo — não lançar</button>'+
+    '<button class="mini" data-dupd="'+i+'">São diferentes — lançar</button></div></div>'; }
+
+/* já lançados: dois iguais no mesmo lugar, com até 3 dias de diferença */
+function repetidosDe(alvo,ym){
+  const cartao=alvo.indexOf("card:")===0, cid=cartao?alvo.slice(5):"";
+  const L=txOf(ym).filter(t=>cartao?(t.card===cid&&t.k==="g"&&t.method==="credito")
+    :((t.acct||acctOf(t.card))===alvo||t.acct2===alvo)).slice().sort((a,b)=>a.d.localeCompare(b.d));
+  const pares=[], usado={};
+  for(let i=0;i<L.length;i++) for(let j=i+1;j<L.length;j++){
+    const a=L[i], b=L[j];
+    if(usado[a.id]||usado[b.id]) continue;
+    if(a.k!==b.k||Math.abs(a.v-b.v)>1) continue;
+    if(a.plan||b.plan) continue;                       /* parcela pertence a uma compra: nunca é repetida */
+    if((a.card||"")!==(b.card||"")) continue;
+    if(Math.abs(Date.parse(a.d+"T12:00:00")-Date.parse(b.d+"T12:00:00"))>3*86400000) continue;
+    const pa=norm(a.desc).split(" ").filter(w=>w.length>3), pb=norm(b.desc).split(" ").filter(w=>w.length>3);
+    if(a.cat!==b.cat&&!pa.some(w=>pb.indexOf(w)>=0)) continue;   /* mesma categoria, ou alguma palavra em comum */
+    pares.push([a,b]); usado[a.id]=usado[b.id]=1; }
+  return pares; }
+function procurarRepetidos(){
+  const pares=repetidosDe(S.ext,S.ym);
+  if(!pares.length){ toast("Nenhum lançamento repetido em "+ymLabel(S.ym)+"."); return; }
+  openRepetido(pares,0); }
+function openRepetido(pares,i){
+  if(i>=pares.length){ closeSheet(); render(); toast("Conferência dos repetidos terminada."); return; }
+  const par=pares[i], a=par[0], b=par[1];
+  const linha=(rot,t)=>'<div class="dup-l"><b>'+rot+':</b> '+esc(t.desc)+' · '+diaMesAno(t.d)+' · '+fmtN(t.v)+' · '+esc(catLabel(t))+
+    (t.card?' · '+esc(cardName(t.card)):'')+(t.n>1?' · parcela '+t.i+'/'+t.n:'')+'</div>';
+  sheet("Parecem o mesmo lançamento ("+(i+1)+" de "+pares.length+")",
+    '<div class="set"><div class="dup">'+linha("Primeiro",a)+linha("Segundo",b)+'</div>'+
+    '<div class="set-f"><span class="hint">Se foram duas compras de verdade, no mesmo valor e quase no mesmo dia, escolha <b>São diferentes</b>. Só apague se for a mesma coisa lançada duas vezes.</span></div></div>',
+    '<button class="btn ghost" id="rpN">São diferentes</button><button class="btn danger" id="rpD">Apagar o segundo</button>');
+  $("#rpN").onclick=()=>openRepetido(pares,i+1);
+  $("#rpD").onclick=async()=>{ await removeTx(b.ym,b.id,false); toast("Apagado: "+b.desc); openRepetido(pares,i+1); }; }
 
 /* =================== partida =================== */
 $("#mPrev").onclick=()=>{ S.ym=ymShift(S.ym,-1); render(); };

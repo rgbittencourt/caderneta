@@ -35,12 +35,14 @@ Leia este arquivo inteiro antes de mudar qualquer coisa. Ao mudar arquitetura, f
    - Aba Análises: `renderAnalises` → `diagnostico` + `diagHTML` (achados com gravidade e botões de ação, guardados em `ACOES`), `htmlPagamentos`, `htmlParcelados`, `htmlDividas`.
    - Dívidas: `TIPOS_DIVIDA`, `saldoPrice`, `quitar`, `normDivida`, `vencDivida`, `estadoDivida`, `consignadoNoMes`, `simulacao`, `openDivida`. Gastos que se repetem: `recorrentes`, `tornarFixo`.
    - Extrato por conta e fatura do cartão, na aba Contas: `movsConta`, `linhaExt`, `htmlExtrato`, `bindExtrato` (a seleção fica em `S.ext`; `card:<id>` é cartão).
+   - Importar, acertar e repetidos: `importarPara` (leva ao leitor já com tipo, cartão ou conta e mês), `saldoDoDoc` + `openAcerto` (acerto pelo saldo impresso no extrato), `dupHTML` (a pergunta na conferência) e `repetidosDe`/`procurarRepetidos`/`openRepetido` (repetidos já lançados).
 9. **Partida** — `boot()` no fim do arquivo.
 
 Outros arquivos:
 - `leitor.js` — leitor de documentos, 100% no aparelho. PDF com texto: pdf.js 3.11.174 (cdnjs). Foto ou PDF escaneado: Tesseract.js 5.1.1 (jsdelivr), idioma `por`. Boleto: `BarcodeDetector` (formato ITF) quando existe, senão a linha digitável reconhecida no texto; aceita só código que passa nos dígitos verificadores (módulo 10/11; fator de vencimento com o ciclo que recomeçou em 22/02/2025). Expõe `window.Leitor` (`ler`, `lerLancamentos`, `lerCupom`, `lerBoleto`, `adivinharTipo`). As bibliotecas baixam na primeira vez e ficam no cache `caderneta-libs`.
   - Fatura: parcela `03/10` vira `i0=3, n=10`; `commit` cria da 3ª à 10ª a partir do mês da fatura (`d.ym`). Pagamento da fatura e estornos ficam de fora.
   - Extrato: C/D e sinal decidem entrada ou saída; sem marca, palavras como *recebido*, *salário* e *estorno* indicam entrada; a coluna de saldo é ignorada.
+  - `saldosDoExtrato` lê o saldo que o banco imprime (*saldo anterior* e *saldo final/do dia/em DD/MM*, com a data quando existe). Depois de gravar os lançamentos, o app compara com o calculado e oferece o acerto (`openAcerto`). O acerto nunca é automático.
   - Tudo cai na conferência (`S.drafts`), com a caixa *Incluir* — desmarcada quando `pareceRepetido` acha o mesmo valor em até 3 dias ou a mesma parcela — e *Fixo todo mês*, que cria um gasto fixo ligado ao lançamento (`fix`).
   - Os campos da ficha *Ler documento* aparecem conforme o tipo escolhido (atributo `data-doc`). Canhoto e boleto têm *Pago com* (guardado em `S.docPago`): essa escolha vence o que o documento diz e define débito, Pix, boleto ou cartão. Em branco, vale o que está escrito no documento. Cada linha ainda pode ser mudada uma a uma na conferência.
 - `sw.js` — guarda o app (`APP`) para uso offline. Página com `cache: "no-cache"` e `config.js` com `"no-store"`: rede primeiro, cópia guardada se não houver internet. Ícones: cópia guardada primeiro. Fontes do Google: cache próprio. APIs do Google: nunca passam pelo cache.
@@ -56,6 +58,7 @@ Outros arquivos:
   - Compra parcelada: uma linha por mês com o mesmo `plan`, `i`/`n` e `total`. O dia do fechamento do cartão empurra a compra para a fatura seguinte.
   - Compra no crédito não sai da conta no dia; sai no pagamento da fatura (`k:"p"`, `ref` = mês da fatura).
 - `cfg` — renda, teto, meta de saldo, contas (saldo inicial + acertos), cartões, categorias (com limite), categorias de entrada, gastos fixos, palavras aprendidas (`kwCat`, `kwCard`), meta de poupança; `cfg.u` = última alteração.
+- Acerto de saldo: soma a diferença em `a.opening` e guarda `{d, delta}` em `a.adjust` (últimos 20). Vem da ficha da conta ou do saldo impresso no extrato. **Nunca apague lançamento por conta própria, nem acerte saldo sozinho:** duplicado e acerto sempre passam por uma pergunta ao dono (`dupHTML`, `openRepetido`, `openAcerto`).
 - Gasto fixo: `cfg.fixed[]` → `{id, name, amount, day, cat, card, desde?, ate?, divida?}`. `desde` e `ate` (`AAAA-MM`) limitam os meses em que ele vale (`fixedFor`). Um lançamento ligado a ele (`fix` = id) marca o mês como pago. `openFix` preserva os campos extras ao salvar.
 - **Dívidas:** `cfg.dividas[]` → `{id, nome, tipo, parcela, total, inicio, dia, juros, card, folha, fixId}`.
   - `parcela` em centavos; `total` = parcelas do contrato; `inicio` = mês (`AAAA-MM`) da 1ª parcela; `dia` = dia do vencimento ou do desconto; `juros` em % ao mês (`""` quando não informado).

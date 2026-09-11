@@ -33,7 +33,10 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
   - *Descontada direto do salário* (consignado): a parcela não vira gasto, porque o salário já cai na conta com o desconto. A dívida continua aparecendo aqui.
   - Nas outras, a parcela entra sozinha nos gastos fixos até a última.
 
-**Extrato** (aba Contas): escolha a conta ou o cartão. Na conta, aparece o saldo anterior, cada entrada e saída com o saldo depois dela, e o saldo no fim do mês; no cartão, a fatura daquele mês. Toque em qualquer linha para corrigir o lançamento.
+**Extrato** (aba Contas): escolha a conta ou o cartão. Na conta, aparece o saldo anterior, cada entrada e saída com o saldo depois dela, e o saldo no fim do mês; no cartão, a fatura daquele mês. Toque em qualquer linha para corrigir o lançamento. No alto do extrato há três atalhos:
+- **Importar extrato / Importar fatura:** já abre o leitor sabendo de que conta ou cartão é o documento — é só escolher o arquivo ou a foto.
+- **Corrigir saldo:** quando o extrato traz o saldo impresso pelo banco, o app compara com o que ele calculou, mostra a diferença e pergunta se pode acertar. Faça isso depois de conferir os lançamentos.
+- **Repetidos:** procura, no mês, dois lançamentos iguais no mesmo lugar. Ele mostra os dois lado a lado e pergunta se é a mesma coisa; só apaga se você mandar. Parcelas de compras parceladas ficam de fora dessa busca.
 
 **Sem internet** funciona normalmente: tudo é salvo no aparelho e vai para o Drive quando a conexão volta. O acesso ao Drive dura cerca de uma hora; depois disso aparece *Sincronizar* no topo — um toque e pronto.
 

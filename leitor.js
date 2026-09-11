@@ -158,6 +158,24 @@ function lerLancamentos(texto,tipo,mes){
     linhas.push({d:dt.iso, desc:capitalizar(desc), v:val.v, k, i0, n}); });
   return {linhas, ignoradas, estornos}; }
 
+/* ---- saldo que o próprio banco imprime: serve para acertar a conta ---- */
+function saldosDoExtrato(texto,mes){
+  const ref=(mes||mesDeHoje()).split("-").map(Number), ano=ref[0], mesRef=ref[1];
+  const out={anterior:null, final:null};
+  String(texto||"").split(/\r?\n/).forEach(bruta=>{
+    const linha=bruta.replace(/[|•]/g," ").replace(/\s+/g," ").trim(); if(linha.length<8) return;
+    const sem=semAcento(linha).toLowerCase();
+    if(sem.indexOf("saldo")<0) return;
+    const vals=valores(linha); if(!vals.length) return;
+    const val=vals[vals.length-1], v=val.neg?-val.v:val.v;
+    let d="";
+    const m=linha.match(/(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?(?!\d)/);
+    if(m){ const dia=+m[1], mo=+m[2]; let y=m[3]?(m[3].length===2?2000+(+m[3]):+m[3]):0;
+      if(dia>=1&&dia<=31&&mo>=1&&mo<=12){ if(!y){ y=ano; if(mo>mesRef+1) y=ano-1; } d=y+"-"+pad(mo)+"-"+pad(dia); } }
+    if(/saldo (anterior|inicial)/.test(sem)){ if(!out.anterior) out.anterior={v,d}; return; }
+    if(/saldo (final|atual|do dia|disponivel|em conta)/.test(sem)||/^saldo\b/.test(sem)) out.final={v,d}; });
+  return (out.anterior||out.final)?out:null; }
+
 /* sem o tipo escolhido, tenta descobrir pelo conteúdo */
 function adivinharTipo(texto,codigo){
   if(codigo) return "boleto";
@@ -249,8 +267,10 @@ async function ler(arquivo,op){
     if(!codigo){ if(progCb) progCb(0,"preparando"); texto=ehPdf?await textoDoPdf(arquivo):await ocr(await paraCanvas(arquivo)); }
     const tipo=op.tipo&&op.tipo!=="auto"?op.tipo:adivinharTipo(texto,codigo);
     const r=tipo==="boleto"?lerBoleto(codigo||texto):tipo==="cupom"?lerCupom(texto):lerLancamentos(texto,tipo,op.mes);
-    r.tipo=tipo; r.texto=texto; return r;
+    r.tipo=tipo; r.texto=texto;
+    if(tipo==="extrato") r.saldos=saldosDoExtrato(texto,op.mes);
+    return r;
   } finally { progCb=null; } }
 
-window.Leitor={ler, lerBoleto, lerCupom, lerLancamentos, adivinharTipo, linhasDoPdf, _dv:{mod10,mod11Banco,mod11Arrec,decodificar}};
+window.Leitor={ler, lerBoleto, lerCupom, lerLancamentos, saldosDoExtrato, adivinharTipo, linhasDoPdf, _dv:{mod10,mod11Banco,mod11Arrec,decodificar}};
 })();
