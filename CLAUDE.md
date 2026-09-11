@@ -16,6 +16,7 @@ Leia este arquivo inteiro antes de mudar qualquer coisa. Ao mudar arquitetura, f
 - Explique em linguagem simples. Ele não é programador.
 - **Nunca peça senha, token ou chave secreta no chat.** Autorizações do GitHub e do Google são sempre feitas por ele, no navegador.
 - Não coloque dados pessoais ou financeiros dele neste repositório: ele é público.
+- Diagnóstico e sugestões do app são educativos (orçamento, dívidas, hábitos). Nada de recomendar investimento específico.
 
 ## Arquitetura
 
@@ -25,10 +26,14 @@ Leia este arquivo inteiro antes de mudar qualquer coisa. Ao mudar arquitetura, f
 2. **Padrões** — categorias de gasto (`CATS` + palavras-chave `KW`), de entrada (`ECATS` + `EKW`), contas (`ACCTS`), formas de pagamento (`CARDS`), `DEFAULTS()`.
 3. **Conta, armazenamento e sincronização** — estado `S`, `loadLocal`/`saveLocal`/`touch`, `mergeData`, login (Google Identity Services), Drive (`gfetch`, `ensureFolder`, `writeJson`), `syncNow`, porta de entrada (`showGate`), cabeçalho (`renderSyncBadge`, `openAccount`), instalação, service worker, `boot`.
 4. **Leitura da fala** — `parseOne`: números por extenso, parcelas, forma de pagamento, cartão (inclusive apelidos aprendidos), valor, "pra quem", descrição, categoria (`guessCat`: a palavra que aparece primeiro na frase manda). `splitUtterance` separa vários lançamentos por ponto final.
-5. **Gravação e consultas** — `commit`, `removeTx`, `txOf`, `balanceOf`, `cardInvoice`, `cardOwed`, `monthStats`, `projectMonth`, `futureMonths`, `openPlans`, `buildInsights`.
+5. **Gravação e consultas** — `commit`, `removeTx`, `txOf`, `balanceOf`, `cardInvoice`, `cardOwed`, `fixedFor`, `monthStats`, `projectMonth`, `futureMonths`, `openPlans`, `buildInsights`.
 6. **Gráficos SVG** — `chartBarsH`, `chartPace`, `chartCols`, `chartStack`, `bindTips`, `tableView`.
-7. **Telas e fichas** — `render()` chama `renderPainel/Lancar/Mes/Contas/Futuro/Meta/Ajustes`; fichas com `sheet()`: `openTx`, `openManual`, `openAcct`, `openPay`, `openTransfer`, `openCard`, `openCat`, `openEcat`, `openFix`, `openKw`, `openRestore`, `openGoal`, `openDeposit`.
-8. **Método 50-30-20 e ler documento** — `grupoDe`, `migrarCfg`, `resumo5030`, `render5030`, `openMetodo`; `htmlLeitorDoc`, `montarLeitorDoc`, `lerDoc`, `mostrarLidos`, `rascunhosDoc`, `pareceRepetido`, `openLinhaBoleto`.
+7. **Telas e fichas** — `render()` chama `renderPainel/Lancar/Mes/Contas/Futuro/Meta/Analises/Ajustes`; fichas com `sheet()`: `openTx`, `openManual`, `openAcct`, `openPay`, `openTransfer`, `openCard`, `openCat`, `openEcat`, `openFix`, `openKw`, `openRestore`, `openGoal`, `openDeposit`.
+8. **Método 50-30-20, ler documento, análises e dívidas**
+   - 50-30-20: `grupoDe`, `migrarCfg`, `resumo5030`, `arco` + `chartDonut5030` (a rosca), `render5030`, `openMetodo`.
+   - Ler documento: `htmlLeitorDoc`, `montarLeitorDoc`, `lerDoc`, `mostrarLidos`, `rascunhosDoc`, `pareceRepetido`, `openLinhaBoleto`.
+   - Aba Análises: `renderAnalises` → `diagnostico` + `diagHTML` (achados com gravidade e botões de ação, guardados em `ACOES`), `htmlPagamentos`, `htmlParcelados`, `htmlDividas`.
+   - Dívidas: `TIPOS_DIVIDA`, `saldoPrice`, `quitar`, `estadoDivida`, `simulacao`, `openDivida`. Gastos que se repetem: `recorrentes`, `tornarFixo`.
 9. **Partida** — `boot()` no fim do arquivo.
 
 Outros arquivos:
@@ -49,11 +54,31 @@ Outros arquivos:
   - Compra parcelada: uma linha por mês com o mesmo `plan`, `i`/`n` e `total`. O dia do fechamento do cartão empurra a compra para a fatura seguinte.
   - Compra no crédito não sai da conta no dia; sai no pagamento da fatura (`k:"p"`, `ref` = mês da fatura).
 - `cfg` — renda, teto, meta de saldo, contas (saldo inicial + acertos), cartões, categorias (com limite), categorias de entrada, gastos fixos, palavras aprendidas (`kwCat`, `kwCard`), meta de poupança; `cfg.u` = última alteração.
+- Gasto fixo: `cfg.fixed[]` → `{id, name, amount, day, cat, card, desde?, ate?, divida?}`. `desde` e `ate` (`AAAA-MM`) limitam os meses em que ele vale (`fixedFor`). Um lançamento ligado a ele (`fix` = id) marca o mês como pago. `openFix` preserva os campos extras ao salvar.
+- **Dívidas:** `cfg.dividas[]` → `{id, nome, tipo, parcela, restantes, juros, dia, card, desde, fixId}`.
+  - `parcela` em centavos; `juros` em % ao mês (`""` quando não informado); `desde` = mês do cadastro; `restantes` = parcelas que faltavam no cadastro.
+  - Cada dívida cria um gasto fixo (`fixId`) na categoria `divida`, de `desde` até `desde + restantes − 1`. Pagas = lançamentos com `fix === fixId` a partir de `desde`; faltam = `restantes − pagas`. Ao editar, a ficha mostra quantas faltam agora e guarda `restantes = faltam + pagas`.
+  - Saldo pela tabela Price: `S = P·(1 − (1+i)^−n)/i`; juros que faltam = `P·n − S`. Sem juro informado: saldo = `P·n` e nenhuma simulação.
+  - Simulação: adiantar 20% da parcela (mínimo R$ 50, arredondado em R$ 10). Meses até quitar pagando `Q`: `m = −ln(1 − S·i/Q)/ln(1+i)`. Economia = juros com `P` − juros com `P + E`.
 - **Junção entre aparelhos** (`mergeData`): lançamentos pela união por id; em conflito vence o `u` maior. O `cfg` inteiro vence pelo `u` maior. Toda escrita precisa passar por `commit`, `saveCfg` ou `saveMonth`, que atualizam `u` e agendam a sincronização.
-- Método 50-30-20: `cfg.metodo = {nec, des, fut}` (percentuais que somam 100) e `cats[].grupo` (`nec`, `des` ou `fut`; sem grupo vale `GRUPO_PADRAO`, e o resto é Desejo). Futuro realizado = gastos das categorias `fut` + o maior entre o que foi marcado em *Guardei um dinheiro* e o transferido para contas de poupança/investimento no mês — costumam ser o mesmo dinheiro. Necessidades e Desejos são tetos; Futuro é piso.
+- Método 50-30-20: `cfg.metodo = {nec, des, fut}` (percentuais que somam 100) e `cats[].grupo` (`nec`, `des` ou `fut`; sem grupo vale `GRUPO_PADRAO`, e o resto é Desejo). Futuro realizado = gastos das categorias `fut` (inclusive `divida`) + o maior entre o que foi marcado em *Guardei um dinheiro* e o transferido para contas de poupança/investimento no mês — costumam ser o mesmo dinheiro. Necessidades e Desejos são tetos; Futuro é piso.
 - Configuração que já existe nos aparelhos e ganha algo novo: acrescente em `migrarCfg()` sob uma marca nova (`cfg.m1`, `cfg.m2`…), sem desfazer escolha do dono.
 - Campo novo: sempre com valor padrão em `DEFAULTS()`. Os dados antigos entram por `Object.assign(DEFAULTS(), cfg)`.
 - Restaurar backup aceita `app` = `caderneta`, `caderneta-casa` ou `meu-caixa` (versões antigas) e **junta** com o que já existe.
+
+## Aba Análises: regras do diagnóstico
+
+Cada achado tem gravidade (crítico, atenção, informação, boa notícia), um texto curto e, quando dá, um botão de ação. Ordem na tela: crítico → atenção → informação → boa notícia.
+
+- **Teto:** no mês corrente, a projeção pelo ritmo (`monthStats().pace`) contra o teto e o limite por dia que ainda cabe; em mês passado, quanto fechou acima ou abaixo.
+- **50-30-20:** Necessidades ou Desejos acima da meta, com as duas maiores categorias do grupo; Futuro abaixo da meta, dizendo quanto da folga de Desejos cobriria a diferença.
+- **Renda comprometida** = (parcelas do mês + fixos vigentes, inclusive dívidas) ÷ renda. Acima de 30%: atenção. Acima de 50%: crítico.
+- **Parcelas que terminam:** o primeiro mês, nos próximos 12, em que as parcelas caem pelo menos R$ 50 e 10% → "sobram R$ X por mês".
+- **Parece gasto fixo** (`recorrentes`): mesma chave (as duas primeiras palavras com mais de duas letras da descrição) em pelo menos 2 dos últimos 3 meses, uma vez por mês, com valores a até 15% da média, e ainda não marcado como fixo → botão *Marcar como fixo*.
+- **Assinaturas e telefone:** o valor do mês × 12.
+- **Cartão:** limite usado, contando as parcelas futuras (`cardOwed`). Acima de 80%: atenção. Acima de 95%: crítico.
+- **Dívida mais cara:** juros ≥ 3% ao mês: atenção; ≥ 8%: crítico. Mostra os juros que faltam e a economia de adiantar.
+- **Categoria subindo** três meses seguidos, mais de 10% a cada mês, chegando a pelo menos R$ 100.
 
 ## Google
 
@@ -69,9 +94,11 @@ Outros arquivos:
 
 - Paleta **ardósia e azul-aço**, com tokens para tema claro e escuro (bloco `:root`, depois `prefers-color-scheme` e `[data-theme]`). Acento `#2563A8` no claro, `#5B9BD5` no escuro.
 - Categórica validada: azul → cobre → roxo (`--c1`, `--c2`, `--c3`). Azul e roxo ficam indistinguíveis sob deuteranopia se ficarem encostados: a ordem da pilha é fixa, com o cobre no meio.
-- Gasto por categoria é magnitude: barras de uma cor só. Bom, atenção e ruim sempre acompanhados de rótulo.
+- Rosca só para parte de um todo, com até 6 fatias — hoje, só o 50-30-20. Ela tem um entalhe fixo de 5° no topo e 1,6° entre as fatias, para que o azul (Necessidades) e o roxo (Futuro) nunca se encostem. Anel fino de fora = meta; anel grosso de dentro = realizado; o que sobra da renda fica em cinza (*Sem destino*).
+- Gasto por categoria, por cartão e por forma de pagamento é magnitude: barras de uma cor só. Bom, atenção e ruim sempre acompanhados de rótulo.
+- Todo gráfico tem `tableView` logo abaixo, com os números.
 - Fontes: IBM Plex Sans (interface) e IBM Plex Mono (valores).
-- Celular: abas embaixo. A partir de 960px: menu lateral.
+- Celular: abas embaixo; Futuro, Meta, Análises e Ajustes ficam em *Mais*. A partir de 960px: menu lateral.
 
 ## Publicar
 
@@ -91,8 +118,15 @@ Primeira publicação num computador novo: o dono autoriza no navegador (Git Cre
   - duas contas *só neste aparelho*, com dados isolados entre elas;
   - lançar por fala (*Ver exemplo* na aba Lançar);
   - restaurar um backup antigo (`app: "caderneta-casa"`);
-  - sincronização com `fetch` simulado para a API do Drive: dois "aparelhos" com lançamentos diferentes → o Drive tem que terminar com a união.
+  - sincronização com `fetch` simulado para a API do Drive: dois "aparelhos" com lançamentos diferentes → o Drive tem que terminar com a união;
+  - aba Análises com dados de exemplo: compra parcelada, uma dívida com juros, um gasto repetido em três meses (tem que aparecer *Parece gasto fixo*).
 - O login real com o Google só funciona na origem autorizada. Para testar em `localhost`, é preciso incluir `http://localhost:8765` nas origens do cliente OAuth.
+
+## Situação e próximos passos
+
+- **Publicado:** `caderneta-v5` (setembro de 2026). Tem lançamento por fala, leitura de documento, fixo todo mês, 50-30-20 com rosca, e a aba Análises (diagnóstico, parcelados, dívidas, cartões e formas de pagamento).
+- **Falta testar com dados reais do dono:** a leitura das faturas e extratos dos bancos dele — até agora só com amostras — e o login no iPhone com o app instalado.
+- **Para continuar em outro computador** (o dono também usa um MacBook Air): abra uma conversa do Claude Code na pasta do repositório, rode `git pull` e leia este arquivo. Se a pasta ainda não existe, clone `https://github.com/rgbittencourt/caderneta`.
 
 ## Histórico
 

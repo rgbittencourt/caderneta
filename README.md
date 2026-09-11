@@ -23,7 +23,13 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **Fixo todo mês:** marque na conferência — ou em *Tornar fixo*, ao editar um lançamento — o que se repete todo mês: aluguel, escola, assinaturas.
 
-**Método 50-30-20** (aba Meta): divide a renda líquida em Necessidades, Desejos e Futuro. Os percentuais e o grupo de cada categoria são ajustáveis.
+**Método 50-30-20** (aba Meta): divide a renda líquida em Necessidades, Desejos e Futuro. A rosca mostra a meta (anel de fora) e para onde a renda foi (anel de dentro); abaixo, o que tem em cada grupo. Os percentuais e o grupo de cada categoria são ajustáveis.
+
+**Análises** (no menu lateral, ou em *Mais* no celular):
+- **Diagnóstico do mês, com sugestões:** o ritmo contra o teto, o 50-30-20, quanto da renda já sai comprometida, os gastos que parecem fixos, o cartão perto do limite e a categoria que vem subindo.
+- **Compras parceladas:** quando cada uma termina e quanto sobra por mês depois.
+- **Gastos por cartão e forma de pagamento.**
+- **Dívidas:** cadastre empréstimos e financiamentos com a parcela, quantas faltam e o juro ao mês. O app estima o saldo e os juros que faltam, mostra quando termina e quanto você economiza adiantando um pouco por mês. A parcela entra sozinha nos gastos fixos até a última.
 
 **Sem internet** funciona normalmente: tudo é salvo no aparelho e vai para o Drive quando a conexão volta. O acesso ao Drive dura cerca de uma hora; depois disso aparece *Sincronizar* no topo — um toque e pronto.
 
