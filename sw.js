@@ -1,6 +1,6 @@
 /* Caderneta — service worker: guarda o app no aparelho para abrir sem internet.
    Mude VERSAO a cada publicação para os aparelhos pegarem a versão nova. */
-const VERSAO = "caderneta-v1";
+const VERSAO = "caderneta-v2";
 const FONTES = "caderneta-fontes";
 const APP = ["./", "./index.html", "./manifest.webmanifest", "./config.js",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];

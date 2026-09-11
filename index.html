@@ -786,18 +786,18 @@ function topNotices(){
   return h; }
 
 /* ---- atualização do app ---- */
+let pediuAtualizar=false;   // só recarrega quando a pessoa pede a versão nova — na primeira instalação, não
 function registerSW(){
   if(!("serviceWorker" in navigator)||!/^https?:$/.test(location.protocol)) return;
   navigator.serviceWorker.register("sw.js").then(reg=>{
     reg.addEventListener("updatefound",()=>{ const w=reg.installing; if(!w) return;
       w.addEventListener("statechange",()=>{ if(w.state==="installed"&&navigator.serviceWorker.controller) askUpdate(w); }); });
   }).catch(e=>console.warn("sw",e));
-  let recarregou=false;
-  navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(recarregou) return; recarregou=true; location.reload(); }); }
+ navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(!pediuAtualizar) return; pediuAtualizar=false; location.reload(); }); }
 function askUpdate(w){
   const el=$("#toast"); clearTimeout(toast._t);
   el.innerHTML='Nova versão da Caderneta. <button class="btn sm" id="updBtn" style="margin-left:8px">Atualizar</button>'; el.hidden=false;
-  $("#updBtn").onclick=()=>{ el.hidden=true; w.postMessage("skipWaiting"); }; }
+  $("#updBtn").onclick=()=>{ el.hidden=true; pediuAtualizar=true; w.postMessage("skipWaiting"); }; }
 
 function boot(){
   mountHeader(); registerSW();
