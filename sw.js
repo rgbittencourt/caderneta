@@ -1,9 +1,10 @@
 /* Caderneta — service worker: guarda o app no aparelho para abrir sem internet.
    Mude VERSAO a cada publicação para os aparelhos pegarem a versão nova. */
-const VERSAO = "caderneta-v3";
+const VERSAO = "caderneta-v4";
 const FONTES = "caderneta-fontes";
+const LIBS = "caderneta-libs";
 const APP = ["./", "./index.html", "./manifest.webmanifest", "./config.js",
-  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
+  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./leitor.js"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(VERSAO).then(c => c.addAll(APP)));
@@ -32,6 +33,16 @@ self.addEventListener("fetch", e => {
   /* fontes do Google: guarda depois da primeira vez */
   if (/^fonts\.(googleapis|gstatic)\.com$/.test(url.hostname)) {
     e.respondWith(caches.open(FONTES).then(async c => {
+      const hit = await c.match(req);
+      if (hit) return hit;
+      try { const r = await fetch(req); if (r.ok || r.type === "opaque") c.put(req, r.clone()); return r; }
+      catch (err) { return Response.error(); }
+    }));
+    return;
+  }
+  /* bibliotecas do leitor de documentos (versões fixas): guarda depois da primeira vez */
+  if (/^(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)$/.test(url.hostname)) {
+    e.respondWith(caches.open(LIBS).then(async c => {
       const hit = await c.match(req);
       if (hit) return hit;
       try { const r = await fetch(req); if (r.ok || r.type === "opaque") c.put(req, r.clone()); return r; }

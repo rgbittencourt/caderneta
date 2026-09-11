@@ -28,9 +28,14 @@ Leia este arquivo inteiro antes de mudar qualquer coisa. Ao mudar arquitetura, f
 5. **Gravação e consultas** — `commit`, `removeTx`, `txOf`, `balanceOf`, `cardInvoice`, `cardOwed`, `monthStats`, `projectMonth`, `futureMonths`, `openPlans`, `buildInsights`.
 6. **Gráficos SVG** — `chartBarsH`, `chartPace`, `chartCols`, `chartStack`, `bindTips`, `tableView`.
 7. **Telas e fichas** — `render()` chama `renderPainel/Lancar/Mes/Contas/Futuro/Meta/Ajustes`; fichas com `sheet()`: `openTx`, `openManual`, `openAcct`, `openPay`, `openTransfer`, `openCard`, `openCat`, `openEcat`, `openFix`, `openKw`, `openRestore`, `openGoal`, `openDeposit`.
-8. **Partida** — `boot()` no fim do arquivo.
+8. **Método 50-30-20 e ler documento** — `grupoDe`, `migrarCfg`, `resumo5030`, `render5030`, `openMetodo`; `htmlLeitorDoc`, `montarLeitorDoc`, `lerDoc`, `mostrarLidos`, `rascunhosDoc`, `pareceRepetido`, `openLinhaBoleto`.
+9. **Partida** — `boot()` no fim do arquivo.
 
 Outros arquivos:
+- `leitor.js` — leitor de documentos, 100% no aparelho. PDF com texto: pdf.js 3.11.174 (cdnjs). Foto ou PDF escaneado: Tesseract.js 5.1.1 (jsdelivr), idioma `por`. Boleto: `BarcodeDetector` (formato ITF) quando existe, senão a linha digitável reconhecida no texto; aceita só código que passa nos dígitos verificadores (módulo 10/11; fator de vencimento com o ciclo que recomeçou em 22/02/2025). Expõe `window.Leitor` (`ler`, `lerLancamentos`, `lerCupom`, `lerBoleto`, `adivinharTipo`). As bibliotecas baixam na primeira vez e ficam no cache `caderneta-libs`.
+  - Fatura: parcela `03/10` vira `i0=3, n=10`; `commit` cria da 3ª à 10ª a partir do mês da fatura (`d.ym`). Pagamento da fatura e estornos ficam de fora.
+  - Extrato: C/D e sinal decidem entrada ou saída; sem marca, palavras como *recebido*, *salário* e *estorno* indicam entrada; a coluna de saldo é ignorada.
+  - Tudo cai na conferência (`S.drafts`), com a caixa *Incluir* — desmarcada quando `pareceRepetido` acha o mesmo valor em até 3 dias ou a mesma parcela — e *Fixo todo mês*, que cria um gasto fixo ligado ao lançamento (`fix`).
 - `sw.js` — guarda o app (`APP`) para uso offline. Página com `cache: "no-cache"` e `config.js` com `"no-store"`: rede primeiro, cópia guardada se não houver internet. Ícones: cópia guardada primeiro. Fontes do Google: cache próprio. APIs do Google: nunca passam pelo cache.
 - `config.js` — `googleClientId`. Vazio = app funciona só no aparelho, sem login.
 
@@ -45,6 +50,8 @@ Outros arquivos:
   - Compra no crédito não sai da conta no dia; sai no pagamento da fatura (`k:"p"`, `ref` = mês da fatura).
 - `cfg` — renda, teto, meta de saldo, contas (saldo inicial + acertos), cartões, categorias (com limite), categorias de entrada, gastos fixos, palavras aprendidas (`kwCat`, `kwCard`), meta de poupança; `cfg.u` = última alteração.
 - **Junção entre aparelhos** (`mergeData`): lançamentos pela união por id; em conflito vence o `u` maior. O `cfg` inteiro vence pelo `u` maior. Toda escrita precisa passar por `commit`, `saveCfg` ou `saveMonth`, que atualizam `u` e agendam a sincronização.
+- Método 50-30-20: `cfg.metodo = {nec, des, fut}` (percentuais que somam 100) e `cats[].grupo` (`nec`, `des` ou `fut`; sem grupo vale `GRUPO_PADRAO`, e o resto é Desejo). Futuro realizado = gastos das categorias `fut` + o maior entre o que foi marcado em *Guardei um dinheiro* e o transferido para contas de poupança/investimento no mês — costumam ser o mesmo dinheiro. Necessidades e Desejos são tetos; Futuro é piso.
+- Configuração que já existe nos aparelhos e ganha algo novo: acrescente em `migrarCfg()` sob uma marca nova (`cfg.m1`, `cfg.m2`…), sem desfazer escolha do dono.
 - Campo novo: sempre com valor padrão em `DEFAULTS()`. Os dados antigos entram por `Object.assign(DEFAULTS(), cfg)`.
 - Restaurar backup aceita `app` = `caderneta`, `caderneta-casa` ou `meu-caixa` (versões antigas) e **junta** com o que já existe.
 
