@@ -36,6 +36,7 @@ Leia este arquivo inteiro antes de mudar qualquer coisa. Ao mudar arquitetura, f
    - Dívidas: `TIPOS_DIVIDA`, `saldoPrice`, `quitar`, `normDivida`, `vencDivida`, `estadoDivida`, `consignadoNoMes`, `simulacao`, `openDivida`. Gastos que se repetem: `recorrentes`, `tornarFixo`.
    - Extrato por conta e fatura do cartão, na aba Contas: `movsConta`, `linhaExt`, `htmlExtrato`, `bindExtrato` (a seleção fica em `S.ext`; `card:<id>` é cartão).
    - Importar, acertar e repetidos: `importarPara` (leva ao leitor já com tipo, cartão ou conta e mês), `saldoDoDoc` + `openAcerto` (acerto pelo saldo impresso no extrato), `dupHTML` (a pergunta na conferência) e `repetidosDe`/`procurarRepetidos`/`openRepetido` (repetidos já lançados).
+   - Contas a pagar do mês: `contasDoMes` junta gastos fixos (pagos = têm lançamento com `fix`), parcelas de dívida, consignado em folha (só informativo) e a fatura de cada cartão (vencimento no mês seguinte quando `due < closing`); `linhaConta`, `htmlContas` (seção da aba Mês), `htmlProximas` (bloco do Painel, dez dias à frente), `lancarFixoUm`, `bindContas`.
 9. **Partida** — `boot()` no fim do arquivo.
 
 Outros arquivos:

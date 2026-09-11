@@ -75,6 +75,17 @@ details.grp .in{padding:8px 14px 12px}
 .dup-l{margin-top:4px}
 .pisca{animation:pisca 1.5s ease-out 1}
 @keyframes pisca{0%,100%{box-shadow:var(--shadow)}35%{box-shadow:0 0 0 3px var(--accent-line)}}
+.ctas{margin-top:12px}
+.cta{display:flex;align-items:center;gap:11px;padding:9px 2px;border-bottom:1px solid var(--line);cursor:pointer}
+.cta:last-child{border-bottom:0}
+.cta:hover{background:var(--surface-2)}
+.cta.pago .row-d{color:var(--ink-2);font-weight:400}
+.cta-d{font-family:var(--f-m);font-size:11.5px;color:var(--ink-3);width:40px;flex:none;font-variant-numeric:tabular-nums}
+.cta-v{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.cta-a{display:flex;gap:6px}
+.chip.ok{background:var(--good-soft);color:var(--good);border-color:var(--good)}
+.chip.atraso{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
+.chip.hoje{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1398,6 +1409,8 @@ function renderPainel(){
       tile("Previsto dia "+daysIn(S.ym),fmt(pr.fim),pr.goal?("Meta "+fmt(pr.goal)):"",pr.goal?(pr.fim>=pr.goal?"down":"up"):"flat")+
     '</div></div></div>';
 
+  html+=htmlProximas(S.ym);
+
   /* onde o dinheiro está indo */
   const ents=Object.keys(st.byCat).map(id=>({id,v:st.byCat[id]})).sort((a,b)=>b.v-a.v);
   const tot=ents.reduce((s,e)=>s+e.v,0);
@@ -1444,7 +1457,7 @@ function renderPainel(){
       fut.map(f=>[ymLabel(f.ym),fmtN(f.once),fmtN(f.fix),fmtN(f.parc),fmtN(f.total)]))+
     '</div></div>';
 
-  $("#p-painel").innerHTML=topNotices()+html; bindInstall();
+  $("#p-painel").innerHTML=topNotices()+html; bindInstall(); bindContas($("#p-painel"));
   bindTips($("#p-painel"));
 }
 function tile(l,v,d,dir){
@@ -1599,6 +1612,7 @@ function renderMes(){
     (notas.length?'<div style="margin-top:14px;padding-top:13px;border-top:1px solid var(--line);display:grid;gap:8px;font-size:13px;color:var(--ink-2)">'+
       notas.map(n=>'<div style="display:flex;justify-content:space-between;gap:10px"><span>'+esc(n[0])+'</span><b style="font-family:var(--f-m);font-weight:600;color:'+(n[2]||"var(--ink)")+'">'+esc(n[1])+'</b></div>').join("")+'</div>':'')+
     '</div></div>'+
+    htmlContas(S.ym)+
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Por categoria</h2>'+
     (st.fixPend>0?'<button class="sec-a" id="fixBtn">Lançar fixos</button>':'')+'</div>'+
     '<div class="card pad chart">'+chartBarsH(ents.map(e=>({label:catName(e.id),v:e.v,pct:tot?Math.round(e.v/tot*100):0,
@@ -1610,7 +1624,7 @@ function renderMes(){
         '</span><span class="day-t">'+(tg?fmtN(tg):"")+'</span></div>'+byDay[d].map(rowHTML).join("")+'</div>'; }).join("")
       :'<div class="empty"><b>Extrato vazio</b>Nada lançado em '+esc(ymLabel(S.ym))+'.</div>')+
     '</div>';
-  bindRows($("#p-mes")); bindTips($("#p-mes"));
+  bindRows($("#p-mes")); bindTips($("#p-mes")); bindContas($("#p-mes"));
   const fb=$("#fixBtn"); if(fb) fb.onclick=lancarFixos; }
 
 async function lancarFixos(){
@@ -2888,6 +2902,89 @@ function openRepetido(pares,i){
     '<button class="btn ghost" id="rpN">São diferentes</button><button class="btn danger" id="rpD">Apagar o segundo</button>');
   $("#rpN").onclick=()=>openRepetido(pares,i+1);
   $("#rpD").onclick=async()=>{ await removeTx(b.ym,b.id,false); toast("Apagado: "+b.desc); openRepetido(pares,i+1); }; }
+
+/* =================== contas a pagar do mês =================== */
+/* tudo que vence no mês, em ordem de data: gastos fixos, parcelas de dívidas,
+   consignado descontado em folha e a fatura de cada cartão. */
+function contasDoMes(ym){
+  const out=[], hoje=todayISO(), dim=daysIn(ym), diaDoMes=d=>ym+"-"+pad(Math.max(1,Math.min(+d||1,dim)));
+  const feito={}; txOf(ym).forEach(t=>{ if(t.fix) feito[t.fix]=t; });
+  (S.cfg.fixed||[]).forEach(f=>{
+    if(!f.amount) return;
+    if((f.ate&&ym>f.ate)||(f.desde&&ym<f.desde)) return;
+    const t=feito[f.id], forma=cardName(f.card)||METODOS[(S.cfg.cards.find(c=>c.id===f.card)||{}).type]||"";
+    out.push({tipo:"fixo", id:f.id, nome:f.name, v:t?t.v:f.amount, d:t?t.d:diaDoMes(f.day), pago:!!t,
+      sub:(f.divida?"Parcela de dívida":"Gasto fixo")+(forma?" · "+forma:"")}); });
+  (S.cfg.dividas||[]).filter(dv=>dv.folha).forEach(dv=>{ normDivida(dv);
+    if(ym<dv.inicio||ym>ymShift(dv.inicio,Math.max(1,+dv.total||1)-1)) return;
+    const d=diaDoMes(dv.dia);
+    out.push({tipo:"folha", id:dv.id, nome:dv.nome, v:+dv.parcela||0, d, pago:d<=hoje, sub:"Descontado do salário"}); });
+  creditCards().forEach(c=>{
+    const inv=cardInvoice(c.id,ym); if(!inv.total) return;
+    const outroMes=c.due&&c.closing&&c.due<c.closing, prox=ymShift(ym,1);
+    const venc=outroMes?prox+"-"+pad(Math.min(c.due,daysIn(prox))):diaDoMes(c.due||dim);
+    out.push({tipo:"fatura", id:c.id, nome:"Fatura "+c.n, v:inv.open>0?inv.open:inv.total, d:venc, pago:inv.open<=0,
+      sub:"Fatura de "+ymLabel(ym)+(c.due?" · vence "+venc.slice(8,10)+"/"+venc.slice(5,7):" · sem data de vencimento")+
+        (inv.paid>0&&inv.open>0?" · já pagou "+fmtN(inv.paid):"")}); });
+  return out.sort((a,b)=>a.d.localeCompare(b.d)||b.v-a.v); }
+
+function linhaConta(x,hoje){
+  const atrasada=!x.pago&&x.d<hoje;
+  const acao=x.pago?"":x.tipo==="fixo"?'<button class="mini" data-pagafixo="'+x.id+'">Lançar</button>'
+    :x.tipo==="fatura"?'<button class="mini" data-pagafat="'+x.id+'">Pagar</button>':"";
+  const chip=x.pago?'<span class="chip ok">'+(x.tipo==="folha"?"descontado":"pago")+'</span>'
+    :atrasada?'<span class="chip atraso">atrasada</span>':x.d===hoje?'<span class="chip hoje">vence hoje</span>':"";
+  return '<div class="cta'+(x.pago?" pago":"")+'" data-cta="'+x.tipo+":"+x.id+'">'+
+    '<span class="cta-d">'+x.d.slice(8,10)+"/"+x.d.slice(5,7)+'</span>'+
+    '<span class="row-m"><span class="row-d">'+esc(x.nome)+'</span>'+
+    '<span class="row-s"><span>'+esc(x.sub)+'</span>'+chip+'</span></span>'+
+    '<span class="cta-v"><span class="row-v'+(x.pago?" pay":"")+'">'+fmtN(x.v)+'</span>'+
+    (acao?'<span class="cta-a">'+acao+'</span>':'')+'</span></div>'; }
+
+function htmlContas(ym){
+  const L=contasDoMes(ym), hoje=todayISO();
+  if(!L.length) return '<div class="sec" id="ctaSec"><div class="sec-h"><h2 class="sec-t">Contas a pagar de '+esc(ymLabel(ym))+'</h2></div>'+
+    '<div class="card pad"><div class="empty"><b>Nada a pagar neste mês</b>Marque como fixo o que se repete — aluguel, escola, assinaturas — e cadastre suas dívidas: tudo aparece aqui, em ordem de vencimento.</div></div></div>';
+  const aPagar=L.filter(x=>!x.pago), falta=aPagar.reduce((s,x)=>s+x.v,0), pago=L.filter(x=>x.pago).reduce((s,x)=>s+x.v,0);
+  const atrasadas=aPagar.filter(x=>x.d<hoje).length, total=pago+falta;
+  return '<div class="sec" id="ctaSec"><div class="sec-h"><h2 class="sec-t">Contas a pagar de '+esc(ymLabel(ym))+'</h2>'+
+    '<span class="day-t">'+(falta?"faltam "+fmt(falta):"tudo pago")+'</span></div>'+
+    '<div class="card pad">'+
+    '<div class="meter"><i class="'+(atrasadas?"bad":"")+'" style="width:'+(total?Math.round(pago/total*100):0)+'%"></i></div>'+
+    '<div class="meter-s"><span>pago '+fmtN(pago)+'</span><span>'+
+    (atrasadas?atrasadas+(atrasadas>1?" atrasadas":" atrasada"):aPagar.length+(aPagar.length===1?" a pagar":" a pagar"))+
+    '</span><span>total '+fmtN(total)+'</span></div>'+
+    '<div class="ctas">'+L.map(x=>linhaConta(x,hoje)).join("")+'</div></div></div>'; }
+
+/* no painel: só o que vence nos próximos dias, ou já venceu e não foi pago */
+function htmlProximas(ym){
+  const hoje=todayISO(), lim=new Date(Date.parse(hoje+"T12:00:00")+10*86400000).toISOString().slice(0,10);
+  const L=contasDoMes(ym).filter(x=>!x.pago&&x.d<=lim);
+  if(!L.length) return "";
+  const tot=L.reduce((s,x)=>s+x.v,0), atrasadas=L.filter(x=>x.d<hoje).length;
+  return '<div class="sec"><div class="sec-h"><h2 class="sec-t">Próximos vencimentos</h2>'+
+    '<button class="sec-a" data-irmes="1">Ver todas</button></div>'+
+    '<div class="card pad"><div class="ch-s" style="margin-bottom:4px">'+
+    (atrasadas?atrasadas+(atrasadas>1?" contas passaram do vencimento. ":" conta passou do vencimento. "):"")+
+    L.length+(L.length>1?" contas até dez dias":" conta até dez dias")+', somando '+fmt(tot)+'.</div>'+
+    '<div class="ctas">'+L.slice(0,5).map(x=>linhaConta(x,hoje)).join("")+'</div></div></div>'; }
+
+async function lancarFixoUm(id){
+  const f=fixedFor(S.ym).find(x=>x.id===id); if(!f){ toast("Esse já está lançado."); return; }
+  await commit({id:uid(),raw:"",v:f.amount,desc:f.name,cat:f.cat,
+    method:(S.cfg.cards.find(c=>c.id===f.card)||{}).type||"debito",cardId:f.card,n:1,
+    date:S.ym+"-"+pad(f.day),time:"",fix:f.id,k:"g"});
+  render(); toast(f.name+" lançado."); }
+function bindContas(root){
+  $$("[data-pagafixo]",root).forEach(b=>b.onclick=e=>{ e.stopPropagation(); lancarFixoUm(b.dataset.pagafixo); });
+  $$("[data-pagafat]",root).forEach(b=>b.onclick=e=>{ e.stopPropagation(); openPay(b.dataset.pagafat); });
+  $$("[data-irmes]",root).forEach(b=>b.onclick=()=>{ setView("mes");
+    setTimeout(()=>{ const s=$("#ctaSec"); if(s) s.scrollIntoView({behavior:"smooth",block:"start"}); },150); });
+  $$("[data-cta]",root).forEach(el=>el.onclick=()=>{
+    const p=el.dataset.cta.split(":"), tipo=p[0], id=p[1];
+    if(tipo==="fixo"){ const t=txOf(S.ym).find(x=>x.fix===id); if(t) openTx(t.ym,t.id); else openFix(id); }
+    else if(tipo==="fatura") openCard(id);
+    else openDivida(id); }); }
 
 /* =================== partida =================== */
 $("#mPrev").onclick=()=>{ S.ym=ymShift(S.ym,-1); render(); };
