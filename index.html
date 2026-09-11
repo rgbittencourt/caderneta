@@ -698,7 +698,7 @@ function showGate(){
     '<div id="lBox" hidden style="display:flex;gap:8px"><input id="lName" placeholder="Seu nome" autocomplete="given-name" '+
     'style="flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;font-size:16px">'+
     '<button class="btn" id="lGo">Entrar</button></div>'+
-    '<p class="gate-s">Sem conta, os dados ficam só neste aparelho: se trocar de celular, somem.</p></div>';
+    '<p class="gate-s">Sem conta, os dados ficam só neste aparelho: se trocar de celular, somem.</p><p class="gate-s"><a href="privacidade.html" style="color:var(--ink-2)">Privacidade</a> · <a href="termos.html" style="color:var(--ink-2)">Termos de uso</a></p></div>';
   g.hidden=false;
   const gi=$("#gIn");
   if(gi){ gi.onclick=googleSignIn;

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacidade · Caderneta</title>
+<meta name="description" content="Como a Caderneta trata os seus dados: ficam no seu aparelho e no seu próprio Google Drive. Não há servidor e ninguém mais tem acesso.">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{--paper:#F7F8FA;--surface:#FFFFFF;--line:#D9DFE7;--ink:#0F172A;--ink-2:#5A6676;--accent:#2563A8;--accent-soft:#E3ECF6}
+@media (prefers-color-scheme:dark){:root{--paper:#0D1117;--surface:#161B22;--line:#28323F;--ink:#E6EDF3;--ink-2:#8B98A8;--accent:#5B9BD5;--accent-soft:#16263A}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15.5px/1.65 "IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:700px;margin:0 auto;padding:32px 20px 64px}
+.back{display:inline-block;font-size:14px;color:var(--accent);text-decoration:none;margin-bottom:22px}
+.back:hover{text-decoration:underline}
+h1{font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.2;margin:0 0 8px}
+.date{color:var(--ink-2);font-size:13.5px;margin:0 0 26px}
+.sum{background:var(--accent-soft);border-radius:10px;padding:14px 16px;margin:0 0 30px}
+.sum p{margin:0}
+h2{font-size:17.5px;font-weight:600;margin:30px 0 8px}
+p,li{max-width:65ch}
+ul,ol{padding-left:22px}
+li{margin:4px 0}
+code{font-size:13.5px;background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+a{color:var(--accent)}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--ink-2);font-size:13.5px}
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="./">← Voltar para a Caderneta</a>
+  <h1>Política de privacidade</h1>
+  <p class="date">Atualizada em 11 de setembro de 2026</p>
+
+  <div class="sum"><p><strong>Em resumo:</strong> seus dados ficam no seu aparelho e no seu próprio Google Drive. A Caderneta não tem servidor, não vende nada e ninguém além de você tem acesso ao que você registra.</p></div>
+
+  <h2>O que é a Caderneta</h2>
+  <p>Um app gratuito de controle de gastos, feito para uso pessoal e familiar por Rogério Bittencourt. Não é uma empresa e não tem fins comerciais.</p>
+
+  <h2>O que o app guarda</h2>
+  <p>Somente o que você digita ou dita: valores, descrições, datas, categorias, formas de pagamento, contas, cartões, parcelas, gastos fixos, metas e suas preferências de uso.</p>
+
+  <h2>Onde os seus dados ficam</h2>
+  <ul>
+    <li><strong>No seu aparelho</strong>, no armazenamento do navegador, para o app funcionar sem internet.</li>
+    <li><strong>No seu Google Drive</strong>, se você entrar com a sua conta Google: numa pasta chamada <em>Caderneta</em>, criada pelo app, com o arquivo <code>caderneta-dados.json</code> e uma cópia por mês (<code>backup-AAAA-MM.json</code>).</li>
+  </ul>
+  <p>Não existe servidor da Caderneta. O desenvolvedor não recebe, não vê e não tem como acessar os seus dados. Cada pessoa que usa o app só enxerga os próprios lançamentos.</p>
+
+  <h2>O que o app acessa na sua conta Google</h2>
+  <ul>
+    <li><strong>Nome, e-mail e identificador da conta</strong> — só para saber de quem são os dados guardados naquele aparelho.</li>
+    <li><strong>Google Drive, com o escopo <code>drive.file</code></strong> — o mais restrito que o Google oferece: o app só enxerga os arquivos que ele mesmo criou. Não lê, não lista e não altera nenhum outro arquivo do seu Drive.</li>
+  </ul>
+  <p>O uso e a transferência, para qualquer outro app, de informações recebidas das APIs do Google seguem a <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Política de Dados do Usuário dos Serviços de API do Google</a>, incluindo os requisitos de Uso Limitado. Na prática: essas informações não são transferidas para ninguém.</p>
+
+  <h2>Ditado por voz</h2>
+  <p>Quando você fala um lançamento, o áudio é transformado em texto pelo teclado do seu celular ou pelo navegador, conforme as regras deles. A Caderneta recebe apenas o texto e não grava áudio.</p>
+
+  <h2>Serviços de terceiros</h2>
+  <ul>
+    <li><strong>Google</strong> — login, Google Drive e as fontes tipográficas (Google Fonts), baixadas dos servidores do Google.</li>
+    <li><strong>GitHub Pages</strong> — hospeda os arquivos do app. O GitHub pode registrar dados técnicos de acesso, como o endereço IP, conforme a política dele.</li>
+  </ul>
+  <p>Não há anúncios, rastreadores nem estatísticas de uso.</p>
+
+  <h2>Compartilhamento</h2>
+  <p>Nenhum. Os seus dados não são vendidos, cedidos nem compartilhados com ninguém.</p>
+
+  <h2>Como apagar tudo</h2>
+  <ol>
+    <li>Apague a pasta <em>Caderneta</em> no seu Google Drive.</li>
+    <li>Remova o acesso do app em <a href="https://myaccount.google.com/permissions" rel="noopener">myaccount.google.com/permissions</a>.</li>
+    <li>No aparelho, desinstale o app ou limpe os dados do site no navegador.</li>
+  </ol>
+
+  <h2>Contato</h2>
+  <p>Pelo repositório <a href="https://github.com/rgbittencourt/caderneta" rel="noopener">github.com/rgbittencourt/caderneta</a>, ou pelo e-mail de suporte exibido na tela de login do Google.</p>
+
+  <footer>Veja também os <a href="termos.html">termos de uso</a>.</footer>
+</main>
+</body>
+</html>
