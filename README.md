@@ -20,6 +20,7 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 - "caiu o salário, três mil reais" — palavras como *caiu*, *recebi* e *salário* viram entrada
 
 **Ler documento** (aba Lançar): fotografe ou escolha a fatura do cartão, o extrato do banco, um canhoto ou um boleto, em PDF ou foto. O app lê no próprio aparelho, monta os lançamentos e mostra para você conferir: o que parece já lançado vem desmarcado, e as parcelas da fatura (ex.: `03/10`) já reservam as seguintes. O PDF baixado do app do banco é o que lê melhor. Boleto: pelo código de barras ou digitando a linha digitável. Em canhoto e boleto, diga em *Pago com* como pagou — débito, Pix, boleto ou um cartão —, e os lançamentos daquele documento já vêm assim; na conferência ainda dá para mudar um a um.
+- **OFX e CSV:** se o banco oferece "exportar extrato" nesses formatos, também servem — é um bom plano B quando o PDF não abre.
 - **PDF com senha** (comum em fatura e extrato de banco): o app pede a senha e abre o arquivo ali mesmo, sem guardar.
 - **Foto de extrato ou fatura:** uma página por vez. Depois de ler a primeira, toque em *Fotografar mais uma página*.
 - **Não conseguiu ler?** O app mostra uma *amostra sem seus dados* — números viram 9 e nomes viram x. Copie e mande ao Claude para ele ajustar o leitor ao seu banco.

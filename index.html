@@ -1948,14 +1948,9 @@ function renderAjustes(){
     '<div class="s">'+kwC+' viram categoria · '+kwK+' viram cartão</div></div>'+
     '<button class="mini" id="kwBtn">Ver e editar</button></div></div></div>'+
 
-    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Importar extrato</h2></div><div class="card pad set">'+
-    '<div class="set-f"><span class="hint">Cole o extrato do banco ou a fatura do cartão (CSV, OFX, ou texto com data / descrição / valor). O app separa as colunas e sugere as categorias — você revisa antes de gravar.</span>'+
-    '<textarea id="impText" rows="5"></textarea></div>'+
-    '<div class="two"><div class="set-f"><label for="impCard">Lançar como</label><select id="impCard">'+optId(c.cards,c.cards[0].id)+'</select></div>'+
-    '<div class="set-f"><label for="impSign">Considerar</label><select id="impSign">'+
-    '<option value="neg">Só saídas (valores negativos)</option><option value="all">Tudo como gasto</option>'+
-    '<option value="both">Saídas e entradas</option></select></div></div>'+
-    '<button class="btn" id="impBtn">Analisar</button><div id="impOut"></div></div></div>'+
+    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Importar extratos e faturas</h2></div><div class="card pad">'+
+    '<div class="linkrow"><div class="m"><div class="t">Fica na aba Contas</div><div class="s">Escolha a conta ou o cartão e toque em Importar: PDF, foto, OFX ou CSV. Tudo passa pela conferência antes de gravar.</div></div>'+
+    '<button class="mini" id="impIr">Abrir Contas</button></div></div></div>'+
 
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Dados</h2></div><div class="card pad">'+
     '<div class="linkrow"><div class="m"><div class="t">Onde ficam seus dados</div><div class="s">'+
@@ -1991,7 +1986,7 @@ function renderAjustes(){
   $$("[data-fix]").forEach(b=>b.onclick=()=>openFix(b.dataset.fix));
   $$("[data-new]").forEach(b=>b.onclick=()=>({acct:openAcct,card:openCard,cat:openCat,ecat:openEcat,fix:openFix}[b.dataset.new])(""));
   $("#kwBtn").onclick=openKw;
-  $("#impBtn").onclick=runImport;
+  $("#impIr").onclick=()=>setView("contas");
   $("#expBtn").onclick=exportCSV;
   $("#bkBtn").onclick=()=>copyText(JSON.stringify({app:"caderneta",v:1,cfg:S.cfg,months:S.months}),"Backup copiado.");
   $("#rsBtn").onclick=openRestore;
@@ -2127,37 +2122,6 @@ function parseStatement(text,sign){
     if(sign==="neg"&&v>=0) return;
     out.push({d,desc:desc||"Sem descrição",v:Math.abs(v),k:v>0?"e":"g"}); });
   return out; }
-
-function runImport(){
-  const text=$("#impText").value;
-  if(!text.trim()){ toast("Cole o extrato primeiro."); return; }
-  const sign=$("#impSign").value;
-  let rows=parseStatement(text,sign);
-  if(sign==="all") rows=rows.map(r=>Object.assign({},r,{k:"g"}));
-  const out=$("#impOut");
-  if(!rows.length){ out.innerHTML='<div class="empty"><b>Não reconheci nenhuma linha</b>Preciso de data, descrição e valor na mesma linha. CSV com ponto e vírgula, ou arquivo OFX, funcionam bem.</div>'; return; }
-  const cardId=$("#impCard").value;
-  const parsed=rows.map(r=>Object.assign({},r,{cat:guessCat(r.desc,S.cfg,r.k)}));
-  const gastos=parsed.filter(r=>r.k==="g"), ents=parsed.filter(r=>r.k==="e");
-  const tot=gastos.reduce((s,r)=>s+r.v,0), totE=ents.reduce((s,r)=>s+r.v,0);
-  const byCat={}; gastos.forEach(r=>{ byCat[r.cat]=(byCat[r.cat]||0)+r.v; });
-  const ord=Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]);
-  out.innerHTML='<div style="margin-top:16px"><div class="sec-h"><h2 class="sec-t">'+parsed.length+' linhas · '+
-    fmt(tot)+' em gastos'+(totE?" · +"+fmt(totE)+" em entradas":"")+'</h2></div>'+
-    '<div class="chart">'+chartBarsH(ord.slice(0,8).map(id=>({label:catName(id),v:byCat[id],
-      pct:tot?Math.round(byCat[id]/tot*100):0,tip:catName(id)+" — "+fmt(byCat[id])})),{alt:"Prévia por categoria"})+'</div>'+
-    '<div class="sheet-acts" style="max-width:420px"><button class="btn ghost" id="impX">Descartar</button>'+
-    '<button class="btn" id="impGo">Gravar '+parsed.length+' lançamentos</button></div></div>';
-  bindTips(out.closest(".panel"));
-  $("#impX").onclick=()=>{ out.innerHTML=""; };
-  $("#impGo").onclick=async()=>{
-    $("#impGo").disabled=true;
-    const card=S.cfg.cards.find(c=>c.id===cardId)||{};
-    for(const r of parsed) await commit({id:"imp"+uid(),raw:"",v:r.v,desc:r.desc,cat:r.cat,
-      method:r.k==="e"?"pix":(card.type||"credito"),cardId:r.k==="e"?cardId:cardId,
-      acct:acctOf(cardId),n:1,date:r.d,time:"",k:r.k});
-    out.innerHTML=""; $("#impText").value="";
-    render(); toast(parsed.length+" lançamentos gravados"); }; }
 
 function copyText(t,ok){ if(!navigator.clipboard){ toast("Este navegador não permite copiar."); return; }
   navigator.clipboard.writeText(t).then(()=>toast(ok)).catch(()=>toast("Não consegui copiar.")); }
@@ -2442,8 +2406,8 @@ function htmlLeitorDoc(){
     '<button class="btn ghost" id="docArqBtn">Escolher arquivo (PDF ou foto)</button>'+
     '<button class="btn ghost" id="docLinhaBtn">Digitar linha do boleto</button></div>'+
     '<input type="file" id="docCam" accept="image/*" capture="environment" hidden>'+
-    '<input type="file" id="docArq" accept="image/*,application/pdf" multiple hidden>'+
-    '<div class="say-hint" style="margin-top:9px">O PDF baixado do app do banco é o que lê melhor. Na foto: boa luz, documento reto ocupando a tela. Nada sai do seu aparelho.</div></div>'; }
+    '<input type="file" id="docArq" accept="image/*,application/pdf,.ofx,.csv,.txt,text/csv,text/plain,application/x-ofx" multiple hidden>'+
+    '<div class="say-hint" style="margin-top:9px">O PDF baixado do app do banco é o que lê melhor; OFX e CSV exportados pelo banco também servem. Na foto: boa luz, documento reto ocupando a tela. Nada sai do seu aparelho.</div></div>'; }
 function montarLeitorDoc(){
   const a=$("#docArq"), c=$("#docCam"); if(!a) return;
   $("#docCamBtn").onclick=()=>c.click(); $("#docArqBtn").onclick=()=>a.click();
@@ -2461,7 +2425,7 @@ async function lerDoc(arquivo,senha,anexar){
   const btns=$$("#docCamBtn,#docArqBtn"); btns.forEach(b=>b.disabled=true); st.textContent="abrindo…";
   let r=null;
   try{
-    r=await Leitor.ler(arquivo,{tipo,mes,senha,onProgress:(p,etapa)=>{ st.textContent=(etapa||"lendo")+(p?" "+p+"%":""); }});
+    r=ehArquivoTexto(arquivo)?await lerArquivoTexto(arquivo,tipo):await Leitor.ler(arquivo,{tipo,mes,senha,onProgress:(p,etapa)=>{ st.textContent=(etapa||"lendo")+(p?" "+p+"%":""); }});
     st.textContent="";
     if(!r.linhas.length){
       if(r.tipo==="boleto"){ openLinhaBoleto(r.erro); return; }
@@ -2519,7 +2483,7 @@ function diagnosticoDoc(arquivo,r,e){
 function abrirImportar(alvo){
   const cartao=alvo.indexOf("card:")===0, id=cartao?alvo.slice(5):alvo;
   sheet(cartao?"Importar fatura · "+cardName(id):"Importar extrato · "+acctName(id),
-    '<div class="set"><div class="note"><b>Foto ou arquivo</b>O PDF baixado do app do banco é o que lê melhor. Na foto, uma página por vez, com boa luz e o papel reto ocupando a tela; depois de ler a primeira, aparece o botão para fotografar a próxima.</div></div>',
+    '<div class="set"><div class="note"><b>Foto ou arquivo</b>O PDF baixado do app do banco é o que lê melhor; OFX e CSV exportados pelo banco também servem. Na foto, uma página por vez, com boa luz e o papel reto ocupando a tela; depois de ler a primeira, aparece o botão para fotografar a próxima.</div></div>',
     '<button class="btn ghost" id="impArq">Escolher arquivo</button><button class="btn" id="impCam">Fotografar</button>');
   $("#impArq").onclick=()=>{ closeSheet(); importarPara(alvo,"arq"); };
   $("#impCam").onclick=()=>{ closeSheet(); importarPara(alvo,"cam"); }; }
@@ -3356,6 +3320,25 @@ async function restaurarPacote(d){
   S.cfg=Object.assign(DEFAULTS(),m.cfg); S.months=m.months; migrarCfg();
   await saveCfg(); for(const ym of Object.keys(S.months)) await saveMonth(ym);
   closeSheet(); render(); toast("Backup restaurado"); }
+
+/* =================== OFX e CSV =================== */
+/* arquivos exportados pelo banco: passam pela mesma conferência do PDF e da foto */
+const ehArquivoTexto=f=>/\.(ofx|csv|txt)$/i.test(f.name||"")||/^text\/|ofx/i.test(f.type||"");
+async function lerArquivoTexto(arquivo,tipo){
+  const texto=await arquivo.text(), ofx=/<OFX>|<STMTTRN>/i.test(texto);
+  let t=tipo&&tipo!=="auto"?tipo:(/<CCSTMTRS>|CREDITCARDMSGSRS/i.test(texto)?"fatura":"extrato");
+  if(t!=="fatura"&&t!=="extrato") t="extrato";
+  let rows=parseStatement(texto,"both");
+  if(t==="fatura"){
+    /* na fatura só entram as compras. No OFX elas vêm negativas; no CSV o sinal muda de banco para banco: vale o da maioria */
+    const compra=ofx?"g":(rows.filter(x=>x.k==="e").length>rows.filter(x=>x.k==="g").length?"e":"g");
+    rows=rows.filter(x=>x.k===compra).map(x=>Object.assign({},x,{k:"g"})); }
+  const linhas=rows.map(x=>{
+    const l={d:x.d, desc:String(x.desc).replace(/\s+/g," ").trim(), v:x.v, k:x.k, i0:1, n:1};
+    if(t==="fatura"){ const pm=l.desc.match(/\b(?:parc(?:ela)?\.?\s*)?(\d{1,2})\s?(?:\/|de)\s?(\d{1,2})\b/i);
+      if(pm&&+pm[2]>=2&&+pm[2]<=48&&+pm[1]>=1&&+pm[1]<=+pm[2]){ l.i0=+pm[1]; l.n=+pm[2]; l.desc=l.desc.replace(pm[0]," ").replace(/\s+/g," ").trim(); } }
+    return l; });
+  return {linhas, tipo:t, texto, saldos:null}; }
 
 /* =================== partida =================== */
 $("#mPrev").onclick=()=>{ S.ym=ymShift(S.ym,-1); render(); };
