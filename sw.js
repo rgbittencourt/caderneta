@@ -1,8 +1,8 @@
 /* Caderneta — service worker: guarda o app no aparelho para abrir sem internet.
    Mude VERSAO a cada publicação para os aparelhos pegarem a versão nova. */
-const VERSAO = "caderneta-v8";
+const VERSAO = "caderneta-v9";
 const FONTES = "caderneta-fontes";
-const LIBS = "caderneta-libs";
+const LIBS = "caderneta-libs-2";
 const APP = ["./", "./index.html", "./manifest.webmanifest", "./config.js",
   "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./leitor.js"];
 
@@ -11,7 +11,7 @@ self.addEventListener("install", e => {
 });
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys()
-    .then(ks => Promise.all(ks.filter(k => k.startsWith("caderneta-v") && k !== VERSAO).map(k => caches.delete(k))))
+    .then(ks => Promise.all(ks.filter(k => (k.startsWith("caderneta-v") && k !== VERSAO) || k === "caderneta-libs").map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener("message", e => { if (e.data === "skipWaiting") self.skipWaiting(); });
@@ -45,8 +45,9 @@ self.addEventListener("fetch", e => {
     e.respondWith(caches.open(LIBS).then(async c => {
       const hit = await c.match(req);
       if (hit) return hit;
-      try { const r = await fetch(req); if (r.ok || r.type === "opaque") c.put(req, r.clone()); return r; }
-      catch (err) { return Response.error(); }
+      /* pede como CORS: a mesma resposta serve ao <script> e ao worker do pdf.js, e pode ser guardada */
+      try { const r = await fetch(new Request(req.url, { mode: "cors", credentials: "omit" })); if (r.ok) c.put(req, r.clone()); return r; }
+      catch (err) { try { return await fetch(req); } catch (e2) { return Response.error(); } }
     }));
     return;
   }

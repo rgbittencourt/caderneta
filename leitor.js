@@ -57,17 +57,19 @@ function linhasDoPdf(items){
   items.forEach(it=>{
     if(!it.str||!it.str.trim()) return;
     const x=it.transform[4], y=Math.round(it.transform[5]);
-    let r=rows.find(q=>Math.abs(q.y-y)<=2); if(!r){ r={y,parts:[]}; rows.push(r); }
+    let r=rows.find(q=>Math.abs(q.y-y)<=Math.max(2,Math.abs((it.transform&&it.transform[3])||0)*0.4)); if(!r){ r={y,parts:[]}; rows.push(r); }
     r.parts.push({x,s:it.str,w:it.width||0}); });
   rows.sort((a,b)=>b.y-a.y);
   return rows.map(r=>{
     r.parts.sort((a,b)=>a.x-b.x); let out="", fim=null;
     r.parts.forEach(p=>{ if(fim!==null) out+=(p.x-fim>12?"   ":" "); out+=p.s; fim=p.x+p.w; });
     return out.replace(/\s+$/,""); }).join("\n"); }
-async function textoDoPdf(arquivo){
+async function textoDoPdf(arquivo,senha){
   await carregar(PDFJS);
   const lib=window.pdfjsLib; lib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER;
-  const doc=await lib.getDocument({data:await arquivo.arrayBuffer()}).promise;
+  let doc;
+  try{ doc=await lib.getDocument({data:await arquivo.arrayBuffer(), password:senha||undefined}).promise; }
+  catch(e){ if(e&&e.name==="PasswordException"){ const x=new Error(e.code===2?"Senha errada.":"Esse PDF tem senha."); x.senha=true; x.errada=e.code===2; throw x; } throw e; }
   const n=Math.min(doc.numPages,15), paginas=[];
   for(let p=1;p<=n;p++){
     const pg=await doc.getPage(p);
@@ -104,13 +106,13 @@ function capitalizar(s){
   return s.toLowerCase().replace(/(^|[\s*\/.\-])(\p{L})/gu,(m,a,b)=>a+b.toUpperCase()); }
 
 /* valor no padrão brasileiro: 1.234,56 · -50,00 · 50,00- · 50,00 D · 50,00 C */
-const RE_VALOR=/(^|[\s(])(-\s?)?(?:R\$\s?)?(-\s?)?(\d{1,3}(?:\.\d{3})+|\d+),(\d{2})(?!\d)(\s?-|\s?[DC](?![A-Za-z]))?/g;
+const RE_VALOR=/(^|[\s(])(-\s?)?(?:R\$\s?)?(-\s?)?(\d{1,3}(?:\.\d{3})+|\d+),(\d{2})(?!\d)(\s?-|\s?[DC](?![A-Za-z])|\s?\(\s?[+-]\s?\))?/g;
 function valores(linha){
   const out=[]; let m; RE_VALOR.lastIndex=0;
   while((m=RE_VALOR.exec(linha))){
     const cent=parseInt(m[4].replace(/\./g,""),10)*100+parseInt(m[5],10);
-    const suf=(m[6]||"").trim();
-    out.push({v:cent, neg:!!(m[2]||m[3]||suf==="-"||suf==="D"), cred:suf==="C",
+    const suf=(m[6]||"").replace(/[()\s]/g,"");
+    out.push({v:cent, neg:!!(m[2]||m[3]||suf==="-"||suf==="D"), cred:suf==="C"||suf==="+",
       marca:!!(m[2]||m[3]||suf), ini:m.index+m[1].length}); }
   return out; }
 
@@ -131,16 +133,32 @@ const IGN_FATURA=/\b(pagamento(s)?( efetuado| recebido| da fatura)?|pgto|fatura 
 const RE_ENTRADA=/\b(receb|credito|deposito|salario|estorno|rendimento|resgate|devolucao)/i;
 const RE_PARC=/\b(?:parc(?:ela)?\.?\s*)?(\d{1,2})\s?(?:\/|de)\s?(\d{1,2})\b/i;
 
-/* fatura do cartão e extrato do banco: uma linha por lançamento */
+/* fatura do cartão e extrato do banco: uma linha por lançamento.
+   Aceita data no começo (12/08, 12 AGO), um código curto ou dia da semana antes da data, duas colunas na
+   mesma linha do PDF e extrato agrupado por dia (a data vem sozinha e vale para as linhas seguintes). */
+const RE_OUTRA_COLUNA=/\s{3,}(?=\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?\s)/;
+function dataNaLinha(linha,ano,mesRef){
+  const dt=dataNoInicio(linha,ano,mesRef); if(dt) return dt;
+  const lead=linha.match(/^(?:\S{1,6}|[A-Za-zÀ-ÿ\-]{3,14},?)\s+/);
+  if(lead){ const d2=dataNoInicio(linha.slice(lead[0].length),ano,mesRef); if(d2) return {iso:d2.iso,len:lead[0].length+d2.len}; }
+  return null; }
 function lerLancamentos(texto,tipo,mes){
   const ref=(mes||mesDeHoje()).split("-").map(Number), ano=ref[0], mesRef=ref[1];
   const fatura=tipo!=="extrato";
-  const linhas=[]; let ignoradas=0, estornos=0;
-  String(texto||"").split(/\r?\n/).forEach(bruta=>{
-    const linha=bruta.replace(/[|•]/g," ").replace(/\s+/g," ").trim(); if(linha.length<6) return;
+  const linhas=[]; let ignoradas=0, estornos=0, dataDoDia=null;
+  const partes=[];
+  String(texto||"").split(/\r?\n/).forEach(bruta=>bruta.replace(/[|•]/g," ").split(RE_OUTRA_COLUNA).forEach(p=>partes.push(p)));
+  partes.forEach(bruta=>{
+    const linha=bruta.replace(/\s+/g," ").trim(); if(linha.length<4) return;
     const sem=semAcento(linha);
-    const dt=dataNoInicio(linha,ano,mesRef); if(!dt) return;
-    const vals=valores(linha).filter(x=>x.ini>=dt.len); if(!vals.length) return;
+    let dt=dataNaLinha(linha,ano,mesRef);
+    const vals=valores(linha).filter(x=>!dt||x.ini>=dt.len);
+    if(dt&&!vals.length){
+      const resto=linha.slice(dt.len).trim();
+      if(resto.length<=24&&!/\d{3,}/.test(resto)) dataDoDia=dt.iso;        /* data sozinha: cabeçalho do dia */
+      return; }
+    if(!vals.length) return;
+    if(!dt){ if(!dataDoDia||!/[a-z]{3,}/i.test(sem)) return; dt={iso:dataDoDia,len:0}; }
     if(IGN_COMUM.test(sem)||(fatura&&IGN_FATURA.test(sem))){ ignoradas++; return; }
     /* o valor do lançamento: o marcado com sinal, D ou C; senão, na fatura o último,
        no extrato o primeiro (o último costuma ser a coluna de saldo) */
@@ -193,12 +211,13 @@ function lerCupom(texto){
   let v=0;
   for(let i=S.length-1;i>=0&&!v;i--){
     if(/tribut|imposto|troco|desconto|acrescimo/.test(S[i])) continue;
-    if(/valor total|total a pagar|valor a pagar|valor pago|total r\$|^total\b|^valor\b|\bvalor:/.test(S[i])){
+    if(/valor total|total a pagar|valor a pagar|valor pago|valor do documento|valor cobrado|total pago|valor debitado|total r\$|^total\b|^valor\b|\bvalor:/.test(S[i])){
       const vs=valores(L[i]); if(vs.length) v=vs[vs.length-1].v; } }
   if(!v) L.forEach((l,i)=>{ if(/tribut|troco/.test(S[i])) return; valores(l).forEach(x=>{ if(x.v>v) v=x.v; }); });
-  let d="";
-  for(const l of L){ const m=l.match(/\b(\d{2})[\/.\-](\d{2})[\/.\-](\d{2,4})\b/);
-    if(m&&+m[1]>=1&&+m[1]<=31&&+m[2]>=1&&+m[2]<=12){ d=(m[3].length===2?"20"+m[3]:m[3])+"-"+m[2]+"-"+m[1]; break; } }
+  /* data: a do pagamento, quando o comprovante mostra; senão, a primeira que aparecer */
+  const acharData=ls=>{ for(const l of ls){ const m=l.match(/\b(\d{2})[\/.\-](\d{2})[\/.\-](\d{2,4})\b/);
+    if(m&&+m[1]>=1&&+m[1]<=31&&+m[2]>=1&&+m[2]<=12) return (m[3].length===2?"20"+m[3]:m[3])+"-"+m[2]+"-"+m[1]; } return ""; };
+  let d=acharData(L.filter((l,i)=>/pag|debit|efetiv|realiz/.test(S[i])))||acharData(L);
   const RUIDO=/stone|cielo|getnet|pagseguro|pagbank|sumup|mercado ?pago|safrapay|\bton\b|\brede\b|vero|sipag|granito|cnpj|cpf|cupom|nfc|nf-e|documento|auxiliar|consumidor|extrato|via |cliente|estabelecimento|comprovante|ie:|endereco|rua |av\.|telefone|fone|^\d/;
   let loja="";
   for(let i=0;i<Math.min(L.length,8);i++){
@@ -264,7 +283,7 @@ async function ler(arquivo,op){
     let codigo="";
     if(!ehPdf&&(op.tipo==="boleto"||!op.tipo||op.tipo==="auto")) codigo=await codigoDeBarras(arquivo);
     let texto="";
-    if(!codigo){ if(progCb) progCb(0,"preparando"); texto=ehPdf?await textoDoPdf(arquivo):await ocr(await paraCanvas(arquivo)); }
+    if(!codigo){ if(progCb) progCb(0,"preparando"); texto=ehPdf?await textoDoPdf(arquivo,op.senha):await ocr(await paraCanvas(arquivo)); }
     const tipo=op.tipo&&op.tipo!=="auto"?op.tipo:adivinharTipo(texto,codigo);
     const r=tipo==="boleto"?lerBoleto(codigo||texto):tipo==="cupom"?lerCupom(texto):lerLancamentos(texto,tipo,op.mes);
     r.tipo=tipo; r.texto=texto;

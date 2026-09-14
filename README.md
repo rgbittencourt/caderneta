@@ -20,8 +20,13 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 - "caiu o salário, três mil reais" — palavras como *caiu*, *recebi* e *salário* viram entrada
 
 **Ler documento** (aba Lançar): fotografe ou escolha a fatura do cartão, o extrato do banco, um canhoto ou um boleto, em PDF ou foto. O app lê no próprio aparelho, monta os lançamentos e mostra para você conferir: o que parece já lançado vem desmarcado, e as parcelas da fatura (ex.: `03/10`) já reservam as seguintes. O PDF baixado do app do banco é o que lê melhor. Boleto: pelo código de barras ou digitando a linha digitável. Em canhoto e boleto, diga em *Pago com* como pagou — débito, Pix, boleto ou um cartão —, e os lançamentos daquele documento já vêm assim; na conferência ainda dá para mudar um a um.
+- **PDF com senha** (comum em fatura e extrato de banco): o app pede a senha e abre o arquivo ali mesmo, sem guardar.
+- **Foto de extrato ou fatura:** uma página por vez. Depois de ler a primeira, toque em *Fotografar mais uma página*.
+- **Não conseguiu ler?** O app mostra uma *amostra sem seus dados* — números viram 9 e nomes viram x. Copie e mande ao Claude para ele ajustar o leitor ao seu banco.
 
 **Fixo todo mês:** marque na conferência — ou em *Tornar fixo*, ao editar um lançamento — o que se repete todo mês: aluguel, escola, assinaturas.
+
+**Salário:** a renda líquida de Ajustes entra sozinha no primeiro dia útil de cada mês (pulando fim de semana e feriado nacional), na conta escolhida ali. Em mês com parcela de consignado, ela entra já descontada. Se você lançar o salário à mão, o app não lança de novo. Dá para desligar em Ajustes.
 
 **Método 50-30-20** (aba Meta): divide a renda líquida em Necessidades, Desejos e Futuro. A rosca mostra a meta (anel de fora) e para onde a renda foi (anel de dentro); abaixo, o que tem em cada grupo. Os percentuais e o grupo de cada categoria são ajustáveis.
 
@@ -29,9 +34,9 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 - **Diagnóstico do mês, com sugestões:** o ritmo contra o teto, o 50-30-20, quanto da renda já sai comprometida, os gastos que parecem fixos, o cartão perto do limite e a categoria que vem subindo.
 - **Compras parceladas:** quando cada uma termina e quanto sobra por mês depois.
 - **Gastos por cartão e forma de pagamento.**
-- **Dívidas:** cadastre consignados, empréstimos e financiamentos com o valor da parcela, o total de parcelas e o juro ao mês. Diga *Já estou pagando* — "parcela 4 de 12" — ou *Ainda vou começar*, com a data da primeira. O app estima o saldo e os juros que faltam, mostra quando termina e quanto você economiza adiantando um pouco por mês, e vai marcando as parcelas conforme elas vencem.
-  - *Descontada direto do salário* (consignado): a parcela não vira gasto, porque o salário já cai na conta com o desconto. A dívida continua aparecendo aqui.
-  - Nas outras, a parcela entra sozinha nos gastos fixos até a última.
+- **Dívidas:** o app estima o saldo e os juros que faltam, mostra quando termina e quanto você economiza adiantando um pouco por mês.
+  - **Consignado:** informe o valor do empréstimo, a data, a conta onde caiu, o número de parcelas e o valor da parcela. O empréstimo entra no saldo da conta, sem contar como renda. A partir do salário seguinte, o salário entra já com a parcela descontada, e a parcela aparece em *Dívidas e empréstimos* — uma vez por mês, até a última. Se ele já vinha sendo descontado, diga quantas parcelas saíram antes deste mês. Sem o juro, o app calcula.
+  - **Empréstimo ou financiamento pago por boleto ou débito:** diga *Já estou pagando* — "parcela 4 de 12" — ou *Ainda vou começar*, com a data da primeira. A parcela entra sozinha nos gastos fixos até a última.
 
 **Extrato** (aba Contas): escolha a conta ou o cartão. Na conta, aparece o saldo anterior, cada entrada e saída com o saldo depois dela, e o saldo no fim do mês; no cartão, a fatura daquele mês. Toque em qualquer linha para corrigir o lançamento. No alto do extrato há três atalhos:
 - **Importar extrato / Importar fatura:** já abre o leitor sabendo de que conta ou cartão é o documento — é só escolher o arquivo ou a foto.

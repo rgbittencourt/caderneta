@@ -37,6 +37,8 @@ Leia este arquivo inteiro antes de mudar qualquer coisa. Ao mudar arquitetura, f
    - Extrato por conta e fatura do cartão, na aba Contas: `movsConta`, `linhaExt`, `htmlExtrato`, `bindExtrato` (a seleção fica em `S.ext`; `card:<id>` é cartão).
    - Importar, acertar e repetidos: `importarPara` (leva ao leitor já com tipo, cartão ou conta e mês), `saldoDoDoc` + `openAcerto` (acerto pelo saldo impresso no extrato), `dupHTML` (a pergunta na conferência) e `repetidosDe`/`procurarRepetidos`/`openRepetido` (repetidos já lançados).
    - Contas a pagar do mês: `contasDoMes` junta gastos fixos (pagos = têm lançamento com `fix`), parcelas de dívida, consignado em folha (só informativo) e a fatura de cada cartão (vencimento no mês seguinte quando `due < closing`); `linhaConta`, `htmlContas` (seção da aba Mês), `htmlProximas` (bloco do Painel, dez dias à frente), `lancarFixoUm`, `bindContas`.
+   - Salário e consignado: `primeiroDiaUtil` (+ `feriado`, `pascoa`), `garantirSalario`, `descontarConsignados`, `estadoCons`, `consDoMes`, `consVirtuais`, `rendaPrevista`, `lancarDesconto`, `lancamentoDoFixo`, `migrar2`.
+   - Ler documento, além do básico: `pedirSenhaPdf`, `diagnosticoDoc` + `amostraSemDados`, `abrirImportar`.
 9. **Partida** — `boot()` no fim do arquivo.
 
 Outros arquivos:
@@ -44,15 +46,22 @@ Outros arquivos:
   - Fatura: parcela `03/10` vira `i0=3, n=10`; `commit` cria da 3ª à 10ª a partir do mês da fatura (`d.ym`). Pagamento da fatura e estornos ficam de fora.
   - Extrato: C/D e sinal decidem entrada ou saída; sem marca, palavras como *recebido*, *salário* e *estorno* indicam entrada; a coluna de saldo é ignorada.
   - `saldosDoExtrato` lê o saldo que o banco imprime (*saldo anterior* e *saldo final/do dia/em DD/MM*, com a data quando existe). Depois de gravar os lançamentos, o app compara com o calculado e oferece o acerto (`openAcerto`). O acerto nunca é automático.
+  - PDF com senha: `textoDoPdf` devolve um erro com `senha: true`, e `lerDoc` abre `pedirSenhaPdf`. A senha só abre o arquivo no aparelho — nunca é guardada nem enviada.
+  - Formatos de `lerLancamentos`: data no começo (12/08, 12 AGO); um código curto ou dia da semana antes da data; duas colunas na mesma linha do PDF (quebra em `RE_OUTRA_COLUNA`); extrato agrupado por dia (a data sozinha vale para as linhas seguintes); sufixos `D`, `C`, `-`, `(+)` e `(-)`.
+  - Nada reconhecido ou erro: `diagnosticoDoc` explica e mostra uma amostra **sem dados** (`amostraSemDados`: números viram 9; palavras que não são termos bancários viram x). O dono copia e manda; ajuste o leitor por ela, nunca peça o documento original.
+  - Foto de extrato ou fatura: uma página por vez. *Fotografar mais uma página* soma à conferência (`S.docMais`, `mostrarLidos(r, op, anexar)`). O seletor de arquivo aceita vários de uma vez. No extrato de cada conta ou cartão, *Importar* oferece foto ou arquivo (`abrirImportar`).
+  - Comprovante de conta paga: `lerCupom` prefere a data da linha que fala de pagamento. Boleto lido entra com a data de hoje; o vencimento fica no texto.
   - Tudo cai na conferência (`S.drafts`), com a caixa *Incluir* — desmarcada quando `pareceRepetido` acha o mesmo valor em até 3 dias ou a mesma parcela — e *Fixo todo mês*, que cria um gasto fixo ligado ao lançamento (`fix`).
   - Os campos da ficha *Ler documento* aparecem conforme o tipo escolhido (atributo `data-doc`). Canhoto e boleto têm *Pago com* (guardado em `S.docPago`): essa escolha vence o que o documento diz e define débito, Pix, boleto ou cartão. Em branco, vale o que está escrito no documento. Cada linha ainda pode ser mudada uma a uma na conferência.
-- `sw.js` — guarda o app (`APP`) para uso offline. Página com `cache: "no-cache"` e `config.js` com `"no-store"`: rede primeiro, cópia guardada se não houver internet. Ícones: cópia guardada primeiro. Fontes do Google: cache próprio. APIs do Google: nunca passam pelo cache.
+- `sw.js` — guarda o app (`APP`) para uso offline. Página com `cache: "no-cache"` e `config.js` com `"no-store"`: rede primeiro, cópia guardada se não houver internet. Ícones: cópia guardada primeiro. Fontes do Google: cache próprio. Bibliotecas do leitor (cdnjs, jsdelivr): cache `caderneta-libs-2`, sempre pedidas como CORS e guardadas só com resposta `ok` — uma resposta opaca guardada quebrava o worker do pdf.js em alguns navegadores. APIs do Google: nunca passam pelo cache.
 - `config.js` — `googleClientId`. Vazio = app funciona só no aparelho, sem login.
 
 ## Formato dos dados (por conta)
 
 - localStorage `caderneta:dados:<id>` → `{cfg, months, syncedAt, dirty}`. O id é `g:<sub do Google>` ou `l:<aleatório>` (conta só do aparelho). Contas conhecidas em `caderneta:contas`; a ativa em `caderneta:ativa`.
-- `months["AAAA-MM"].tx[id]` → `{d, t, v, desc, cat, method, card, acct, acct2, k, plan, i, n, total, fix, ref, to, u}`
+- `months["AAAA-MM"].tx[id]` → `{d, t, v, desc, cat, method, card, acct, acct2, k, plan, i, n, total, fix, ref, to, u, cons?, emp?}`
+  - `method: "folha"` = desconto em folha: conta como gasto, mas não sai da conta. `cons` liga o desconto ao consignado; `emp` liga o depósito do empréstimo.
+  - Chaves fixas criadas pelo app: `sal-AAAA-MM` (salário automático) e `cons-<id>-AAAA-MM` (desconto do consignado).
   - `v` em **centavos, inteiro**.
   - `k`: `g` gasto · `e` entrada · `p` pagamento de fatura · `t` transferência entre contas.
   - `u`: momento da última alteração (ms). Excluir = `{del:1, u}` (lápide). Nunca apague a chave: a lápide é o que faz a exclusão chegar aos outros aparelhos.
@@ -60,13 +69,21 @@ Outros arquivos:
   - Compra no crédito não sai da conta no dia; sai no pagamento da fatura (`k:"p"`, `ref` = mês da fatura).
 - `cfg` — renda, teto, meta de saldo, contas (saldo inicial + acertos), cartões, categorias (com limite), categorias de entrada, gastos fixos, palavras aprendidas (`kwCat`, `kwCard`), meta de poupança; `cfg.u` = última alteração.
 - Acerto de saldo: soma a diferença em `a.opening` e guarda `{d, delta}` em `a.adjust` (últimos 20). Vem da ficha da conta ou do saldo impresso no extrato. **Nunca apague lançamento por conta própria, nem acerte saldo sozinho:** duplicado e acerto sempre passam por uma pergunta ao dono (`dupHTML`, `openRepetido`, `openAcerto`).
+- **Salário automático** (`cfg.salAuto`, ligado por padrão; `cfg.salConta`; `cfg.salDesde`): a renda líquida de Ajustes cai no primeiro dia útil do mês (`primeiroDiaUtil`: fins de semana, feriados nacionais, carnaval, sexta-feira santa e Corpus Christi). `garantirSalario` lança a renda menos as parcelas de consignado do mês, com chave `sal-AAAA-MM` — dois aparelhos geram a mesma chave e a junção fica com um só. Não lança se o mês já tem salário (categoria `sal`), se a chave existe como lápide (o dono apagou) ou, em conta Google, antes da primeira sincronização da sessão (senão duplicaria um salário lançado em outro aparelho).
+- Salário lançado à mão ou pelo extrato passa por `descontarConsignados`: se veio o valor cheio da renda, tira a parcela; se já veio descontado, só registra a parcela.
+- Projeções usam `rendaPrevista(ym)` (renda de Ajustes menos o consignado do mês) e `fixPendConta` (fixos sem o consignado, que não sai da conta).
 - Gasto fixo: `cfg.fixed[]` → `{id, name, amount, day, cat, card, desde?, ate?, divida?}`. `desde` e `ate` (`AAAA-MM`) limitam os meses em que ele vale (`fixedFor`). Um lançamento ligado a ele (`fix` = id) marca o mês como pago. `openFix` preserva os campos extras ao salvar.
 - **Dívidas:** `cfg.dividas[]` → `{id, nome, tipo, parcela, total, inicio, dia, juros, card, folha, fixId}`.
   - `parcela` em centavos; `total` = parcelas do contrato; `inicio` = mês (`AAAA-MM`) da 1ª parcela; `dia` = dia do vencimento ou do desconto; `juros` em % ao mês (`""` quando não informado).
-  - **As parcelas andam pelo calendário:** a parcela `k` vence em `inicio + (k−1)` meses (`vencDivida`), e a que já venceu conta como paga. Não depende de lançar nada — consignado e débito automático acertam sozinhos.
-  - A ficha aceita as duas formas de contar: *Já estou pagando* → "parcela 4 de 12" (o app deduz o `inicio`), ou *Ainda vou começar* → data da 1ª parcela.
-  - `folha: true` = descontada direto do salário (consignado). Nesse caso **não** cria gasto fixo: a renda líquida já vem com o desconto, e contar de novo seria duplicar. A dívida continua em Análises, e `consignadoNoMes(ym)` leva o valor ao diagnóstico.
-  - `folha: false` cria um gasto fixo (`fixId`) na categoria `divida`, de `inicio` até `inicio + total − 1`.
+  - **Dívida comum** (tudo que não é consignado) anda pelo calendário: a parcela `k` vence em `inicio + (k−1)` meses (`vencDivida`), e a que já venceu conta como paga. A ficha aceita *Já estou pagando* → "parcela 4 de 12" (o app deduz o `inicio`) ou *Ainda vou começar* → data da 1ª parcela. Cria um gasto fixo (`fixId`) na categoria `divida`, de `inicio` até `inicio + total − 1`.
+  - **Consignado** (`tipo: "consignado"`, `modo: "salario"`) → `{valor, data, conta, total, parcela, jaDesc, juros, criado, depId}`. Do jeito que o dono definiu:
+    - o `valor` do empréstimo cai na `conta` na `data`, como entrada de categoria `emprest`: entra no saldo, **não** conta como renda (`monthStats` exclui);
+    - a partir do primeiro salário depois da `data` (ou do salário do mês do cadastro, se `jaDesc > 0`), o salário entra com a parcela descontada, e a parcela vira gasto `divida` com `method: "folha"` e `cons: <id>`;
+    - `method: "folha"` conta como gasto (teto, 50-30-20, Dívidas), mas **não sai da conta** (`balanceOf` e `movsConta` ignoram) — a renda já veio sem ela;
+    - **nunca dois descontos no mesmo mês:** chave fixa `cons-<id>-<AAAA-MM>` e a checagem `estadoCons().meses`;
+    - `jaDesc` = parcelas descontadas **antes** do mês do cadastro; pagas = `jaDesc` + lançamentos com `cons`. Juros em branco → calculado pela tabela Price a partir de valor, parcela e número de parcelas (`consJuros`);
+    - enquanto o desconto do mês não foi lançado, ele aparece como gasto fixo virtual (`consVirtuais`, dentro de `fixedFor`).
+  - Consignado da versão anterior (pelo calendário) é convertido uma vez em `migrar2` (`cfg.m2`).
   - Formato da primeira versão (`restantes`/`desde`) vira o novo na leitura, em `normDivida`: `total = restantes`, `inicio = desde`.
   - Saldo pela tabela Price: `S = P·(1 − (1+i)^−n)/i`; juros que faltam = `P·n − S`. Sem juro informado: saldo = `P·n` e nenhuma simulação.
   - Simulação: adiantar 20% da parcela (mínimo R$ 50, arredondado em R$ 10). Meses até quitar pagando `Q`: `m = −ln(1 − S·i/Q)/ln(1+i)`. Economia = juros com `P` − juros com `P + E`.
@@ -83,7 +100,7 @@ Cada achado tem gravidade (crítico, atenção, informação, boa notícia), um 
 - **Teto:** no mês corrente, a projeção pelo ritmo (`monthStats().pace`) contra o teto e o limite por dia que ainda cabe; em mês passado, quanto fechou acima ou abaixo.
 - **50-30-20:** Necessidades ou Desejos acima da meta, com as duas maiores categorias do grupo; Futuro abaixo da meta, dizendo quanto da folga de Desejos cobriria a diferença.
 - **Renda comprometida** = (parcelas do mês + fixos vigentes, inclusive dívidas) ÷ renda. Acima de 30%: atenção. Acima de 50%: crítico.
-- **Consignado** não entra nessa conta: já saiu do salário. Aparece como aviso no fim do mesmo texto, com `consignadoNoMes`.
+- **Consignado** soma no numerador e volta para o denominador, porque a renda lançada já vem sem ele: (parcelas + fixos + consignado) ÷ (renda + consignado).
 - **Parcelas que terminam:** o primeiro mês, nos próximos 12, em que as parcelas caem pelo menos R$ 50 e 10% → "sobram R$ X por mês".
 - **Parece gasto fixo** (`recorrentes`): mesma chave (as duas primeiras palavras com mais de duas letras da descrição) em pelo menos 2 dos últimos 3 meses, uma vez por mês, com valores a até 15% da média, e ainda não marcado como fixo → botão *Marcar como fixo*.
 - **Assinaturas e telefone:** o valor do mês × 12.
@@ -137,7 +154,8 @@ Primeira publicação num computador novo: o dono autoriza no navegador (Git Cre
 
 ## Situação e próximos passos
 
-- **Publicado:** `caderneta-v5` (setembro de 2026). Tem lançamento por fala, leitura de documento, fixo todo mês, 50-30-20 com rosca, e a aba Análises (diagnóstico, parcelados, dívidas, cartões e formas de pagamento).
+- **Publicado:** `caderneta-v9` (setembro de 2026). Lançamento por fala; leitura de documento por foto ou PDF (com senha, várias páginas e amostra sem dados); fixo todo mês; 50-30-20 com rosca; aba Análises; extrato por conta com importar, acertar saldo e repetidos; contas a pagar por vencimento; salário automático no primeiro dia útil e consignado descontado do salário.
+- **PDF dos bancos dele:** até a v8 não abriam. A v9 trata senha, formatos novos e o cache da biblioteca, e mostra a amostra sem dados quando falhar — peça a amostra se ele disser que ainda não abre.
 - **Falta testar com dados reais do dono:** a leitura das faturas e extratos dos bancos dele — até agora só com amostras — e o login no iPhone com o app instalado.
 - **Para continuar em outro computador** (o dono também usa um MacBook Air): abra uma conversa do Claude Code na pasta do repositório, rode `git pull` e leia este arquivo. Se a pasta ainda não existe, clone `https://github.com/rgbittencourt/caderneta`.
 
