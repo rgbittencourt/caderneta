@@ -1083,9 +1083,11 @@ function balanceOf(acctId,upto){
     else if(t.method!=="credito"&&t.method!=="folha") bal-=t.v; });   /* desconto em folha não sai da conta */
   return bal; }
 const totalBalance=upto=>(S.cfg.accounts||[]).reduce((s,a)=>s+balanceOf(a.id,upto),0);
-function cardOwed(cardId){ let o=0;
+function cardOwed(cardId){ let o=0, inicio="";
+  allTx().forEach(t=>{ if(t.card===cardId&&t.k==="g"&&t.method==="credito"&&(!inicio||t.ym<inicio)) inicio=t.ym; });
   allTx().forEach(t=>{ if(t.card!==cardId) return;
-    if(t.k==="g"&&t.method==="credito") o+=t.v; else if(t.k==="p") o-=t.v; });
+    if(t.k==="g"&&t.method==="credito") o+=t.v;
+    else if(t.k==="p"&&!(t.ref&&(!inicio||t.ref<inicio))) o-=t.v; });   /* pagamento de fatura de antes do começo dos lançamentos não mexe no limite */
   return o; }
 function cardInvoice(cardId,ym){ let total=0,paid=0;
   txOf(ym).forEach(t=>{ if(t.card===cardId&&t.k==="g"&&t.method==="credito") total+=t.v; });
@@ -1586,6 +1588,8 @@ async function saveDrafts(){
   if(!ok.length){ toast("Nenhum lançamento com valor."); return; }
   $("#dSave").disabled=true;
   for(const d of ok){ if(d.fixo&&d.k!=="e"&&(+d.n||1)<=1){ const fx={id:uid(),name:d.desc||"Gasto fixo",amount:d.v,day:+String(d.date).slice(8,10)||1,cat:d.cat,card:d.cardId}; (S.cfg.fixed=S.cfg.fixed||[]).push(fx); d.fix=fx.id; fixos++; } await commit(d); } if(fixos) await saveCfg();
+  /* carga de extratos chegou ao mês atual: o salário automático volta */
+  if(S.cfg.salPausa&&ok.some(d=>d.origem==="extrato"&&String(d.date)>=ymOf(todayISO())+"-01")){ S.cfg.salPausa=false; saveCfg(); }
   S.drafts=[]; render();
   toast(ok.length+(ok.length>1?" lançamentos salvos":" lançamento salvo")+(fixos?" · "+fixos+" como fixo todo mês":""));
   const sd=S.docSaldo; S.docSaldo=null;
@@ -1821,10 +1825,21 @@ function openAcct(id){
     (!isNew&&(a.adjust||[]).length
       ? '<div class="set-f"><span class="hint">Últimos acertos: '+a.adjust.slice(-3).reverse()
           .map(x=>x.d.slice(8,10)+"/"+x.d.slice(5,7)+" "+(x.delta>=0?"+":"")+fmtN(x.delta)).join(" · ")+'</span></div>' : '')+
+    '<div class="set-f"><label style="display:flex;align-items:center;gap:9px;font-weight:500;color:var(--ink)"><input type="checkbox" id="aIni" style="width:20px;height:20px"'+(a.openDate?" checked":"")+'>Começar a contar de uma data</label>'+
+    '<span class="hint">Para carregar extratos antigos: a data do primeiro extrato e o saldo anterior que aparece nele.</span></div>'+
+    '<div class="two" id="aIniF"><div class="set-f"><label for="aID">Começa em</label><input id="aID" type="date" value="'+(a.openDate||(new Date().getFullYear()+"-01-01"))+'"></div>'+
+    '<div class="set-f"><label for="aIV">Saldo no dia anterior</label><input id="aIV" inputmode="decimal" value="'+(a.openDate?fmtN(a.opening||0):"")+'" placeholder="0,00"></div></div>'+
     '</div>',
     (isNew?"":'<button class="btn danger" id="aKill">Excluir</button>')+'<button class="btn" id="aOk">Salvar</button>');
+  const ini=()=>{ const on=$("#aIni").checked; $("#aIniF").hidden=!on; $("#aB").closest(".set-f").hidden=on; };
+  $("#aIni").onchange=ini; ini();
   $("#aOk").onclick=()=>{
     const nm=$("#aN").value.trim(); if(!nm){ toast("Dê um nome."); return; }
+    if($("#aIni").checked){ const dt=$("#aID").value; if(!dt){ toast("Informe a data de início."); return; }
+      const v=toCents($("#aIV").value), r=isNew?{id:a.id}:A.find(x=>x.id===a.id);
+      Object.assign(r,{n:nm,type:$("#aT").value,opening:v,openDate:dt,adjust:[]}); if(isNew) A.push(r);
+      S.cfg.accounts=A; saveCfg(); closeSheet(); render();
+      toast("Saldo de "+fmt(v)+" em "+diaMesAno(diaAnterior(dt))+". Os lançamentos contam a partir de "+diaMesAno(dt)+"."); return; }
     const novo=toCents($("#aB").value);
     if(isNew) A.push({id:a.id,n:nm,type:$("#aT").value,opening:novo,openDate:"",adjust:[]});
     else { const r=A.find(x=>x.id===a.id); r.n=nm; r.type=$("#aT").value;
@@ -1951,6 +1966,8 @@ function renderAjustes(){
     '<button class="mini" id="bkBtn">Copiar</button></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Restaurar de um backup</div><div class="s">Traz os dados de um backup, inclusive da versão anterior</div></div>'+
     '<button class="mini del" id="rsBtn">Restaurar</button></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Recomeçar os lançamentos</div><div class="s">Apaga os lançamentos para carregar os extratos do zero, e guarda um backup antes</div></div>'+
+    '<button class="mini del" id="rcBtn">Recomeçar</button></div>'+
     '</div></div>';
 
   const sync=src=>{
@@ -1978,6 +1995,7 @@ function renderAjustes(){
   $("#expBtn").onclick=exportCSV;
   $("#bkBtn").onclick=()=>copyText(JSON.stringify({app:"caderneta",v:1,cfg:S.cfg,months:S.months}),"Backup copiado.");
   $("#rsBtn").onclick=openRestore;
+  $("#rcBtn").onclick=openRecomecar;
 }
 
 function openCard(id){
@@ -2079,20 +2097,6 @@ function openKw(){
     const [tp,w]=b.dataset.kw.split("|");
     if(tp==="kc") delete S.cfg.kwCat[w]; else delete S.cfg.kwCard[w];
     saveCfg(); openKw(); render(); }); }
-
-function openRestore(){
-  sheet("Restaurar de um backup",
-    '<div class="set"><div class="set-f"><label>Cole o backup aqui</label><textarea id="rT" rows="7"></textarea>'+
-    '<span class="hint">Os lançamentos do backup se juntam aos que já estão aqui. Contas, cartões e categorias passam a ser as do backup.</span></div></div>',
-    '<button class="btn ghost" id="rX">Cancelar</button><button class="btn danger" id="rOk">Restaurar</button>');
-  $("#rX").onclick=closeSheet;
-  $("#rOk").onclick=async()=>{
-    try{ const d=JSON.parse($("#rT").value);
-      if(!d||!/^(caderneta|caderneta-casa|meu-caixa)$/.test(d.app)||!d.cfg) throw new Error("formato");
-      const m=mergeData({cfg:S.cfg,months:S.months},{cfg:Object.assign({},d.cfg,{u:Date.now()}),months:d.months||{}}); S.cfg=Object.assign(DEFAULTS(),m.cfg); S.months=m.months;
-      await saveCfg(); for(const ym of Object.keys(S.months)) await saveMonth(ym);
-      closeSheet(); render(); toast("Backup restaurado");
-    }catch(e){ toast("Não reconheci esse backup. Confira se copiou inteiro."); } }; }
 
 /* =================== importar =================== */
 function parseStatement(text,sign){
@@ -3156,7 +3160,7 @@ function consVirtuais(ym){
     day:+primeiroDiaUtil(ym).slice(8,10), cat:"divida", card:"", cons:x.dv.id, acct:contaDoSalario()})); }
 const idDesconto=(dvId,ym)=>"cons-"+dvId+"-"+ym;
 /* a chave existe, mesmo apagada (lápide): não recria o que o dono apagou */
-const jaTemChave=(ym,id)=>!!(S.months[ym]&&S.months[ym].tx&&S.months[ym].tx[id]);
+const jaTemChave=(ym,id)=>{ const t=S.months[ym]&&S.months[ym].tx&&S.months[ym].tx[id]; return !!t&&!(t.del&&t.zerado); };   /* lápide de Recomeçar não conta */
 async function lancarDesconto(dv,ym,e,data){
   const id=idDesconto(dv.id,ym); if(jaTemChave(ym,id)||e.meses[ym]) return false;
   await commit({id,raw:"",v:+dv.parcela||0,desc:dv.nome+" · parcela "+(e.pagas+1)+"/"+dv.total,cat:"divida",method:"folha",cardId:"",
@@ -3173,7 +3177,7 @@ function lancamentoDoFixo(f,ym){
    Chave fixa por mês ("sal-AAAA-MM"): dois aparelhos criam o mesmo lançamento, e a junção fica com um só. */
 let salarioRodando=false;
 async function garantirSalario(){
-  const c=S.cfg; if(salarioRodando||!c||!(+c.income>0)||c.salAuto===false) return;
+  const c=S.cfg; if(salarioRodando||!c||!(+c.income>0)||c.salAuto===false||c.salPausa) return;
   if(S.mode!=="local"&&!S.sincronizado) return;   /* conta Google: só depois de juntar com o Drive, senão duplicaria um salário lançado em outro aparelho */
   const hoje=todayISO(), cur=ymOf(hoje);
   salarioRodando=true;
@@ -3261,6 +3265,97 @@ function camposDoRascunho(d){
   return cat+'<div class="f"><label>Pagamento</label><select data-k="cardId">'+optId(S.cfg.cards,d.cardId)+'</select></div>'+
     (TEM_DESTINO[d.method]?'<div class="f"><label>Para quem</label><input data-k="to" value="'+esc(d.to||"")+'"></div>':'')+
     '<div class="f"><label>Parcelas</label><input inputmode="numeric" data-k="n" value="'+d.n+'"></div>'; }
+
+/* =================== recomeçar os lançamentos =================== */
+/* Apaga os lançamentos para carregar os extratos do zero, sem mexer na configuração. A exclusão é por lápide
+   marcada "zerado" (chega aos outros aparelhos e não impede o app de recriar salário e consignado).
+   Antes de apagar, guarda um backup completo — no Drive, em conta Google. */
+function ehDinheiro(t){
+  const A=S.cfg.accounts||[], card=S.cfg.cards.find(c=>c.id===t.card);
+  return (t.k||"g")==="g"&&(t.method==="dinheiro"||(!!card&&card.type==="dinheiro")||((A.find(a=>a.id===t.acct)||{}).type==="carteira")); }
+async function backupAntesDeRecomecar(){
+  const pacote={app:"caderneta",v:1,antesDeRecomecar:true,salvoEm:new Date().toISOString(),cfg:S.cfg,months:S.months};
+  const nome="backup-antes-de-recomecar-"+todayISO()+".json";
+  if(S.user&&S.user.kind==="google"){
+    if(!navigator.onLine||!tokenOk()){ toast("Toque em Sincronizar no topo antes: o backup vai para o seu Drive. Nada foi apagado."); return false; }
+    try{ const pasta=await ensureFolder(); await writeJson(nome,pasta,pacote); return nome; }
+    catch(e){ toast("Não consegui guardar o backup no Drive. Nada foi apagado."); return false; } }
+  try{ await navigator.clipboard.writeText(JSON.stringify(pacote)); return "copiado para a área de transferência"; }
+  catch(e){ toast("Não consegui copiar o backup. Use Backup completo em Ajustes antes. Nada foi apagado."); return false; } }
+function openRecomecar(){
+  const todos=allTx(), din=todos.filter(ehDinheiro).length, A=(S.cfg.accounts||[]).filter(a=>a.type!=="carteira");
+  const datas=todos.map(t=>t.d).sort(), inicio=new Date().getFullYear()+"-01-01";
+  const google=S.user&&S.user.kind==="google";
+  sheet("Recomeçar os lançamentos",
+    '<div class="set">'+
+    '<div class="note"><b>O que acontece</b>Apaga os '+todos.length+' lançamentos'+(datas.length?' ('+diaMesAno(datas[0])+' a '+diaMesAno(datas[datas.length-1])+')':'')+
+    ' em todos os aparelhos, e também o que foi marcado em Guardei um dinheiro. Contas, cartões, categorias, renda, teto, metas, gastos fixos e dívidas continuam como estão. '+
+    (google?'Antes de apagar, um backup completo vai para o seu Google Drive; dá para voltar em Ajustes → Restaurar de um backup.':'Antes de apagar, o backup completo é copiado — cole em um lugar seguro.')+
+    ' O salário automático fica pausado até você importar o extrato deste mês.</div>'+
+    (din?'<div class="set-f"><label style="display:flex;align-items:center;gap:9px;font-weight:500;color:var(--ink)"><input type="checkbox" id="rcDin" style="width:20px;height:20px" checked>Manter os '+din+' gastos pagos em dinheiro</label><span class="hint">Eles não aparecem em nenhum extrato.</span></div>':'')+
+    '<div class="set-f"><label for="rcDesde">Vou carregar os extratos a partir de</label><input id="rcDesde" type="date" value="'+inicio+'">'+
+    '<span class="hint">O saldo de cada conta passa a contar desta data.</span></div>'+
+    A.map(a=>'<div class="set-f"><label for="rcS_'+a.id+'">Saldo de '+esc(a.n)+' em <span class="rcDia">'+diaMesAno(diaAnterior(inicio))+'</span></label>'+
+      '<input id="rcS_'+a.id+'" inputmode="decimal" placeholder="em branco: acertar depois"></div>').join("")+
+    '<div class="set-f"><span class="hint">É o <b>saldo anterior</b> que aparece no primeiro extrato. Em branco, o app oferece o acerto quando você importar esse extrato.</span></div>'+
+    '<div class="set-f"><label for="rcOk">Para confirmar, escreva APAGAR</label><input id="rcOk" autocomplete="off" autocapitalize="characters"></div></div>',
+    '<button class="btn ghost" id="rcX">Cancelar</button><button class="btn danger" id="rcGo">Recomeçar</button>');
+  $("#rcX").onclick=closeSheet;
+  $("#rcDesde").onchange=()=>{ const v=$("#rcDesde").value; if(v) $$(".rcDia").forEach(s=>s.textContent=diaMesAno(diaAnterior(v))); };
+  $("#rcGo").onclick=async()=>{
+    if($("#rcOk").value.trim().toUpperCase()!=="APAGAR"){ toast("Escreva APAGAR para confirmar."); return; }
+    const desde=$("#rcDesde").value; if(!desde){ toast("Informe a data de início."); return; }
+    const manter=!!($("#rcDin")&&$("#rcDin").checked), saldos={};
+    A.forEach(a=>{ const v=$("#rcS_"+a.id).value.trim(); if(v) saldos[a.id]=toCents(v); });
+    const bt=$("#rcGo"); bt.disabled=true; bt.textContent="Guardando o backup…";
+    const bk=await backupAntesDeRecomecar();
+    if(bk===false){ bt.disabled=false; bt.textContent="Recomeçar"; return; }
+    const agora=Date.now(); let apagados=0;
+    Object.keys(S.months).forEach(ym=>{ const tx=(S.months[ym]||{}).tx||{};
+      Object.keys(tx).forEach(id=>{ const t=tx[id]; if(!t||t.del) return;
+        if(manter&&ehDinheiro(t)) return;
+        tx[id]={del:1,u:agora,zerado:1}; apagados++; }); });
+    A.forEach(a=>{ a.openDate=desde; if(saldos[a.id]!=null){ a.opening=saldos[a.id]; a.adjust=[]; } });
+    S.cfg.deposits=[]; S.cfg.salPausa=true; S.drafts=[];
+    await saveCfg(); for(const ym of Object.keys(S.months)) await saveMonth(ym);
+    closeSheet(); render();
+    toast(apagados+" lançamentos apagados. Backup: "+bk); }; }
+
+/* restaurar: backups do Drive com um toque, ou colando o texto */
+function openRestore(){
+  const google=S.user&&S.user.kind==="google";
+  sheet("Restaurar de um backup",
+    '<div class="set">'+
+    (google?'<div class="set-f"><label>Backups no seu Google Drive</label><div id="rDrive" class="hint">Procurando…</div></div>':'')+
+    '<div class="set-f"><label for="rT">'+(google?'Ou cole um backup aqui':'Cole o backup aqui')+'</label><textarea id="rT" rows="6"></textarea>'+
+    '<span class="hint">Os lançamentos do backup se juntam aos que já estão aqui. Contas, cartões e categorias passam a ser as do backup.</span></div></div>',
+    '<button class="btn ghost" id="rX">Cancelar</button><button class="btn danger" id="rOk">Restaurar</button>');
+  $("#rX").onclick=closeSheet;
+  $("#rOk").onclick=async()=>{ let d=null; try{ d=JSON.parse($("#rT").value); }catch(e){} await restaurarPacote(d); };
+  if(google) listarBackupsDrive(); }
+async function listarBackupsDrive(){
+  if(!$("#rDrive")) return;
+  if(!navigator.onLine||!tokenOk()){ $("#rDrive").textContent="Toque em Sincronizar no topo para ver os backups do Drive."; return; }
+  try{
+    const pasta=await ensureFolder();
+    const q=encodeURIComponent("'"+pasta+"' in parents and name contains 'backup' and trashed=false");
+    const r=await gfetch(DRIVE+"/files?q="+q+"&orderBy="+encodeURIComponent("modifiedTime desc")+"&pageSize=12&fields="+encodeURIComponent("files(id,name,modifiedTime)"));
+    const L=((await r.json()).files)||[], box=$("#rDrive"); if(!box) return;
+    box.innerHTML=L.length?L.map(f=>'<div class="linkrow"><div class="m"><div class="t">'+esc(f.name.replace(/\.json$/,""))+'</div>'+
+      '<div class="s">'+esc(new Date(f.modifiedTime).toLocaleString("pt-BR"))+'</div></div><button class="mini" data-bk="'+f.id+'">Restaurar</button></div>').join("")
+      :"Nenhum backup no Drive ainda.";
+    $$("[data-bk]",box).forEach(b=>b.onclick=async()=>{ b.disabled=true; b.textContent="…";
+      try{ await restaurarPacote(await readJson(b.dataset.bk)); }catch(e){ toast("Não consegui abrir esse backup."); b.disabled=false; b.textContent="Restaurar"; } });
+  }catch(e){ if($("#rDrive")) $("#rDrive").textContent="Não consegui listar os backups agora."; } }
+async function restaurarPacote(d){
+  if(!d||!/^(caderneta|caderneta-casa|meu-caixa)$/.test(d.app)||!d.cfg){ toast("Não reconheci esse backup. Confira se copiou inteiro."); return; }
+  const agora=Date.now();
+  /* backup de antes de recomeçar: os lançamentos voltam por cima das exclusões */
+  if(d.antesDeRecomecar) Object.values(d.months||{}).forEach(m=>Object.values((m&&m.tx)||{}).forEach(t=>{ if(t&&!t.del) t.u=agora; }));
+  const m=mergeData({cfg:S.cfg,months:S.months},{cfg:Object.assign({},d.cfg,{u:agora}),months:d.months||{}});
+  S.cfg=Object.assign(DEFAULTS(),m.cfg); S.months=m.months; migrarCfg();
+  await saveCfg(); for(const ym of Object.keys(S.months)) await saveMonth(ym);
+  closeSheet(); render(); toast("Backup restaurado"); }
 
 /* =================== partida =================== */
 $("#mPrev").onclick=()=>{ S.ym=ymShift(S.ym,-1); render(); };

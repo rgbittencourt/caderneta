@@ -25,12 +25,16 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 - **Não conseguiu ler?** O app mostra uma *amostra sem seus dados* — números viram 9 e nomes viram x. Copie e mande ao Claude para ele ajustar o leitor ao seu banco.
 
 **Importar meses anteriores** (extratos e faturas em PDF):
-1. Em Ajustes, confira os cartões (dia de fechamento e de vencimento) e as contas, inclusive poupança ou investimento.
-2. Cadastre os consignados antes, com a data real do empréstimo e 0 parcelas já descontadas, e desmarque *Lançar o depósito* — ele virá no extrato.
-3. Teste com um documento só (o extrato de janeiro). Se não ler, mande a amostra sem dados.
-4. Mês a mês, **do mais antigo para o mais novo**: primeiro a fatura de cada cartão (no extrato do cartão, *Importar fatura*), depois o extrato da conta corrente. A fatura vai sozinha para o mês das compras.
-5. No primeiro extrato da conta, aceite *Acertar* o saldo: é o ponto de partida. Nos seguintes, a conferência do saldo deve dizer "está batendo"; se não bater, falta ou sobra algo naquele mês.
-6. No extrato, pagamento de fatura e aplicação ou resgate não contam como gasto nem renda. Parcelas que o app já reservou vêm desmarcadas sozinhas. O salário que vier no extrato precisa estar na categoria *Salário* para o desconto do consignado ser registrado.
+1. **Recomece** (recomendado): Ajustes → *Recomeçar os lançamentos*. O app guarda um backup no Drive, apaga os lançamentos em todos os aparelhos (mantém os gastos em dinheiro, se você quiser) e não mexe na configuração. Ali mesmo, informe a data do primeiro extrato (01/01/2026) e o saldo de cada conta no dia anterior — o *saldo anterior* que aparece nesse extrato. O salário automático fica pausado até você importar o extrato do mês atual.
+2. Para acertar o saldo inicial depois: Contas → toque na conta → *Começar a contar de uma data*.
+3. Em Ajustes, confira os cartões (dia de fechamento e de vencimento) e as contas, inclusive poupança ou investimento.
+4. Cadastre os consignados com a data real do empréstimo e 0 parcelas já descontadas, e desmarque *Lançar o depósito* — ele virá no extrato.
+5. Teste com um documento só (o extrato de janeiro). Se não ler, mande a amostra sem dados.
+6. Mês a mês, **do mais antigo para o mais novo**: o extrato da conta corrente e as faturas dos cartões daquele mês, em qualquer ordem (aba Contas → escolha a conta ou o cartão → *Importar*). A fatura vai sozinha para o mês das compras.
+7. O extrato de janeiro traz o pagamento das faturas de dezembro: ele vira *Pagamento de fatura*, sai da conta corrente e não mexe no limite do cartão. Não precisa importar as faturas de dezembro.
+8. Depois de cada extrato da conta, a conferência do saldo deve dizer "está batendo". Se não bater, falta ou sobra algo naquele mês.
+9. No extrato, pagamento de fatura e aplicação ou resgate não contam como gasto nem renda. Parcelas que o app já reservou vêm desmarcadas sozinhas. O salário do extrato precisa estar na categoria *Salário* para o desconto do consignado ser registrado.
+10. Errou? Ajustes → *Restaurar de um backup* lista os backups do Drive; o de antes de recomeçar traz tudo de volta.
 
 **Fixo todo mês:** marque na conferência — ou em *Tornar fixo*, ao editar um lançamento — o que se repete todo mês: aluguel, escola, assinaturas.
 

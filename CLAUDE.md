@@ -39,6 +39,8 @@ Leia este arquivo inteiro antes de mudar qualquer coisa. Ao mudar arquitetura, f
    - Contas a pagar do mês: `contasDoMes` junta gastos fixos (pagos = têm lançamento com `fix`), parcelas de dívida, consignado em folha (só informativo) e a fatura de cada cartão (vencimento no mês seguinte quando `due < closing`); `linhaConta`, `htmlContas` (seção da aba Mês), `htmlProximas` (bloco do Painel, dez dias à frente), `lancarFixoUm`, `bindContas`.
    - Salário e consignado: `primeiroDiaUtil` (+ `feriado`, `pascoa`), `garantirSalario`, `descontarConsignados`, `estadoCons`, `consDoMes`, `consVirtuais`, `rendaPrevista`, `lancarDesconto`, `lancamentoDoFixo`, `migrar2`.
    - Ler documento, além do básico: `pedirSenhaPdf`, `diagnosticoDoc` + `amostraSemDados`, `abrirImportar`.
+   - Importar meses anteriores: `classificarLinhaExtrato`, `mesDaFatura`, `camposDoRascunho`.
+   - Recomeçar e restaurar: `openRecomecar`, `backupAntesDeRecomecar`, `ehDinheiro`; `openRestore` + `listarBackupsDrive` + `restaurarPacote`.
 9. **Partida** — `boot()` no fim do arquivo.
 
 Outros arquivos:
@@ -75,6 +77,10 @@ Outros arquivos:
 - Acerto de saldo: soma a diferença em `a.opening` e guarda `{d, delta}` em `a.adjust` (últimos 20). Vem da ficha da conta ou do saldo impresso no extrato. **Nunca apague lançamento por conta própria, nem acerte saldo sozinho:** duplicado e acerto sempre passam por uma pergunta ao dono (`dupHTML`, `openRepetido`, `openAcerto`).
 - **Salário automático** (`cfg.salAuto`, ligado por padrão; `cfg.salConta`; `cfg.salDesde`): a renda líquida de Ajustes cai no primeiro dia útil do mês (`primeiroDiaUtil`: fins de semana, feriados nacionais, carnaval, sexta-feira santa e Corpus Christi). `garantirSalario` lança a renda menos as parcelas de consignado do mês, com chave `sal-AAAA-MM` — dois aparelhos geram a mesma chave e a junção fica com um só. Não lança se o mês já tem salário (categoria `sal`), se a chave existe como lápide (o dono apagou) ou, em conta Google, antes da primeira sincronização da sessão (senão duplicaria um salário lançado em outro aparelho).
 - Salário lançado à mão ou pelo extrato passa por `descontarConsignados`: se veio o valor cheio da renda, tira a parcela; se já veio descontado, só registra a parcela.
+- **Recomeçar os lançamentos** (Ajustes): guarda antes `backup-antes-de-recomecar-AAAA-MM-DD.json` no Drive (conta Google; sem Drive ou sem token, não apaga nada), depois troca cada lançamento por lápide `{del:1, u, zerado:1}` — mantém os pagos em dinheiro se o dono quiser —, limpa `cfg.deposits`, põe `openDate` e (se informado) `opening` nas contas e liga `cfg.salPausa`. Não mexe em mais nada da configuração. `jaTemChave` ignora lápide `zerado`, para salário e consignado poderem ser recriados. `salPausa` desliga quando a conferência grava uma linha de extrato do mês atual.
+- Restaurar um backup com `antesDeRecomecar: true` renova o `u` dos lançamentos, para eles voltarem por cima das lápides. Em conta Google, a ficha lista os backups da pasta do Drive.
+- Saldo inicial numa data: ficha da conta → *Começar a contar de uma data* grava `openDate` (lançamentos antes dela não contam no saldo) e `opening` (saldo no fim do dia anterior), e zera `adjust`.
+- `cardOwed` ignora pagamento de fatura com `ref` anterior à primeira compra do cartão no app (fatura de antes do começo dos lançamentos): o dinheiro sai da conta, mas o limite não muda.
 - Projeções usam `rendaPrevista(ym)` (renda de Ajustes menos o consignado do mês) e `fixPendConta` (fixos sem o consignado, que não sai da conta).
 - Gasto fixo: `cfg.fixed[]` → `{id, name, amount, day, cat, card, desde?, ate?, divida?}`. `desde` e `ate` (`AAAA-MM`) limitam os meses em que ele vale (`fixedFor`). Um lançamento ligado a ele (`fix` = id) marca o mês como pago. `openFix` preserva os campos extras ao salvar.
 - **Dívidas:** `cfg.dividas[]` → `{id, nome, tipo, parcela, total, inicio, dia, juros, card, folha, fixId}`.
