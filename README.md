@@ -24,6 +24,14 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 - **Foto de extrato ou fatura:** uma página por vez. Depois de ler a primeira, toque em *Fotografar mais uma página*.
 - **Não conseguiu ler?** O app mostra uma *amostra sem seus dados* — números viram 9 e nomes viram x. Copie e mande ao Claude para ele ajustar o leitor ao seu banco.
 
+**Importar meses anteriores** (extratos e faturas em PDF):
+1. Em Ajustes, confira os cartões (dia de fechamento e de vencimento) e as contas, inclusive poupança ou investimento.
+2. Cadastre os consignados antes, com a data real do empréstimo e 0 parcelas já descontadas, e desmarque *Lançar o depósito* — ele virá no extrato.
+3. Teste com um documento só (o extrato de janeiro). Se não ler, mande a amostra sem dados.
+4. Mês a mês, **do mais antigo para o mais novo**: primeiro a fatura de cada cartão (no extrato do cartão, *Importar fatura*), depois o extrato da conta corrente. A fatura vai sozinha para o mês das compras.
+5. No primeiro extrato da conta, aceite *Acertar* o saldo: é o ponto de partida. Nos seguintes, a conferência do saldo deve dizer "está batendo"; se não bater, falta ou sobra algo naquele mês.
+6. No extrato, pagamento de fatura e aplicação ou resgate não contam como gasto nem renda. Parcelas que o app já reservou vêm desmarcadas sozinhas. O salário que vier no extrato precisa estar na categoria *Salário* para o desconto do consignado ser registrado.
+
 **Fixo todo mês:** marque na conferência — ou em *Tornar fixo*, ao editar um lançamento — o que se repete todo mês: aluguel, escola, assinaturas.
 
 **Salário:** a renda líquida de Ajustes entra sozinha no primeiro dia útil de cada mês (pulando fim de semana e feriado nacional), na conta escolhida ali. Em mês com parcela de consignado, ela entra já descontada. Se você lançar o salário à mão, o app não lança de novo. Dá para desligar em Ajustes.

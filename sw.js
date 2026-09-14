@@ -1,6 +1,6 @@
 /* Caderneta — service worker: guarda o app no aparelho para abrir sem internet.
    Mude VERSAO a cada publicação para os aparelhos pegarem a versão nova. */
-const VERSAO = "caderneta-v9";
+const VERSAO = "caderneta-v10";
 const FONTES = "caderneta-fontes";
 const LIBS = "caderneta-libs-2";
 const APP = ["./", "./index.html", "./manifest.webmanifest", "./config.js",

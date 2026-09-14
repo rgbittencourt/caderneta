@@ -1026,7 +1026,8 @@ async function commit(d){
   const kind=d.k||"g";
   const n=kind==="g"?Math.max(1,Math.min(60,+d.n||1)):1;
   const total=Math.abs(d.v); if(!total) return false;
-  const i0=Math.max(1,Math.min(n,+d.i0||1)); const parts=i0>1?new Array(n).fill(total):splitCents(total,n); const planTotal=i0>1?total*n:total; const planId=n>1?uid():"";
+  const i0=Math.max(1,Math.min(n,+d.i0||1)); const porParcela=i0>1||!!d.porParcela;   /* na fatura, 01/03 126,67 é o valor de cada parcela; na fala, é o total */
+  const parts=porParcela?new Array(n).fill(total):splitCents(total,n); const planTotal=porParcela?total*n:total; const planId=n>1?uid():"";
   const touched=new Set();
   for(let i=i0-1;i<n;i++){
     const ym = d.ym ? ymShift(d.ym,i-(i0-1)) : kind==="g" ? txMonth(d.date,d.cardId,i) : ymOf(d.date);
@@ -1036,7 +1037,7 @@ async function commit(d){
       d:i===i0-1?d.date:firstOfMonth(ym,d.date), t:d.time, v:parts[i],
       desc:d.desc||"Sem descrição", cat:d.cat||(kind==="e"?"outrae":"outros"),
       method:d.method, card:d.cardId, raw:i===i0-1?d.raw:"", plan:planId, i:i+1, n:n, total:planTotal,
-      fix:d.fix||"", k:kind, acct:d.acct||acctOf(d.cardId), acct2:d.acct2||"", ref:d.ref||"", to:d.to||"", u:Date.now(),
+      fix:d.fix||"", k:kind, acct:kind==="t"?(d.acct||""):(d.acct||acctOf(d.cardId)), acct2:d.acct2||"", ref:d.ref||"", to:d.to||"", u:Date.now(),
       ...(d.cons?{cons:d.cons}:{}), ...(d.emp?{emp:d.emp}:{}) };
     touched.add(ym); }
   if(kind==="g") learn(d);
@@ -1542,26 +1543,23 @@ function renderDrafts(){
     '<span class="draft-v"'+(d.k==="e"?' style="color:var(--good)"':'')+'>'+(d.v?(d.k==="e"?"+":"")+fmt(d.v):"—")+'</span>'+
     '<span class="draft-d">'+esc(d.desc||"Sem descrição")+'</span>'+
     '<button class="draft-x" data-x="'+i+'" aria-label="Remover">✕</button></div><div class="fields">'+
-    '<div class="f"><label>Tipo</label><select data-k="k"><option value="g"'+(d.k!=="e"?" selected":"")+
-    '>Gasto</option><option value="e"'+(d.k==="e"?" selected":"")+'>Entrada</option></select></div>'+
+    '<div class="f"><label>Tipo</label><select data-k="k">'+[["g","Gasto"],["e","Entrada"],["p","Pagamento de fatura"],["t","Entre contas"]].map(o=>'<option value="'+o[0]+'"'+((d.k||"g")===o[0]?" selected":"")+'>'+o[1]+'</option>').join("")+'</select></div>'+
     '<div class="f"><label>Valor</label><input inputmode="decimal" data-k="v" value="'+(d.v?fmtN(d.v):"")+'"></div>'+
     '<div class="f"><label>Descrição</label><input data-k="desc" value="'+esc(d.desc)+'"></div>'+
-    '<div class="f"><label>Categoria</label><select data-k="cat">'+opt(d.k==="e"?(S.cfg.ecats||ECATS):S.cfg.cats,d.cat)+'</select></div>'+
-    (d.k==="e"
-      ? '<div class="f"><label>Cai em qual conta</label><select data-k="acct">'+opt(S.cfg.accounts||[],d.acct||acctOf(d.cardId))+'</select></div>'
-      : '<div class="f"><label>Pagamento</label><select data-k="cardId">'+opt(S.cfg.cards,d.cardId)+'</select></div>'+
-        (TEM_DESTINO[d.method]?'<div class="f"><label>Para quem</label><input data-k="to" value="'+esc(d.to||"")+'"></div>':'')+
-        '<div class="f"><label>Parcelas</label><input inputmode="numeric" data-k="n" value="'+d.n+'"></div>')+
-    '<div class="f"><label>Data</label><input type="date" data-k="date" value="'+d.date+'"></div>'+(d.k!=="e"&&(+d.n||1)<=1?'<div class="f"><label>Fixo todo mês</label><input type="checkbox" data-k="fixo" style="width:20px;height:20px"'+(d.fixo?" checked":"")+'></div>':'')+(d.origem?'<div class="f"><label>Incluir</label><input type="checkbox" data-k="incluir" style="width:20px;height:20px"'+(d.incluir!==false?" checked":"")+'></div>':'')+'</div>'+
+    camposDoRascunho(d)+
+    '<div class="f"><label>Data</label><input type="date" data-k="date" value="'+d.date+'"></div>'+((d.k||"g")==="g"&&(+d.n||1)<=1?'<div class="f"><label>Fixo todo mês</label><input type="checkbox" data-k="fixo" style="width:20px;height:20px"'+(d.fixo?" checked":"")+'></div>':'')+(d.origem?'<div class="f"><label>Incluir</label><input type="checkbox" data-k="incluir" style="width:20px;height:20px"'+(d.incluir!==false?" checked":"")+'></div>':'')+'</div>'+
     (d.msg?'<div class="draft-msg">'+esc(d.msg)+'</div>':'')+dupHTML(d,i)+
     (d.raw?'<div class="raw">“'+esc(d.raw)+'”</div>':'')+'</div>').join("");
   $$(".draft",box).forEach(el=>{ const i=+el.dataset.i;
     $$("[data-k]",el).forEach(inp=>inp.oninput=()=>{
       const k=inp.dataset.k, d=S.drafts[i]; if(inp.type==="checkbox"){ d[k]=inp.checked; return; }
       if(k==="k"){ d.k=inp.value; d.cat=guessCat(d.desc||d.raw,S.cfg,d.k);
-        if(d.k==="e"){ d.n=1; d.acct=d.acct||acctOf(d.cardId); } renderDrafts(); return; }
+        if(d.k==="e"){ d.n=1; d.acct=d.acct||acctOf(d.cardId); }
+        if(d.k==="p"){ d.n=1; d.method="debito"; if(!creditCards().some(c=>c.id===d.cardId)) d.cardId=(creditCards()[0]||{}).id; d.acct=d.acct||acctOf(""); d.ref=d.ref||ymShift(ymOf(d.date||todayISO()),-1); }
+        if(d.k==="t"){ d.n=1; d.method="transferencia"; d.acct=d.acct||acctOf(d.cardId); d.acct2=d.acct2||""; }
+        renderDrafts(); return; }
       if(k==="cardId"){ d.cardId=inp.value; const c=S.cfg.cards.find(x=>x.id===inp.value);
-        if(c) d.method=c.type; renderDrafts(); return; }
+        if(c&&d.k!=="p") d.method=c.type; renderDrafts(); return; }
       if(k==="v") d.v=toCents(inp.value);
       else if(k==="n") d.n=Math.max(1,Math.min(60,parseInt(inp.value)||1));
       else d[k]=inp.value;
@@ -1571,7 +1569,7 @@ function renderDrafts(){
         el.classList.toggle("bad",!d.v); } }); });
   $$("[data-dupm]",box).forEach(b=>b.onclick=()=>{ const d=S.drafts[+b.dataset.dupm]; d.incluir=false; d.dupResp=1; renderDrafts(); });
   $$("[data-dupd]",box).forEach(b=>b.onclick=()=>{ const d=S.drafts[+b.dataset.dupd]; d.incluir=true; d.dupResp=1; renderDrafts(); });
-  $$("[data-dupv]",box).forEach(b=>b.onclick=()=>{ S.drafts[+b.dataset.dupv].dupResp=0; renderDrafts(); });
+  $$("[data-dupv]",box).forEach(b=>b.onclick=()=>{ const d=S.drafts[+b.dataset.dupv]; d.dupResp=0; d.dupAuto=0; renderDrafts(); });
   $$("[data-x]",box).forEach(b=>b.onclick=()=>{ S.drafts.splice(+b.dataset.x,1); renderDrafts(); }); }
 
 function readInput(){
@@ -2544,19 +2542,23 @@ function rascunhosDoc(r,op){
   const porBandeira=b=>{ if(!b) return null; const w=b.indexOf("master")===0?"master":b;
     return S.cfg.cards.find(c=>c.type==="credito"&&norm(c.alias+" "+c.n).split(" ").indexOf(w)>=0); };
   const boletoCard=S.cfg.cards.find(c=>c.type==="boleto"), pagoCom=op.pago?S.cfg.cards.find(c=>c.id===op.pago):null;
+  const mesFat=r.tipo==="fatura"?mesDaFatura(r,op.mes||S.ym):"";
   return r.linhas.map(l=>{
     const d={id:uid(), raw:"", v:l.v, desc:l.desc, k:l.k||"g", n:l.n||1, i0:l.i0||1, date:l.d||hoje, time:"", msg:"", origem:r.tipo, incluir:true};
-    if(r.tipo==="fatura"){ d.cardId=op.card; d.method="credito"; d.ym=op.mes||S.ym;
+    if(r.tipo==="fatura"){ d.cardId=op.card; d.method="credito"; d.ym=mesFat; d.porParcela=d.n>1;
       d.raw="Fatura de "+ymLabel(d.ym)+(d.i0>1?" · parcela "+d.i0+" de "+d.n+" — as seguintes já ficam reservadas":""); }
     else if(r.tipo==="extrato"){ const c=debitoDaConta(op.conta); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id;
-      d.method=d.k==="e"?"pix":"debito"; d.acct=op.conta||acctOf(d.cardId); d.raw="Extrato"; }
+      d.method=d.k==="e"?"pix":"debito"; d.acct=op.conta||acctOf(d.cardId); d.raw="Extrato"; classificarLinhaExtrato(d); }
     else if(r.tipo==="boleto"){ const c=pagoCom||boletoCard||debitoDaConta(); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id; d.method=pagoCom?pagoCom.type:"boleto"; d.date=hoje;
       d.raw=l.vencimento?"Vence em "+l.vencimento.split("-").reverse().join("/"):"Boleto"; }
     else { const c=pagoCom||porBandeira(l.bandeira)||S.cfg.cards.find(x=>x.type===(l.metodo||"credito"))||S.cfg.cards[0];
       d.cardId=c.id; d.method=c.type; d.raw="Canhoto"; }
     d.cat=(l.cat&&S.cfg.cats.some(c=>c.id===l.cat))?l.cat:guessCat(d.desc,S.cfg,d.k);
     const rep=pareceRepetido(d);
-    if(rep){ d.incluir=false; d.dup={ym:rep.ym,id:rep.id,desc:rep.desc,d:rep.d,v:rep.v,card:rep.card||"",k:rep.k}; }
+    if(rep){ d.incluir=false; d.dup={ym:rep.ym,id:rep.id,desc:rep.desc,d:rep.d,v:rep.v,card:rep.card||"",k:rep.k};
+      /* parcela que o app já reservou quando importou a fatura em que a compra começou: mesmo número, mesmo valor, mesmo cartão */
+      const reservada=d.i0>1&&txOf(d.ym||ymOf(d.date)).find(t=>t.plan&&t.i===d.i0&&Math.abs(t.v-d.v)<=1&&(!d.cardId||t.card===d.cardId));
+      if(reservada){ d.dup={ym:reservada.ym,id:reservada.id,desc:reservada.desc,d:reservada.d,v:reservada.v,card:reservada.card||"",k:reservada.k}; d.dupResp=1; d.dupAuto=1; } }
     return d; }); }
 
 /* o mesmo gasto já lançado por voz ou por outro documento: mesmo valor, mesma data (±3 dias) */
@@ -2973,7 +2975,7 @@ function openAcerto(acctId,s){
 function dupHTML(d,i){
   if(!d.dup) return "";
   const t=d.dup;
-  if(d.dupResp) return '<div class="dup ok">'+(d.incluir?"Você disse que são dois lançamentos diferentes: este vai entrar.":"Você disse que é o mesmo: este não vai entrar.")+
+  if(d.dupResp) return '<div class="dup ok">'+(d.dupAuto&&!d.incluir?"Parcela "+d.i0+"/"+d.n+" já reservada pela fatura em que a compra começou: não vai entrar de novo.":d.incluir?"Você disse que são dois lançamentos diferentes: este vai entrar.":"Você disse que é o mesmo: este não vai entrar.")+
     ' <button class="mini" data-dupv="'+i+'">mudar</button></div>';
   return '<div class="dup"><b>Isto já está lançado?</b>'+
     '<div class="dup-l">Na Caderneta: <b>'+esc(t.desc)+'</b> · '+diaMesAno(t.d)+' · '+fmtN(t.v)+(t.card?' · '+esc(cardName(t.card)):'')+'</div>'+
@@ -3221,6 +3223,44 @@ function migrar2(c){
     mudou=true; });
   c.m2=true;
   if(mudou) setTimeout(()=>saveCfg(),0); }
+
+/* =================== importar meses anteriores =================== */
+/* No extrato da conta, pagamento de fatura não é gasto (as compras já vêm da fatura do cartão), e aplicação ou
+   resgate é dinheiro mudando de lugar. Os dois viram movimento que não conta como gasto nem como renda. */
+function classificarLinhaExtrato(d){
+  const s=norm(d.desc), C=creditCards();
+  if(d.k!=="e"&&/\b(pagamento|pagto|pgto|pag)\b.{0,16}\b(fatura|cartao|cartoes)\b|\bfatura\b.{0,16}\b(cartao|visa|master|mastercard|elo)\b|\bcartao de credito\b/.test(s)){
+    const palavras=s.split(" ");
+    const c=C.find(x=>norm(x.n+" "+(x.alias||"")).split(" ").some(w=>w.length>2&&palavras.indexOf(w)>=0))||(C.length===1?C[0]:null);
+    const ym=ymOf(d.date);
+    d.k="p"; d.method="debito"; d.n=1; d.cardId=(c||C[0]||{}).id||d.cardId;
+    d.ref=c&&c.due&&c.closing&&c.due>c.closing?ym:ymShift(ym,-1);      /* paga em setembro a fatura de agosto */
+    d.raw="Extrato · pagamento de fatura"+(c?"":" — confira o cartão"); return; }
+  if(/\b(aplic\w*|resgate\w*|poupanca|investimento\w*|rdb|cdb|lci|lca|tesouro|caixinha\w*|cofrinho\w*|porquinho\w*)\b/.test(s)){
+    const A=S.cfg.accounts||[], inv=A.find(a=>a.type==="invest")||A.find(a=>a.type==="poupanca");
+    const conta=d.acct, entra=d.k==="e"||/\bresgate/.test(s);
+    d.k="t"; d.method="transferencia"; d.n=1;
+    d.acct=entra?(inv?inv.id:""):conta; d.acct2=entra?conta:(inv?inv.id:"");
+    d.raw="Extrato · "+(entra?"resgate":"aplicação")+", movimento entre contas"; } }
+
+/* a fatura vai para o mês da compra mais recente (fora as parcelas de compras antigas), seja qual for o mês na tela */
+function mesDaFatura(r,padrao){
+  const ds=r.linhas.filter(l=>(+l.i0||1)<=1&&l.d).map(l=>l.d).sort();
+  return ds.length?ymOf(ds[ds.length-1]):padrao; }
+
+/* campos da conferência conforme o tipo: gasto, entrada, pagamento de fatura ou movimento entre contas */
+function camposDoRascunho(d){
+  const A=S.cfg.accounts||[], fora='<option value="">Fora do app</option>';
+  if(d.k==="p") return '<div class="f"><label>Cartão</label><select data-k="cardId">'+optId(creditCards(),d.cardId)+'</select></div>'+
+    '<div class="f"><label>Sai da conta</label><select data-k="acct">'+optId(A,d.acct||acctOf(""))+'</select></div>'+
+    '<div class="f"><label>Fatura de</label><input type="month" data-k="ref" value="'+(d.ref||ymShift(ymOf(d.date||todayISO()),-1))+'"></div>';
+  if(d.k==="t") return '<div class="f"><label>Sai de</label><select data-k="acct">'+fora+optId(A,d.acct||"")+'</select></div>'+
+    '<div class="f"><label>Vai para</label><select data-k="acct2">'+fora+optId(A,d.acct2||"")+'</select></div>';
+  const cat='<div class="f"><label>Categoria</label><select data-k="cat">'+optId(d.k==="e"?(S.cfg.ecats||ECATS):S.cfg.cats,d.cat)+'</select></div>';
+  if(d.k==="e") return cat+'<div class="f"><label>Cai em qual conta</label><select data-k="acct">'+optId(A,d.acct||acctOf(d.cardId))+'</select></div>';
+  return cat+'<div class="f"><label>Pagamento</label><select data-k="cardId">'+optId(S.cfg.cards,d.cardId)+'</select></div>'+
+    (TEM_DESTINO[d.method]?'<div class="f"><label>Para quem</label><input data-k="to" value="'+esc(d.to||"")+'"></div>':'')+
+    '<div class="f"><label>Parcelas</label><input inputmode="numeric" data-k="n" value="'+d.n+'"></div>'; }
 
 /* =================== partida =================== */
 $("#mPrev").onclick=()=>{ S.ym=ymShift(S.ym,-1); render(); };
