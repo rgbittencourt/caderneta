@@ -167,10 +167,21 @@ Primeira publicação num computador novo: o dono autoriza no navegador (Git Cre
 
 ## Situação e próximos passos
 
-- **Publicado:** `caderneta-v9` (setembro de 2026). Lançamento por fala; leitura de documento por foto ou PDF (com senha, várias páginas e amostra sem dados); fixo todo mês; 50-30-20 com rosca; aba Análises; extrato por conta com importar, acertar saldo e repetidos; contas a pagar por vencimento; salário automático no primeiro dia útil e consignado descontado do salário.
-- **PDF dos bancos dele:** até a v8 não abriam. A v9 trata senha, formatos novos e o cache da biblioteca, e mostra a amostra sem dados quando falhar — peça a amostra se ele disser que ainda não abre.
-- **Falta testar com dados reais do dono:** a leitura das faturas e extratos dos bancos dele — até agora só com amostras — e o login no iPhone com o app instalado.
-- **Para continuar em outro computador** (o dono também usa um MacBook Air): abra uma conversa do Claude Code na pasta do repositório, rode `git pull` e leia este arquivo. Se a pasta ainda não existe, clone `https://github.com/rgbittencourt/caderneta`.
+- **Publicado:** `caderneta-v14` (15/09/2026). O que existe está descrito acima; os commits contam a ordem.
+- **O que o dono está fazendo:** carregando os extratos da conta corrente e as faturas dos cartões (Visa, Mastercard, Elo) de janeiro a setembro de 2026, todos em PDF, no MacBook Air, depois de usar *Recomeçar do zero*. O passo a passo está no README, em *Importar meses anteriores*.
+- **Não confirmado com os documentos reais dele:** se os PDFs dos bancos dele são lidos. Até a v8 não abriam; a v9 tratou senha, formatos e cache sem ver os PDFs. Se ainda falhar, peça a *amostra sem dados* que o app mostra (nunca o documento) e ajuste `lerLancamentos`/`saldosDoExtrato` em `leitor.js` por ela. OFX e CSV do banco são o plano B.
+- **Consignados:** ele tem dois — um pagando a 4ª de 12 em setembro de 2026, outro com a 1ª parcela em 01/10/2026. Depois do Recomeçar, precisam ser cadastrados de novo, com a data real do empréstimo e 0 já descontadas, antes de importar janeiro.
+- **Não testado:** login no iPhone com o app instalado.
+- **Regras que ele definiu** (não mude sem falar com ele): a renda líquida cai no primeiro dia útil; consignado sai do salário e aparece em Dívidas e empréstimos, sem descontar duas vezes; aumento de renda vale só dali em diante; duplicado nunca é apagado sem perguntar; "recomeçar" apaga tudo, menos contas, cartões, categorias e ajustes.
+
+### Continuar no MacBook Air
+
+As conversas até a v14 aconteceram num PC com Windows, que não fica mais ligado. O histórico daquelas conversas não vem junto: este arquivo e os commits são a memória do projeto.
+
+1. No app do Claude, aba Code, escolha uma pasta (Documentos, por exemplo) e peça para clonar `https://github.com/rgbittencourt/caderneta` e ler este arquivo. Se o Mac oferecer instalar as ferramentas de linha de comando (git), o dono aceita.
+2. No repositório: `git config user.name "Rogério Bittencourt"` e `git config user.email 302640362+rgbittencourt@users.noreply.github.com`.
+3. Teste local: `python3 -m http.server 8765` na pasta e abra `http://localhost:8765`. Entre uma versão e outra, desregistre o service worker e limpe os caches do site no navegador; senão ele continua servindo o `leitor.js` antigo.
+4. Publicar: suba `VERSAO` em `sw.js`, commit em português, `git push`. Na primeira vez, o GitHub pede autorização no navegador — quem autoriza é o dono. Confira no ar abrindo `https://rgbittencourt.github.io/caderneta/sw.js` e vendo a versão nova.
 
 ## Histórico
 
