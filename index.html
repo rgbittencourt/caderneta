@@ -341,7 +341,7 @@ table.dv td.n{text-align:right;font-family:var(--f-m);font-variant-numeric:tabul
 .acct:hover{background:var(--surface-2)}
 .acct-i{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:none;
   background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2)}
-.acct-m{flex:1;min-width:0}
+.acct-m{flex:1;min-width:0;display:grid}
 .acct-n{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .acct-s{font-size:11.5px;color:var(--ink-3)}
 .acct-v{font-family:var(--f-m);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -367,6 +367,8 @@ table.dv td.n{text-align:right;font-family:var(--f-m);font-variant-numeric:tabul
 .linkrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;
   border-bottom:1px solid var(--line)}
 .linkrow:last-child{border-bottom:0}
+.linkrow.wrap{flex-wrap:wrap}.linkrow.wrap .m{flex:1 1 190px}
+.linkrow .acts{display:flex;gap:6px;flex-wrap:wrap}
 .linkrow .m{flex:1;min-width:0}
 .linkrow .t{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .linkrow .s{font-size:11.5px;color:var(--ink-3)}
@@ -1029,16 +1031,24 @@ async function commit(d){
   const i0=Math.max(1,Math.min(n,+d.i0||1)); const porParcela=i0>1||!!d.porParcela;   /* na fatura, 01/03 126,67 é o valor de cada parcela; na fala, é o total */
   const parts=porParcela?new Array(n).fill(total):splitCents(total,n); const planTotal=porParcela?total*n:total; const planId=n>1?uid():"";
   const touched=new Set();
+  /* compra no crédito: o gasto fica no mês do dia da compra; "fat" é a fatura que a cobra (o fechamento empurra para a seguinte).
+     Parcela k: gasto no mês da compra + k-1, fatura na fatura da 1ª + k-1. Numa fatura importada, a linha de uma parcela pode
+     trazer a data da compra original (meses antes): aí o mês do gasto anda junto com o número da parcela. */
+  const cred=kind==="g"&&(d.method||(S.cfg.cards.find(c=>c.id===d.cardId)||{}).type)==="credito";
+  let gasto0=ymOf(d.date||todayISO());
+  if(cred&&d.ym){ if(i0>1&&gasto0<ymShift(d.ym,-1)) gasto0=ymShift(gasto0,i0-1); if(gasto0>d.ym) gasto0=d.ym; }
   for(let i=i0-1;i<n;i++){
-    const ym = d.ym ? ymShift(d.ym,i-(i0-1)) : kind==="g" ? txMonth(d.date,d.cardId,i) : ymOf(d.date);
+    const fat = cred ? (d.ym ? ymShift(d.ym,i-(i0-1)) : txMonth(d.date,d.cardId,i)) : "";
+    let ym = cred ? ymShift(gasto0,i-(i0-1)) : kind==="g" ? txMonth(d.date,d.cardId,i) : ymOf(d.date);
+    if(cred&&ym>fat) ym=fat;
     if(!S.months[ym]) S.months[ym]={tx:{}};
     if(!S.months[ym].tx) S.months[ym].tx={};
     S.months[ym].tx[n>1?planId+"-"+(i+1):d.id]={
-      d:i===i0-1?d.date:firstOfMonth(ym,d.date), t:d.time, v:parts[i],
+      d:i===i0-1&&ymOf(d.date)===ym?d.date:firstOfMonth(ym,d.date), t:d.time, v:parts[i],
       desc:d.desc||"Sem descrição", cat:d.cat||(kind==="e"?"outrae":"outros"),
       method:d.method, card:d.cardId, raw:i===i0-1?d.raw:"", plan:planId, i:i+1, n:n, total:planTotal,
       fix:d.fix||"", k:kind, acct:kind==="t"?(d.acct||""):(d.acct||acctOf(d.cardId)), acct2:d.acct2||"", ref:d.ref||"", to:d.to||"", u:Date.now(),
-      ...(d.cons?{cons:d.cons}:{}), ...(d.emp?{emp:d.emp}:{}) };
+      ...(fat?{fat}:{}), ...(d.cons?{cons:d.cons}:{}), ...(d.emp?{emp:d.emp}:{}) };
     touched.add(ym); }
   if(kind==="g") learn(d);
   for(const ym of touched) await saveMonth(ym);
@@ -1083,16 +1093,20 @@ function balanceOf(acctId,upto){
     else if(t.method!=="credito"&&t.method!=="folha") bal-=t.v; });   /* desconto em folha não sai da conta */
   return bal; }
 const totalBalance=upto=>(S.cfg.accounts||[]).reduce((s,a)=>s+balanceOf(a.id,upto),0);
+/* a fatura de uma compra no crédito; lançamento antigo, sem "fat", está guardado no mês da própria fatura */
+const faturaDe=t=>t.fat||t.ym;
 function cardOwed(cardId){ let o=0, inicio="";
-  allTx().forEach(t=>{ if(t.card===cardId&&t.k==="g"&&t.method==="credito"&&(!inicio||t.ym<inicio)) inicio=t.ym; });
+  allTx().forEach(t=>{ if(t.card===cardId&&t.k==="g"&&t.method==="credito"&&(!inicio||faturaDe(t)<inicio)) inicio=faturaDe(t); });
   allTx().forEach(t=>{ if(t.card!==cardId) return;
     if(t.k==="g"&&t.method==="credito") o+=t.v;
     else if(t.k==="p"&&!(t.ref&&(!inicio||t.ref<inicio))) o-=t.v; });   /* pagamento de fatura de antes do começo dos lançamentos não mexe no limite */
   return o; }
 function cardInvoice(cardId,ym){ let total=0,paid=0;
-  txOf(ym).forEach(t=>{ if(t.card===cardId&&t.k==="g"&&t.method==="credito") total+=t.v; });
-  allTx().forEach(t=>{ if(t.k==="p"&&t.card===cardId&&t.ref===ym) paid+=t.v; });
+  allTx().forEach(t=>{ if(t.card!==cardId) return;
+    if(t.k==="g"&&t.method==="credito"&&faturaDe(t)===ym) total+=t.v;
+    else if(t.k==="p"&&t.ref===ym) paid+=t.v; });
   return {total,paid,open:total-paid}; }
+const comprasDaFatura=(cardId,ym)=>allTx().filter(t=>t.card===cardId&&t.k==="g"&&t.method==="credito"&&faturaDe(t)===ym);
 const creditCards=()=>(S.cfg.cards||[]).filter(c=>c.type==="credito");
 function fixedFor(ym){ const done=new Set(txOf(ym).map(t=>t.fix).filter(Boolean));
   return (S.cfg.fixed||[]).filter(f=>f.amount&&!done.has(f.id)&&(!f.ate||ym<=f.ate)&&(!f.desde||ym>=f.desde)).concat(consVirtuais(ym))
@@ -1380,7 +1394,7 @@ function renderNav(){
 function setView(v){ S.view=v; render(); window.scrollTo({top:0,behavior:"smooth"}); }
 function openMore(){
   sheet("Mais", '<div class="card pad">'+
-    [{id:"futuro",n:"Futuro",s:"Parcelas e meses comprometidos"},{id:"analises",n:"Análises",s:"Diagnóstico, parcelas, dívidas e cartões"},{id:"meta",n:"Meta",s:"Meta de poupança e 50-30-20"},{id:"ajustes",n:"Ajustes",s:"Contas, cartões, categorias"}]
+    [{id:"futuro",n:"Futuro",s:"Parcelas e meses comprometidos"},{id:"analises",n:"Análises",s:"Diagnóstico, parcelas, dívidas e cartões"},{id:"meta",n:"Meta",s:"Meta de poupança e 50-30-20"},{id:"ajustes",n:"Ajustes",s:"Extrato da conta, saldos, cartões, categorias"}]
       .map(x=>'<div class="linkrow"><div class="m"><div class="t">'+x.n+'</div><div class="s">'+x.s+'</div></div><button class="mini" data-goto="'+x.id+'">Abrir</button></div>').join("")+
     '</div>', '<button class="btn ghost" id="moreX">Fechar</button>');
   $("#moreX").onclick=closeSheet;
@@ -1391,7 +1405,8 @@ function render(){
   renderNav(); renderSyncBadge();
   $("#mLbl").textContent=ymLabel(S.ym);
   $("#topTitle").textContent=(NAV.find(x=>x.id===S.view)||{n:""}).n;
-  NAV.forEach(x=>{ const p=$("#p-"+x.id); if(p) p.hidden = x.id!==S.view; });
+  /* só a aba aberta fica montada: o leitor e a conferência existem em Lançar e em Ajustes, com os mesmos ids */
+  NAV.forEach(x=>{ const p=$("#p-"+x.id); if(p){ p.hidden = x.id!==S.view; if(p.hidden) p.innerHTML=""; } });
   const fn={painel:renderPainel,lancar:renderLancar,mes:renderMes,contas:renderContas,futuro:renderFuturo,meta:renderMeta,analises:renderAnalises,ajustes:renderAjustes}[S.view];
   if(fn) fn();
 }
@@ -1516,7 +1531,7 @@ function renderLancar(){
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'+
     '<button class="btn good" id="entBtn">+ Entrada (salário, freela…)</button>'+
     '<button class="btn ghost" id="gasBtn">+ Gasto na mão</button>'+
-    '<button class="btn ghost" id="trfBtn">Transferir entre contas</button></div>'+htmlLeitorDoc()+
+    '<button class="btn ghost" id="trfBtn">Transferir entre contas</button></div>'+htmlLeitorDoc("lancar")+
     '<div id="parseStatus" style="font-size:12px;color:var(--ink-3);margin-top:10px" hidden></div></div>'+
     '<div class="sec" id="draftSec" hidden><div class="sec-h"><h2 class="sec-t">Confira antes de salvar</h2></div>'+
     '<div id="drafts"></div><div class="sheet-acts" style="max-width:420px">'+
@@ -1536,8 +1551,16 @@ function renderLancar(){
   $("#aiBtn").hidden=!S.ai; $("#aiBtn").onclick=aiParse;
   $("#exBtn").onclick=()=>{ $("#say").value="Vinte e três reais, almoço no IFSC, cartão de crédito Visa. Trezentos e oitenta reais na Kit Jolo, em três vezes no crédito Mastercard. Caiu o salário, dezesseis mil reais."; readInput(); };
   setupMic();
-  if(S.drafts.length) renderDrafts();
+  if(S.drafts.length) avisoOuConferencia();
 }
+/* a conferência aparece na aba em que foi aberta; na outra, só um aviso com o atalho */
+function avisoOuConferencia(){
+  if((S.draftsAba||"lancar")===S.view){ renderDrafts(); return; }
+  const st=$("#parseStatus"); if(!st) return;
+  const onde=S.draftsAba==="ajustes"?"ajustes":"lancar";
+  st.hidden=false; st.innerHTML=S.drafts.length+(S.drafts.length>1?" lançamentos esperam":" lançamento espera")+" conferência em "+(onde==="ajustes"?"Ajustes":"Lançar")+
+    ' <button class="mini" id="confIr" style="margin-left:6px">Abrir</button>';
+  $("#confIr").onclick=()=>setView(onde); }
 function renderDrafts(){
   const box=$("#drafts"); if(!box) return;
   $("#draftSec").hidden=!S.drafts.length;
@@ -1580,6 +1603,8 @@ function renderDrafts(){
 function readInput(){
   const raw=$("#say").value.trim();
   if(!raw){ toast("Fale ou escreva alguma coisa primeiro."); return; }
+  if(conferenciaEmOutraAba()) return;
+  S.draftsAba="lancar";
   const parts=splitUtterance(raw);
   S.drafts=(parts.length?parts:[raw]).map(s=>parseOne(s,S.cfg));
   const bad=S.drafts.filter(d=>!d.v).length;
@@ -1593,8 +1618,10 @@ async function saveDrafts(){
   for(const d of ok){ if(d.fixo&&d.k!=="e"&&(+d.n||1)<=1){ const fx={id:uid(),name:d.desc||"Gasto fixo",amount:d.v,day:+String(d.date).slice(8,10)||1,cat:d.cat,card:d.cardId}; (S.cfg.fixed=S.cfg.fixed||[]).push(fx); d.fix=fx.id; fixos++; } await commit(d); } if(fixos) await saveCfg();
   /* carga de extratos chegou ao mês atual: o salário automático volta */
   if(S.cfg.salPausa&&ok.some(d=>d.origem==="extrato"&&String(d.date)>=ymOf(todayISO())+"-01")){ S.cfg.salPausa=false; saveCfg(); }
+  const religados=ok.some(d=>d.origem==="fatura")?await religarPagamentos():0;
   S.drafts=[]; render();
-  toast(ok.length+(ok.length>1?" lançamentos salvos":" lançamento salvo")+(fixos?" · "+fixos+" como fixo todo mês":""));
+  toast(ok.length+(ok.length>1?" lançamentos salvos":" lançamento salvo")+(fixos?" · "+fixos+" como fixo todo mês":"")+
+    (religados?" · "+religados+(religados>1?" pagamentos do extrato ligados ao cartão":" pagamento do extrato ligado ao cartão"):""));
   const sd=S.docSaldo; S.docSaldo=null;
   if(sd&&sd.conta&&sd.saldo) setTimeout(()=>openAcerto(sd.conta,sd.saldo),700); }
 
@@ -1668,14 +1695,12 @@ function renderContas(){
     (notas.length?'<div style="margin-top:13px;padding-top:12px;border-top:1px solid var(--line);display:grid;gap:8px;font-size:13px;color:var(--ink-2)">'+
       notas.map(n=>'<div style="display:flex;justify-content:space-between;gap:10px"><span>'+esc(n[0])+'</span><b style="font-family:var(--f-m);font-weight:600;color:'+(n[2]||"var(--ink)")+'">'+esc(n[1])+'</b></div>').join("")+'</div>':'')+
     '</div></div></div>'+
-    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Onde o dinheiro está</h2>'+
-    '<button class="sec-a" id="addAcct">Adicionar conta</button></div><div class="card pad">'+
+    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Onde o dinheiro está</h2></div><div class="card pad">'+
     (A.length?A.map(a=>{ const b=balanceOf(a.id,todayISO());
-      return '<button class="acct" data-acct="'+a.id+'"><span class="acct-i">'+acctIcon(a.type)+'</span>'+
+      return '<button class="acct" data-verext="'+a.id+'"><span class="acct-i">'+acctIcon(a.type)+'</span>'+
         '<span class="acct-m"><span class="acct-n">'+esc(a.n)+'</span><span class="acct-s">'+esc(ACCT_TIPO[a.type]||a.type)+'</span></span>'+
         '<span class="acct-v'+(b<0?" neg":"")+'">'+fmtN(b)+'</span></button>'; }).join("")
-      :'<div class="empty"><b>Nenhuma conta</b>Adicione sua conta e diga quanto tem nela hoje.</div>')+
-    (A.length>1?'<div class="cardbox-a"><button class="btn ghost sm" id="btnTransf">Transferir entre contas</button></div>':'')+
+      :'<div class="empty"><b>Nenhuma conta</b>Cadastre em Ajustes e diga quanto tem nela.</div>')+
     '</div></div>'+
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Cartões de crédito</h2></div><div class="grid g2">'+
     (creditCards().length?creditCards().map(c=>{
@@ -1691,15 +1716,13 @@ function renderContas(){
           '<div class="meter-s"><span>usado '+fmtN(owed)+'</span><span>livre '+fmtN(Math.max(0,lim-owed))+' de '+fmtN(lim)+'</span></div>'
           :'<div class="meter-s"><span>Limite não informado</span><span>em aberto '+fmtN(owed)+'</span></div>')+
         '<div class="cardbox-a">'+(inv.open>0?'<button class="btn sm" data-pay="'+c.id+'">Pagar fatura</button>':'')+
-        '<button class="btn ghost sm" data-editcard="'+c.id+'">Ajustar</button></div></div>'; }).join("")
+        '<button class="btn ghost sm" data-verext="card:'+c.id+'">Ver fatura</button></div></div>'; }).join("")
       :'<div class="empty"><b>Nenhum cartão de crédito</b>Cadastre em Ajustes para acompanhar fatura e limite.</div>')+
     '</div></div>';
   $("#p-contas").insertAdjacentHTML("beforeend",htmlExtrato());
-  $$("[data-acct]").forEach(b=>b.onclick=()=>openAcct(b.dataset.acct));
+  $$("[data-verext]").forEach(b=>b.onclick=()=>{ S.ext=b.dataset.verext; renderContas(); const x=$("#extSec"); if(x) x.scrollIntoView({behavior:"smooth",block:"start"}); });
   $$("[data-pay]").forEach(b=>b.onclick=()=>openPay(b.dataset.pay));
-  $$("[data-editcard]").forEach(b=>b.onclick=()=>openCard(b.dataset.editcard));
-  $("#addAcct").onclick=()=>openAcct("");
-  const bt=$("#btnTransf"); if(bt) bt.onclick=openTransfer; bindExtrato(); }
+  bindExtrato(); }
 
 /* =================== futuro =================== */
 function renderFuturo(){
@@ -1770,6 +1793,8 @@ function openTx(ym,id){
     if($("#tA")) patch.acct=$("#tA").value;
     if($("#tB")) patch.acct2=$("#tB").value;
     if($("#tTo")) patch.to=$("#tTo").value.trim();
+    /* compra no crédito continua na mesma fatura quando muda a data; virou crédito agora: a fatura sai do dia e do fechamento */
+    if((patch.method||t.method)==="credito"&&!t.fat) patch.fat=t.method==="credito"?ym:txMonth(nd,patch.card||t.card,0);
     const newYm=ymOf(nd);
     if(newYm!==ym){ S.months[ym].tx[id]={del:1,u:Date.now()};
       if(!S.months[newYm]) S.months[newYm]={tx:{}};
@@ -1815,46 +1840,59 @@ function openAcct(id){
   const A=S.cfg.accounts||[];
   const a=A.find(x=>x.id===id)||{id:uid(),n:"",type:"corrente",opening:0,openDate:"",adjust:[]};
   const isNew=!A.some(x=>x.id===a.id);
-  const bal=isNew?0:balanceOf(a.id,todayISO());
   sheet(isNew?"Nova conta":a.n,
     '<div class="set"><div class="set-f"><label>Nome</label><input id="aN" value="'+esc(a.n)+'" placeholder="Banco do Brasil"></div>'+
     '<div class="set-f"><label>Tipo</label><select id="aT">'+
     Object.keys(ACCT_TIPO).map(k=>'<option value="'+k+'"'+(k===a.type?" selected":"")+'>'+ACCT_TIPO[k]+'</option>').join("")+'</select></div>'+
     (isNew
       ? '<div class="set-f"><label>Quanto tem nela hoje</label><input id="aB" inputmode="decimal" placeholder="0,00">'+
-        '<span class="hint">A partir daqui o app soma as entradas e subtrai os gastos sozinho.</span></div>'
-      : '<div class="set-f"><label>Saldo calculado hoje</label><input id="aB" inputmode="decimal" value="'+fmtN(bal)+'">'+
-        '<span class="hint">Se o app do banco mostra outro número, corrija aqui — a diferença fica registrada como acerto e o saldo volta a bater.</span></div>')+
-    (!isNew&&(a.adjust||[]).length
-      ? '<div class="set-f"><span class="hint">Últimos acertos: '+a.adjust.slice(-3).reverse()
-          .map(x=>x.d.slice(8,10)+"/"+x.d.slice(5,7)+" "+(x.delta>=0?"+":"")+fmtN(x.delta)).join(" · ")+'</span></div>' : '')+
-    '<div class="set-f"><label style="display:flex;align-items:center;gap:9px;font-weight:500;color:var(--ink)"><input type="checkbox" id="aIni" style="width:20px;height:20px"'+(a.openDate?" checked":"")+'>Começar a contar de uma data</label>'+
-    '<span class="hint">Para carregar extratos antigos: a data do primeiro extrato e o saldo anterior que aparece nele.</span></div>'+
-    '<div class="two" id="aIniF"><div class="set-f"><label for="aID">Começa em</label><input id="aID" type="date" value="'+(a.openDate||(new Date().getFullYear()+"-01-01"))+'"></div>'+
-    '<div class="set-f"><label for="aIV">Saldo no dia anterior</label><input id="aIV" inputmode="decimal" value="'+(a.openDate?fmtN(a.opening||0):"")+'" placeholder="0,00"></div></div>'+
+        '<span class="hint">A partir daqui o app soma as entradas e subtrai os gastos sozinho. Para carregar extratos antigos, use depois <b>Saldo inicial</b>.</span></div>'
+      : '<div class="set-f"><span class="hint">O saldo se acerta nos botões <b>Saldo inicial</b> e <b>Corrigir saldo</b>, ao lado do nome da conta.</span></div>')+
     '</div>',
-    (isNew?"":'<button class="btn danger" id="aKill">Excluir</button>')+'<button class="btn" id="aOk">Salvar</button>');
-  const ini=()=>{ const on=$("#aIni").checked; $("#aIniF").hidden=!on; $("#aB").closest(".set-f").hidden=on; };
-  $("#aIni").onchange=ini; ini();
+    (isNew?'<button class="btn ghost" id="aX">Cancelar</button>':'<button class="btn danger" id="aKill">Excluir</button>')+'<button class="btn" id="aOk">Salvar</button>');
+  const x=$("#aX"); if(x) x.onclick=closeSheet;
   $("#aOk").onclick=()=>{
     const nm=$("#aN").value.trim(); if(!nm){ toast("Dê um nome."); return; }
-    if($("#aIni").checked){ const dt=$("#aID").value; if(!dt){ toast("Informe a data de início."); return; }
-      const v=toCents($("#aIV").value), r=isNew?{id:a.id}:A.find(x=>x.id===a.id);
-      Object.assign(r,{n:nm,type:$("#aT").value,opening:v,openDate:dt,adjust:[]}); if(isNew) A.push(r);
-      S.cfg.accounts=A; saveCfg(); closeSheet(); render();
-      toast("Saldo de "+fmt(v)+" em "+diaMesAno(diaAnterior(dt))+". Os lançamentos contam a partir de "+diaMesAno(dt)+"."); return; }
-    const novo=toCents($("#aB").value);
-    if(isNew) A.push({id:a.id,n:nm,type:$("#aT").value,opening:novo,openDate:"",adjust:[]});
-    else { const r=A.find(x=>x.id===a.id); r.n=nm; r.type=$("#aT").value;
-      const delta=novo-bal;
-      if(delta!==0){ r.opening=(r.opening||0)+delta;
-        r.adjust=(r.adjust||[]).concat([{d:todayISO(),delta}]).slice(-20); } }
+    if(isNew) A.push({id:a.id,n:nm,type:$("#aT").value,opening:toCents($("#aB").value),openDate:"",adjust:[]});
+    else { const r=A.find(x=>x.id===a.id); r.n=nm; r.type=$("#aT").value; }
     S.cfg.accounts=A; saveCfg(); closeSheet(); render(); toast("Salvo"); };
   const k=$("#aKill");
   if(k) k.onclick=()=>{ if(A.length<=1){ toast("Precisa de pelo menos uma conta."); return; }
     /* excluir fica no lugar do "Cancelar" das outras fichas: pede um segundo toque */
     if(!k.dataset.certeza){ k.dataset.certeza="1"; k.textContent="Excluir mesmo?"; toast("Os lançamentos e cartões dessa conta ficam sem conta. Toque de novo para excluir."); return; }
     S.cfg.accounts=A.filter(x=>x.id!==a.id); saveCfg(); closeSheet(); render(); toast("Excluída"); }; }
+
+/* saldo inicial: a data do primeiro extrato e o saldo anterior impresso nele. Antes dessa data, nada conta no saldo. */
+function openSaldoInicial(id){
+  const a=(S.cfg.accounts||[]).find(x=>x.id===id); if(!a) return;
+  sheet("Saldo inicial · "+a.n,
+    '<div class="set"><div class="note"><b>Para carregar extratos antigos</b>Informe a data do primeiro extrato e o <b>saldo anterior</b> que aparece nele. Lançamentos antes dessa data não contam no saldo.</div>'+
+    '<div class="two"><div class="set-f"><label for="siD">Começa em</label><input id="siD" type="date" value="'+(a.openDate||(new Date().getFullYear()+"-01-01"))+'"></div>'+
+    '<div class="set-f"><label for="siV">Saldo no dia anterior</label><input id="siV" inputmode="decimal" value="'+(a.openDate?fmtN(a.opening||0):"")+'" placeholder="0,00"></div></div>'+
+    '<div class="set-f"><span class="hint">Saldo negativo leva o sinal de menos: -1.250,00. No Banco do Brasil, some o que estava no BB Rende Fácil.</span></div></div>',
+    (a.openDate?'<button class="btn ghost" id="siTira">Sem data de início</button>':'<button class="btn ghost" id="siX">Cancelar</button>')+'<button class="btn" id="siOk">Salvar</button>');
+  const x=$("#siX"); if(x) x.onclick=closeSheet;
+  const tira=$("#siTira"); if(tira) tira.onclick=()=>{ a.openDate=""; saveCfg(); closeSheet(); render(); toast("Sem data de início: todos os lançamentos contam no saldo."); };
+  $("#siOk").onclick=()=>{ const dt=$("#siD").value; if(!dt){ toast("Informe a data de início."); return; }
+    const v=toCents($("#siV").value);
+    Object.assign(a,{opening:v,openDate:dt,adjust:[]}); saveCfg(); closeSheet(); render();
+    toast("Saldo de "+fmt(v)+" em "+diaMesAno(diaAnterior(dt))+". Os lançamentos contam a partir de "+diaMesAno(dt)+"."); }; }
+
+/* corrigir: o saldo que o banco mostra hoje; a diferença fica registrada como acerto */
+function openCorrigirSaldo(id){
+  const a=(S.cfg.accounts||[]).find(x=>x.id===id); if(!a) return;
+  const bal=balanceOf(a.id,todayISO());
+  sheet("Corrigir saldo · "+a.n,
+    '<div class="set"><div class="linkrow"><div class="m"><div class="t">A Caderneta calcula hoje</div><div class="s">saldo inicial, mais entradas, menos saídas</div></div><span class="row-v">'+fmtN(bal)+'</span></div>'+
+    '<div class="set-f"><label for="scV">O banco mostra hoje</label><input id="scV" inputmode="decimal" value="'+fmtN(bal)+'">'+
+    '<span class="hint">No Banco do Brasil, some o saldo da conta com o do BB Rende Fácil. Antes de corrigir, veja se falta importar algum extrato: a diferença pode ser só lançamento que ainda não entrou.</span></div>'+
+    ((a.adjust||[]).length?'<div class="set-f"><span class="hint">Últimos acertos: '+a.adjust.slice(-3).reverse()
+      .map(x=>x.d.slice(8,10)+"/"+x.d.slice(5,7)+" "+(x.delta>=0?"+":"")+fmtN(x.delta)).join(" · ")+'</span></div>':'')+'</div>',
+    '<button class="btn ghost" id="scX">Cancelar</button><button class="btn" id="scOk">Corrigir</button>');
+  $("#scX").onclick=closeSheet;
+  $("#scOk").onclick=()=>{ const delta=toCents($("#scV").value)-bal;
+    if(delta){ a.opening=(a.opening||0)+delta; a.adjust=(a.adjust||[]).concat([{d:todayISO(),delta}]).slice(-20); saveCfg(); }
+    closeSheet(); render(); toast(delta?"Saldo corrigido em "+(delta>0?"+":"")+fmt(delta):"O saldo já batia"); }; }
 
 function openPay(cardId){
   const c=S.cfg.cards.find(x=>x.id===cardId); if(!c) return;
@@ -1902,6 +1940,20 @@ function renderAjustes(){
   const c=S.cfg, A=c.accounts||[];
   const kwC=Object.keys(c.kwCat||{}).length, kwK=Object.keys(c.kwCard||{}).length;
   $("#p-ajustes").innerHTML=
+    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Conta corrente e saldos</h2></div>'+htmlLeitorDoc("ajustes")+
+    '<div id="parseStatus" style="font-size:12px;color:var(--ink-3);margin-top:10px" hidden></div></div>'+
+    '<div class="sec" id="draftSec" hidden><div class="sec-h"><h2 class="sec-t">Confira antes de salvar</h2></div>'+
+    '<div id="drafts"></div><div class="sheet-acts" style="max-width:420px">'+
+    '<button class="btn ghost" id="dCancel">Descartar</button><button class="btn" id="dSave">Salvar</button></div></div>'+
+
+    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Saldo de cada conta</h2>'+
+    '<button class="sec-a" data-new="acct">Adicionar conta</button></div><div class="card pad">'+
+    (A.length?A.map(a=>'<div class="linkrow wrap"><div class="m"><div class="t">'+esc(a.n)+'</div><div class="s">'+
+      esc((ACCT_TIPO[a.type]||a.type)+" · hoje "+fmtN(balanceOf(a.id,todayISO()))+(a.openDate?" · começou com "+fmtN(a.opening||0)+" em "+diaMesAno(diaAnterior(a.openDate)):""))+
+      '</div></div><div class="acts"><button class="mini" data-sini="'+a.id+'">Saldo inicial</button><button class="mini" data-scor="'+a.id+'">Corrigir saldo</button>'+
+      '<button class="mini" data-acct="'+a.id+'">Editar</button></div></div>').join("")
+      :'<div class="empty"><b>Nenhuma conta</b>Cadastre onde seu dinheiro fica.</div>')+'</div></div>'+
+
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Meta do mês</h2></div><div class="card pad set">'+
     '<div class="set-f"><label for="sIncome">Renda líquida mensal</label>'+
     '<input id="sIncome" inputmode="decimal" value="'+(rendaDoMes(ymOf(todayISO()))?fmtN(rendaDoMes(ymOf(todayISO()))):"")+'" placeholder="0,00">'+historicoRendaHTML()+'</div>'+
@@ -1920,11 +1972,6 @@ function renderAjustes(){
     '<input id="sGoal" inputmode="decimal" value="'+(c.balanceGoal?fmtN(c.balanceGoal):"")+'" placeholder="0,00">'+
     '<span class="hint">Vira a referência do saldo previsto na aba Contas e no Painel.</span></div>'+
     '</div></div>'+
-
-    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Contas</h2>'+
-    '<button class="sec-a" data-new="acct">Adicionar</button></div><div class="card pad">'+
-    (A.length?A.map(a=>linkrow(a.n,(ACCT_TIPO[a.type]||a.type)+" · saldo hoje "+fmtN(balanceOf(a.id,todayISO())),'data-acct="'+a.id+'"')).join("")
-      :'<div class="empty"><b>Nenhuma conta</b>Cadastre onde seu dinheiro fica.</div>')+'</div></div>'+
 
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Formas de pagamento</h2>'+
     '<button class="sec-a" data-new="card">Adicionar</button></div><div class="card pad">'+
@@ -1952,10 +1999,6 @@ function renderAjustes(){
     '<div class="linkrow"><div class="m"><div class="t">'+(kwC+kwK)+' palavras aprendidas</div>'+
     '<div class="s">'+kwC+' viram categoria · '+kwK+' viram cartão</div></div>'+
     '<button class="mini" id="kwBtn">Ver e editar</button></div></div></div>'+
-
-    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Importar extratos e faturas</h2></div><div class="card pad">'+
-    '<div class="linkrow"><div class="m"><div class="t">Fica na aba Contas</div><div class="s">Escolha a conta ou o cartão e toque em Importar: PDF, foto, OFX ou CSV. Tudo passa pela conferência antes de gravar.</div></div>'+
-    '<button class="mini" id="impIr">Abrir Contas</button></div></div></div>'+
 
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Dados</h2></div><div class="card pad">'+
     '<div class="linkrow"><div class="m"><div class="t">Onde ficam seus dados</div><div class="s">'+
@@ -1998,7 +2041,12 @@ function renderAjustes(){
   $$("[data-fix]").forEach(b=>b.onclick=()=>openFix(b.dataset.fix));
   $$("[data-new]").forEach(b=>b.onclick=()=>({acct:openAcct,card:openCard,cat:openCat,ecat:openEcat,fix:openFix}[b.dataset.new])(""));
   $("#kwBtn").onclick=openKw;
-  $("#impIr").onclick=()=>setView("contas");
+  $$("[data-sini]").forEach(b=>b.onclick=()=>openSaldoInicial(b.dataset.sini));
+  $$("[data-scor]").forEach(b=>b.onclick=()=>openCorrigirSaldo(b.dataset.scor));
+  montarLeitorDoc();
+  $("#dSave").onclick=saveDrafts;
+  $("#dCancel").onclick=()=>{ S.drafts=[]; S.docSaldo=null; render(); };
+  if(S.drafts.length) avisoOuConferencia();
   $("#expBtn").onclick=exportCSV;
   $("#bkBtn").onclick=()=>copyText(JSON.stringify({app:"caderneta",v:1,cfg:S.cfg,months:S.months}),"Backup copiado.");
   $("#rsBtn").onclick=openRestore;
@@ -2150,6 +2198,7 @@ function exportCSV(){
 async function aiParse(){
   if(!S.ai) return;
   const raw=$("#say").value.trim(); if(!raw) return;
+  if(conferenciaEmOutraAba()) return;
   const b=$("#aiBtn"); b.textContent="Pensando…"; b.disabled=true;
   const prompt="Você extrai lançamentos financeiros de uma fala em português do Brasil.\n"+
     "Categorias de GASTO (id=nome): "+S.cfg.cats.map(c=>c.id+"="+c.n).join("; ")+"\n"+
@@ -2162,6 +2211,7 @@ async function aiParse(){
   try{
     const arr=await S.ai.json(prompt,{modelTier:"quick",cache:false});
     if(!Array.isArray(arr)||!arr.length) throw {code:"invalid_json"};
+    S.draftsAba="lancar";
     S.drafts=arr.map(o=>{
       const k=String(o.tipo||"").toLowerCase().indexOf("entrada")>=0?"e":"g";
       const lista=k==="e"?(S.cfg.ecats||ECATS):S.cfg.cats;
@@ -2268,7 +2318,7 @@ function openDeposit(id){
     '<input id="pV" inputmode="decimal" value="'+(x?fmtN(x.v):"")+'" placeholder="200,00"></div>'+
     '<div class="set-f"><label>Quando</label><input id="pD" type="date" value="'+(x?x.d:todayISO())+'"></div></div>'+
     '<div class="set-f"><label>Anotação</label><input id="pN" value="'+esc(x?(x.note||""):"")+'" placeholder="sobra do mês"></div>'+
-    '<div class="note"><b>Isso marca o quanto você já juntou</b>Se o dinheiro saiu de uma conta e foi para outra de verdade, use também <b>Transferir entre contas</b> na aba Contas.</div></div>',
+    '<div class="note"><b>Isso marca o quanto você já juntou</b>Se o dinheiro saiu de uma conta e foi para outra de verdade, use também <b>Transferir entre contas</b> na aba Lançar.</div></div>',
     (x?'<button class="btn danger" id="pKill">Excluir</button>':'<button class="btn ghost" id="pX">Cancelar</button>')+
     '<button class="btn good" id="pOk">'+(x?"Salvar":"Guardar")+'</button>');
   const c=$("#pX"); if(c) c.onclick=closeSheet;
@@ -2404,36 +2454,51 @@ function openMetodo(){
     saveCfg(); closeSheet(); render(); toast("Método ajustado"); }; }
 
 /* =================== ler documento =================== */
-function htmlLeitorDoc(){
-  const cartoes=S.cfg.cards.filter(c=>c.type==="credito"), contas=S.cfg.accounts||[];
+/* dois leitores: em Lançar, o que é gasto (fatura do cartão, canhoto, boleto); em Ajustes, o extrato da conta,
+   que é conferência do saldo e traz os débitos que só o banco mostra */
+function htmlLeitorDoc(onde){
+  const cartoes=creditCards(), contas=S.cfg.accounts||[], ajustes=onde==="ajustes";
+  const contaPadrao=(contas.find(a=>a.id===contaDoSalario())||contas.find(a=>a.type==="corrente")||contas[0]||{}).id;
   const cam='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
-  return '<div class="card pad" style="margin-top:14px"><div class="sec-h" style="margin-bottom:10px"><h2 class="sec-t">Ler documento</h2><span class="day-t" id="docStatus"></span></div>'+
+  return '<div class="card pad"'+(ajustes?'':' style="margin-top:14px"')+'><div class="sec-h" style="margin-bottom:10px"><h2 class="sec-t">'+(ajustes?'Importar extrato da conta':'Importar fatura do cartão, canhoto ou boleto')+'</h2><span class="day-t" id="docStatus"></span></div>'+
     '<div class="fields">'+
-    '<div class="f"><label>O que é</label><select id="docTipo"><option value="auto">Descobrir sozinho</option><option value="fatura">Fatura do cartão</option>'+
-    '<option value="extrato">Extrato do banco</option><option value="cupom">Canhoto ou cupom</option><option value="boleto">Boleto</option></select></div>'+
-    '<div class="f" data-doc="fatura"><label>Cartão da fatura</label><select id="docCard">'+optId(cartoes,(cartoes[0]||{}).id)+'</select></div>'+
-    '<div class="f" data-doc="extrato"><label>Conta do extrato</label><select id="docConta">'+optId(contas,(contas[0]||{}).id)+'</select></div>'+
-    '<div class="f" data-doc="fatura"><label>Mês da fatura</label><input type="month" id="docMes" value="'+S.ym+'"></div>'+
-    '<div class="f" data-doc="cupom boleto"><label>Pago com</label><select id="docPago"><option value="">Descobrir pelo documento</option>'+optId(S.cfg.cards,S.docPago||"")+'</select></div></div>'+
+    (ajustes
+      ? '<input type="hidden" id="docTipo" value="extrato">'+
+        '<div class="f"><label>Conta do extrato</label><select id="docConta">'+optId(contas,contaPadrao)+'</select></div>'
+      : '<div class="f"><label>O que é</label><select id="docTipo"><option value="fatura">Fatura do cartão</option>'+
+        '<option value="cupom">Canhoto ou cupom</option><option value="boleto">Boleto</option></select></div>'+
+        '<div class="f" data-doc="fatura"><label>Cartão da fatura</label><select id="docCard">'+optId(cartoes,(cartoes[0]||{}).id)+'</select></div>'+
+        '<div class="f" data-doc="cupom boleto"><label>Pago com</label><select id="docPago"><option value="">Descobrir pelo documento</option>'+optId(S.cfg.cards,S.docPago||"")+'</select></div>')+
+    '</div>'+
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'+
-    '<button class="btn" id="docCamBtn">'+cam+'Fotografar</button>'+
-    '<button class="btn ghost" id="docArqBtn">Escolher arquivo (PDF ou foto)</button>'+
-    '<button class="btn ghost" id="docLinhaBtn">Digitar linha do boleto</button></div>'+
+    '<button class="btn" id="docArqBtn">Escolher arquivo ('+(ajustes?'PDF, OFX ou CSV':'PDF ou foto')+')</button>'+
+    '<button class="btn ghost" id="docCamBtn">'+cam+'Fotografar</button>'+
+    (ajustes?'':'<button class="btn ghost" id="docLinhaBtn" data-doc="boleto">Digitar linha do boleto</button>')+'</div>'+
     '<input type="file" id="docCam" accept="image/*" capture="environment" hidden>'+
     '<input type="file" id="docArq" accept="image/*,application/pdf,.ofx,.csv,.txt,text/csv,text/plain,application/x-ofx" multiple hidden>'+
-    '<div class="say-hint" style="margin-top:9px">O PDF baixado do app do banco é o que lê melhor; OFX e CSV exportados pelo banco também servem. Na foto: boa luz, documento reto ocupando a tela. Nada sai do seu aparelho.</div></div>'; }
+    '<div class="say-hint" style="margin-top:9px">'+(ajustes
+      ? 'Tarifas, juros, IOF e débitos automáticos que você não lançou aparecem aqui. O pagamento da fatura sai da conta, mas não conta como gasto: as compras vêm da fatura do cartão, importada em Lançar.'
+      : 'A compra no cartão conta no mês em que foi feita e não tira dinheiro da conta; só o pagamento da fatura tira. Extrato da conta corrente se importa em Ajustes.')+
+    ' O PDF baixado do app do banco é o que lê melhor. Nada sai do seu aparelho.</div></div>'; }
 function montarLeitorDoc(){
   const a=$("#docArq"), c=$("#docCam"); if(!a) return;
   $("#docCamBtn").onclick=()=>c.click(); $("#docArqBtn").onclick=()=>a.click();
   a.onchange=c.onchange=async e=>{ const fs=[...(e.target.files||[])]; e.target.value=""; const mais=!!S.docMais; S.docMais=false;
     for(let i=0;i<fs.length;i++) await lerDoc(fs[i],undefined,mais||i>0); };
-  $("#docLinhaBtn").onclick=()=>openLinhaBoleto("");
-  const tp=$("#docTipo"), mostra=()=>$$("[data-doc]").forEach(f=>{ f.hidden=tp.value!=="auto"&&f.dataset.doc.split(" ").indexOf(tp.value)<0; });
-  tp.onchange=mostra; mostra();
-  $("#docPago").onchange=e=>{ S.docPago=e.target.value; }; }
+  const lb=$("#docLinhaBtn"); if(lb) lb.onclick=()=>openLinhaBoleto("");
+  const tp=$("#docTipo"), mostra=()=>$$("[data-doc]").forEach(f=>{ f.hidden=f.dataset.doc.split(" ").indexOf(tp.value)<0; });
+  if(tp.tagName==="SELECT"){ tp.onchange=mostra; mostra(); }
+  const pg=$("#docPago"); if(pg) pg.onchange=e=>{ S.docPago=e.target.value; }; }
 
-async function lerDoc(arquivo,senha,anexar){
-  const st=$("#docStatus"), tipo=$("#docTipo").value, mes=$("#docMes").value||S.ym;
+/* a conferência é uma só: enquanto houver uma aberta em outra aba, não começa outra por cima */
+function conferenciaEmOutraAba(){
+  if(!S.drafts.length||(S.draftsAba||"lancar")===S.view) return false;
+  toast("Termine antes a conferência que está em "+(S.draftsAba==="ajustes"?"Ajustes":"Lançar")+": Salvar ou Descartar.");
+  return true; }
+
+async function lerDoc(arquivo,senha,anexar,mesmoAssim){
+  if(conferenciaEmOutraAba()) return;
+  const st=$("#docStatus"), tipo=$("#docTipo").value, mes=S.ym;
   if(!window.Leitor){ toast("O leitor não carregou. Recarregue o app."); return; }
   const pdf=/pdf/i.test(arquivo.type||"")||/\.pdf$/i.test(arquivo.name||"");
   const btns=$$("#docCamBtn,#docArqBtn"); btns.forEach(b=>b.disabled=true); st.textContent="abrindo…";
@@ -2441,17 +2506,33 @@ async function lerDoc(arquivo,senha,anexar){
   try{
     r=ehArquivoTexto(arquivo)?await lerArquivoTexto(arquivo,tipo):await Leitor.ler(arquivo,{tipo,mes,senha,onProgress:(p,etapa)=>{ st.textContent=(etapa||"lendo")+(p?" "+p+"%":""); }});
     st.textContent="";
+    /* extrato escolhido em Lançar, ou fatura em Ajustes: pergunta antes de ler do jeito errado */
+    if(!mesmoAssim&&!anexar&&!ehArquivoTexto(arquivo)&&(tipo==="fatura"||tipo==="extrato")){
+      const outro=Leitor.adivinharTipo(r.texto||"");
+      if((tipo==="fatura"&&outro==="extrato")||(tipo==="extrato"&&outro==="fatura")){ docNaAbaErrada(arquivo,senha,tipo,outro); return; } }
     if(!r.linhas.length){
       if(r.tipo==="boleto"){ openLinhaBoleto(r.erro); return; }
       if(r.tipo==="cupom"&&!pdf){ toast(r.erro||"Não achei o valor nessa foto. Tente com mais luz e o papel reto."); return; }
       if(r.tipo==="fatura"&&(r.anulados||r.estornos)){ toast("Nada para lançar: nesta fatura só há "+(r.anulados?"cobrança e desconto que se anulam":"créditos e estornos")+"."); return; }
       diagnosticoDoc(arquivo,r,null); return; }
-    mostrarLidos(r,{mes,card:$("#docCard").value,conta:$("#docConta").value,pago:$("#docPago").value},anexar);
+    const val=id=>($(id)||{}).value||"";
+    mostrarLidos(r,{mes,card:val("#docCard"),conta:val("#docConta"),pago:val("#docPago")},anexar);
   }catch(e){
     st.textContent="";
     if(e&&e.senha){ pedirSenhaPdf(arquivo,!!e.errada,anexar); return; }
     console.warn(e); diagnosticoDoc(arquivo,r,e); }
   finally{ btns.forEach(b=>b.disabled=false); } }
+
+function docNaAbaErrada(arquivo,senha,tipo,outro){
+  const destino=outro==="extrato"?"ajustes":"lancar";
+  sheet(outro==="extrato"?"Isso parece extrato da conta":"Isso parece fatura do cartão",
+    '<div class="set"><div class="note"><b>'+(outro==="extrato"?"Extrato da conta se importa em Ajustes":"Fatura do cartão se importa em Lançar")+'</b>'+
+    (outro==="extrato"?"Lá o app confere o saldo da conta e separa o pagamento da fatura, que não é gasto.":"Lá as compras vão para o cartão, no mês em que foram feitas, sem tirar dinheiro da conta.")+'</div></div>',
+    '<button class="btn ghost" id="abX">Ler como '+(tipo==="fatura"?"fatura":"extrato")+' mesmo</button><button class="btn" id="abIr">Importar em '+(destino==="ajustes"?"Ajustes":"Lançar")+'</button>');
+  $("#abX").onclick=()=>{ closeSheet(); lerDoc(arquivo,senha,false,true); };
+  $("#abIr").onclick=()=>{ closeSheet(); setView(destino);
+    const t=$("#docTipo"); if(t&&t.tagName==="SELECT"){ t.value="fatura"; t.onchange(); }
+    lerDoc(arquivo,senha,false,true); }; }
 
 /* PDF protegido: pede a senha aqui mesmo. Ela só abre o arquivo no aparelho — não é guardada nem enviada. */
 function pedirSenhaPdf(arquivo,errada,anexar){
@@ -2494,16 +2575,8 @@ function diagnosticoDoc(arquivo,r,e){
   $("#dgX").onclick=closeSheet;
   $("#dgC").onclick=async()=>{ try{ await navigator.clipboard.writeText(amostra); }catch(_){ const t=$("#dgA"); t.select(); document.execCommand("copy"); } toast("Amostra copiada"); }; }
 
-/* importar pelo extrato da conta ou do cartão: foto (uma página por vez) ou arquivo */
-function abrirImportar(alvo){
-  const cartao=alvo.indexOf("card:")===0, id=cartao?alvo.slice(5):alvo;
-  sheet(cartao?"Importar fatura · "+cardName(id):"Importar extrato · "+acctName(id),
-    '<div class="set"><div class="note"><b>Foto ou arquivo</b>O PDF baixado do app do banco é o que lê melhor; OFX e CSV exportados pelo banco também servem. Na foto, uma página por vez, com boa luz e o papel reto ocupando a tela; depois de ler a primeira, aparece o botão para fotografar a próxima.</div></div>',
-    '<button class="btn ghost" id="impArq">Escolher arquivo</button><button class="btn" id="impCam">Fotografar</button>');
-  $("#impArq").onclick=()=>{ closeSheet(); importarPara(alvo,"arq"); };
-  $("#impCam").onclick=()=>{ closeSheet(); importarPara(alvo,"cam"); }; }
-
 function mostrarLidos(r,op,anexar){
+  S.draftsAba=S.view==="ajustes"?"ajustes":"lancar";
   S.drafts=(anexar?S.drafts:[]).concat(rascunhosDoc(r,op));
   if(!anexar) S.docSaldo=null;
   if(r.tipo==="extrato"&&r.saldos&&op.conta){ const s=saldoDoDoc(r,S.drafts);
@@ -2551,16 +2624,18 @@ function rascunhosDoc(r,op){
     const rep=pareceRepetido(d);
     if(rep){ d.incluir=false; d.dup={ym:rep.ym,id:rep.id,desc:rep.desc,d:rep.d,v:rep.v,card:rep.card||"",k:rep.k};
       /* parcela que o app já reservou quando importou a fatura em que a compra começou: mesmo número, mesmo valor, mesmo cartão */
-      const reservada=d.i0>1&&txOf(d.ym||ymOf(d.date)).find(t=>t.plan&&t.i===d.i0&&Math.abs(t.v-d.v)<=1&&(!d.cardId||t.card===d.cardId));
+      const reservada=d.i0>1&&allTx().find(t=>t.plan&&t.i===d.i0&&faturaDe(t)===(d.ym||ymOf(d.date))&&Math.abs(t.v-d.v)<=1&&(!d.cardId||t.card===d.cardId));
       if(reservada){ d.dup={ym:reservada.ym,id:reservada.id,desc:reservada.desc,d:reservada.d,v:reservada.v,card:reservada.card||"",k:reservada.k}; d.dupResp=1; d.dupAuto=1; } }
     return d; }); }
 
 /* o mesmo gasto já lançado por voz ou por outro documento: mesmo valor, mesma data (±3 dias) */
 function pareceRepetido(d){
-  const alvo=d.ym||ymOf(d.date), dia=s=>Date.parse(s+"T12:00:00");
-  for(const ym of [ymShift(alvo,-1),alvo,ymShift(alvo,1)]) for(const t of txOf(ym)){
+  /* a compra no crédito fica no mês do dia da compra, que pode ser até dois meses antes da fatura */
+  const alvo=d.ym||ymOf(d.date), base=ymOf(d.date||todayISO()), dia=s=>Date.parse(s+"T12:00:00");
+  const meses=[...new Set([ymShift(alvo,-2),ymShift(alvo,-1),alvo,ymShift(base,-1),base,ymShift(base,1)])];
+  for(const ym of meses) for(const t of txOf(ym)){
     if(t.k!==d.k||Math.abs(t.v-d.v)>1) continue;
-    if(d.i0>1&&t.plan&&t.i===d.i0&&ym===alvo) return t;
+    if(d.i0>1&&t.plan&&t.i===d.i0&&faturaDe(t)===alvo) return t;
     if(d.method==="credito"&&t.card&&d.cardId&&t.card!==d.cardId) continue;
     if(Math.abs(dia(t.d)-dia(d.date))<=3*86400000) return t; }
   return null; }
@@ -2902,10 +2977,10 @@ function htmlExtrato(){
   let corpo;
   if(cartao){
     const cid=S.ext.slice(5), inv=cardInvoice(cid,ym);
-    const L=txOf(ym).filter(t=>t.card===cid&&t.k==="g"&&t.method==="credito").reverse();
+    const L=comprasDaFatura(cid,ym).sort((a,b)=>(a.d+(a.t||"")).localeCompare(b.d+(b.t||"")));
     const pg=allTx().filter(t=>t.k==="p"&&t.card===cid&&t.ref===ym);
     corpo=linhaSaldo("Fatura de "+esc(ymLabel(ym)),inv.total)+
-      (L.length?L.map(t=>linhaExt(t,-t.v,null,hoje)).join(""):'<div class="empty" style="padding:14px">Nenhuma compra nesta fatura.</div>')+
+      (L.length?L.map(t=>linhaExt(t,-t.v,null,hoje)).join(""):'<div class="empty" style="padding:14px">Nenhuma compra nesta fatura. A fatura se importa em Lançar.</div>')+
       pg.map(t=>linhaExt(t,t.v,null,hoje)).join("")+
       linhaSaldo(inv.open>0?"Falta pagar":"Fatura paga",Math.max(0,inv.open),true);
   } else {
@@ -2913,35 +2988,21 @@ function htmlExtrato(){
     const agendado=M.some(m=>m.t.d>hoje);
     const rotFim=fimMes<hoje?"Saldo em "+diaMes(fimMes):(ym>ymOf(hoje)||agendado)?"Saldo previsto em "+diaMes(fimMes):"Saldo hoje";
     corpo=linhaSaldo("Saldo em "+diaMes(ant+"-"+pad(daysIn(ant))),ini)+
-      (M.length?M.map(m=>{ s+=m.v; return linhaExt(m.t,m.v,s,hoje); }).join(""):'<div class="empty" style="padding:14px">Nenhum movimento nesta conta em '+esc(ymLabel(ym))+'.</div>')+
+      (M.length?M.map(m=>{ s+=m.v; return linhaExt(m.t,m.v,s,hoje); }).join(""):'<div class="empty" style="padding:14px">Nenhum movimento nesta conta em '+esc(ymLabel(ym))+'. O extrato se importa em Ajustes.</div>')+
       linhaSaldo(rotFim,s,true);
     const pend=fimMes>=hoje?fixedFor(ym).filter(f=>acctOf(f.card)===S.ext&&(S.cfg.cards.find(c=>c.id===f.card)||{}).type!=="credito"):[];
     if(pend.length) corpo+='<div class="ext-p">Fixos ainda não lançados: '+pend.map(f=>esc(f.name)+" "+fmtN(f.amount)+" (dia "+f.day+")").join(" · ")+'</div>';
   }
   return '<div class="sec" id="extSec"><div class="sec-h"><h2 class="sec-t">Extrato de '+esc(ymLabel(ym))+'</h2>'+
-    '<span class="sec-as">'+(cartao?'':'<button class="sec-a" id="extAj">Corrigir saldo</button>')+'<button class="sec-a" id="extImp">Importar '+(cartao?'fatura':'extrato')+'</button><button class="sec-a" id="extDup">Repetidos</button></span></div>'+
+    '<span class="sec-as"><button class="sec-a" id="extDup">Repetidos</button></span></div>'+
     '<div class="card pad"><div class="segs">'+ops.map(o=>'<button class="seg'+(o.id===S.ext?' on':'')+'" data-ext="'+o.id+'">'+esc(o.n)+'</button>').join("")+'</div>'+
     corpo+'</div></div>'; }
 function bindExtrato(){
   $$("[data-ext]").forEach(b=>b.onclick=()=>{ S.ext=b.dataset.ext; renderContas(); });
-  const aj=$("#extAj"); if(aj) aj.onclick=()=>openAcct(S.ext);
-  const im=$("#extImp"); if(im) im.onclick=()=>abrirImportar(S.ext);
   const dp=$("#extDup"); if(dp) dp.onclick=procurarRepetidos;
   const box=$("#extSec"); if(box) bindRows(box); }
 
 /* =================== importar, acertar saldo e repetidos =================== */
-/* leva ao leitor já sabendo de quem é o documento */
-function importarPara(alvo,modo){
-  const cartao=alvo.indexOf("card:")===0, id=cartao?alvo.slice(5):alvo;
-  setView("lancar");
-  const t=$("#docTipo"); if(!t){ toast("Abra a aba Lançar para ler o documento."); return; }
-  t.value=cartao?"fatura":"extrato"; t.onchange();
-  if(cartao){ $("#docCard").value=id; $("#docMes").value=S.ym; } else $("#docConta").value=id;
-  const box=t.closest(".card");
-  if(box){ box.scrollIntoView({behavior:"smooth",block:"center"}); box.classList.add("pisca"); setTimeout(()=>box.classList.remove("pisca"),1600); }
-  toast(modo==="cam"?"Fotografe a primeira página. Depois dá para fotografar as outras.":cartao?"Escolha a fatura do "+cardName(id)+" de "+ymLabel(S.ym):"Escolha o extrato de "+acctName(id));
-  $(modo==="cam"?"#docCam":"#docArq").click(); }
-
 /* o saldo impresso no extrato vira acerto da conta */
 function saldoDoDoc(r,drafts){
   const s=r.saldos||{}, datas=(drafts||[]).map(d=>d.date).filter(Boolean).sort(), rende=!!s.rendeFacil;
@@ -2981,8 +3042,8 @@ function dupHTML(d,i){
 /* já lançados: dois iguais no mesmo lugar, com até 3 dias de diferença */
 function repetidosDe(alvo,ym){
   const cartao=alvo.indexOf("card:")===0, cid=cartao?alvo.slice(5):"";
-  const L=txOf(ym).filter(t=>cartao?(t.card===cid&&t.k==="g"&&t.method==="credito")
-    :((t.acct||acctOf(t.card))===alvo||t.acct2===alvo)).slice().sort((a,b)=>a.d.localeCompare(b.d));
+  const L=(cartao?comprasDaFatura(cid,ym):txOf(ym).filter(t=>(t.acct||acctOf(t.card))===alvo||t.acct2===alvo))
+    .slice().sort((a,b)=>a.d.localeCompare(b.d));
   const pares=[], usado={};
   for(let i=0;i<L.length;i++) for(let j=i+1;j<L.length;j++){
     const a=L[i], b=L[j];
@@ -3240,6 +3301,20 @@ function classificarLinhaExtrato(d){
     d.acct=entra?(inv?inv.id:""):conta; d.acct2=entra?conta:(inv?inv.id:"");
     d.raw="Extrato · "+(entra?"resgate":"aplicação")+", movimento entre contas"; } }
 
+/* extrato importado antes da fatura: o pagamento ficou com "confira o cartão". Quando a fatura chega, ele vai para o
+   cartão cuja fatura tem exatamente o valor pago. */
+async function religarPagamentos(){
+  let n=0; const meses=new Set();
+  for(const t of allTx()){
+    if(t.k!=="p"||!/confira o cart/.test(t.raw||"")) continue;
+    const ym=ymOf(t.d);
+    const c=creditCards().find(x=>{ const ref=x.due&&x.closing&&x.due>x.closing?ym:ymShift(ym,-1), inv=cardInvoice(x.id,ref); return inv.total&&Math.abs(inv.total-t.v)<=1; });
+    if(!c) continue;
+    Object.assign(S.months[t.ym].tx[t.id],{card:c.id, ref:c.due&&c.closing&&c.due>c.closing?ym:ymShift(ym,-1), raw:"Extrato · pagamento de fatura", u:Date.now()});
+    meses.add(t.ym); n++; }
+  for(const ym of meses) await saveMonth(ym);
+  return n; }
+
 /* a fatura vai para o mês da compra mais recente (fora as parcelas de compras antigas), seja qual for o mês na tela */
 function mesDaFatura(r,padrao){
   const ds=r.linhas.filter(l=>(+l.i0||1)<=1&&l.d).map(l=>l.d).sort();
@@ -3334,8 +3409,8 @@ function openRecomecar(){
       '<div class="set"><div class="note"><b>Apagado</b>'+apagados+' lançamentos'+(tiraFix?', os gastos fixos':'')+(tiraDiv?', as dívidas e consignados':'')+'. '+
       (ficou?'Ficaram '+ficou+' gastos pagos em dinheiro, como você pediu.':'Não sobrou nenhum lançamento.')+'</div>'+
       '<div class="set-f"><span class="hint">Backup: '+esc(bk)+'. Nos outros aparelhos, abra o app com internet para a exclusão chegar lá.</span></div></div>',
-      '<button class="btn ghost" id="rcFim">Fechar</button><button class="btn" id="rcContas">Ir para Contas</button>');
-    $("#rcFim").onclick=closeSheet; $("#rcContas").onclick=()=>{ closeSheet(); setView("contas"); }; }; }
+      '<button class="btn ghost" id="rcFim">Fechar</button><button class="btn" id="rcContas">Importar extratos</button>');
+    $("#rcFim").onclick=closeSheet; $("#rcContas").onclick=()=>{ closeSheet(); setView("ajustes"); }; }; }
 
 /* restaurar: backups do Drive com um toque, ou colando o texto */
 function openRestore(){
