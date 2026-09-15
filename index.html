@@ -1859,8 +1859,19 @@ function openAcct(id){
   const k=$("#aKill");
   if(k) k.onclick=()=>{ if(A.length<=1){ toast("Precisa de pelo menos uma conta."); return; }
     /* excluir fica no lugar do "Cancelar" das outras fichas: pede um segundo toque */
-    if(!k.dataset.certeza){ k.dataset.certeza="1"; k.textContent="Excluir mesmo?"; toast("Os lançamentos e cartões dessa conta ficam sem conta. Toque de novo para excluir."); return; }
-    S.cfg.accounts=A.filter(x=>x.id!==a.id); saveCfg(); closeSheet(); render(); toast("Excluída"); }; }
+    const resto=A.filter(x=>x.id!==a.id), destino=resto[0];
+    const nTx=allTx().filter(t=>t.acct===a.id||t.acct2===a.id).length;
+    if(!k.dataset.certeza){ k.dataset.certeza="1"; k.textContent="Excluir mesmo?";
+      toast((nTx?nTx+" lançamentos e os ":"Os ")+"cartões desta conta passam para "+destino.n+". Toque de novo para excluir."); return; }
+    (S.cfg.cards||[]).forEach(x=>{ if(x.acct===a.id) x.acct=destino.id; });
+    const meses=new Set();
+    Object.keys(S.months).forEach(ym=>{ const tx=(S.months[ym]||{}).tx||{};
+      Object.keys(tx).forEach(id=>{ const t=tx[id]; if(!t||t.del) return;
+        if(t.acct===a.id){ t.acct=destino.id; t.u=Date.now(); meses.add(ym); }
+        if(t.acct2===a.id){ t.acct2=destino.id; t.u=Date.now(); meses.add(ym); } }); });
+    destino.opening=(destino.opening||0)+(a.opening||0);
+    S.cfg.accounts=resto; saveCfg(); meses.forEach(ym=>saveMonth(ym));
+    closeSheet(); render(); toast("Excluída. Cartões e lançamentos foram para "+destino.n+"."); }; }
 
 /* saldo inicial: a data do primeiro extrato e o saldo anterior impresso nele. Antes dessa data, nada conta no saldo. */
 function openSaldoInicial(id){
@@ -2338,8 +2349,33 @@ const grupoDe=id=>{ const c=(S.cfg.cats||[]).find(x=>x.id===id); return (c&&c.gr
 const opcoesGrupo=sel=>Object.keys(NOMES_GRUPO).map(g=>'<option value="'+g+'"'+(g===sel?" selected":"")+'>'+NOMES_GRUPO[g]+'</option>').join("");
 
 /* acrescenta o que as versões novas trazem, sem desfazer escolhas antigas */
+/* conta apagada sem querer: cartões e lançamentos continuam apontando para ela, e o app passaria a somar tudo na
+   primeira conta da lista. Aqui ela volta, vazia, e o dono é avisado para conferir o saldo. */
+function repararContas(){
+  const c=S.cfg; if(!c) return "";
+  const A=c.accounts=c.accounts||[], tem=id=>A.some(a=>a.id===id);
+  const faltando={};
+  (c.cards||[]).forEach(x=>{ if(x.acct&&!tem(x.acct)) faltando[x.acct]=(faltando[x.acct]||0)+1; });
+  Object.keys(S.months||{}).forEach(ym=>{ const tx=(S.months[ym]||{}).tx||{};
+    Object.keys(tx).forEach(id=>{ const t=tx[id]; if(!t||t.del) return;
+      [t.acct,t.acct2].forEach(a=>{ if(a&&!tem(a)) faltando[a]=(faltando[a]||0)+1; }); }); });
+  const ids=Object.keys(faltando); if(!ids.length) return "";
+  const nomes=[];
+  ids.forEach(id=>{ const corrente=id==="cc"||!A.some(a=>a.type==="corrente");
+    const nova={id, n:corrente?"Conta corrente":"Conta recuperada", type:corrente?"corrente":"poupanca", opening:0, openDate:"", adjust:[]};
+    if(corrente) A.unshift(nova); else A.push(nova); nomes.push(nova.n); });
+  return nomes.join(" e "); }
+
 function migrarCfg(){
   const c=S.cfg; if(!c) return; migrar2(c);
+  const volta=repararContas();
+  if(volta){ setTimeout(()=>{ saveCfg(); render();
+    sheet("A "+volta+" voltou",
+      '<div class="set"><div class="note"><b>Ela tinha sido excluída</b>Cartões e lançamentos continuavam ligados a ela, e o saldo estava sendo somado na primeira conta da lista. O app trouxe a conta de volta, vazia.</div>'+
+      '<div class="set-f"><span class="hint">Confira em <b>Ajustes → Saldo de cada conta</b>: informe o <b>Saldo inicial</b> (a data do primeiro extrato e o saldo anterior dele) ou <b>Corrigir saldo</b> com o valor que o banco mostra hoje. Veja também se algum lançamento foi parar na conta errada.</span></div></div>',
+      '<button class="btn ghost" id="rcvX">Fechar</button><button class="btn" id="rcvIr">Ir para os saldos</button>');
+    $("#rcvX").onclick=closeSheet;
+    $("#rcvIr").onclick=()=>{ closeSheet(); setView("ajustes"); }; },400); }
   if(!c.rendas) c.rendas=+c.income>0?[{desde:"2000-01",v:+c.income}]:[];     /* renda com histórico */
   if(c.m1) return;
   c.cats=c.cats||[]; c.cards=c.cards||[];
