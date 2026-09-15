@@ -142,15 +142,72 @@ function dataNaLinha(linha,ano,mesRef){
   const lead=linha.match(/^(?:\S{1,6}|[A-Za-zÀ-ÿ\-]{3,14},?)\s+/);
   if(lead){ const d2=dataNoInicio(linha.slice(lead[0].length),ano,mesRef); if(d2) return {iso:d2.iso,len:lead[0].length+d2.len}; }
   return null; }
+
+/* extrato em blocos (Banco do Brasil): cada lançamento tem o histórico numa linha ("Compra com Cartão"), a linha
+   com dia, lote, documento e valor com (+) ou (-), e o detalhe na linha de baixo ("03/01 17:06 SUPERMERCADO").
+   Quando o PDF põe o histórico ou o detalhe na mesma altura do valor, eles vêm na linha do valor.
+   BB Rende Fácil é a aplicação automática do saldo: o dinheiro continua sendo da conta e fica de fora. */
+const RE_LINHA_BLOCO=/^(\d{2})\/(\d{2})\/(\d{4})\s+(.*?)\s*((?:\d{1,3}(?:\.\d{3})+|\d+),\d{2})\s*\(\s*([+-])\s*\)$/;
+const RE_CABECALHO_BLOCO=/^(extrato de conta|cliente\b|periodo\b|agencia\b|lancamentos$|dia lote|total aplicac|\*? ?saldos por dia|sujeitos a confirmac|pagina \d)/;
+const RE_RENDE_FACIL=/\brende facil\b/;
+const ehSaldoBloco=s=>/^(saldo\b|s a l d o\b)/.test(s);
+function ehExtratoEmBlocos(texto){
+  return String(texto||"").split(/\r?\n/).filter(l=>RE_LINHA_BLOCO.test(l.replace(/\s+/g," ").trim())).length>=3; }
+function limparDetalhe(s){
+  return String(s||"").replace(/^\d{2}\/\d{2}\s+\d{2}:\d{2}\s+/,"")
+    .replace(/\b\d{2,3}\.\d{3}\.\d{3}(?:\/\d{4}-\d{2})?(?!\d)/g," ").replace(/\b\d{11,14}\b/g," ")
+    .replace(/\s{2,}/g," ").replace(/^[\-–—:*\s]+|[\-–—:*\s]+$/g,""); }
+function lerExtratoEmBlocos(texto){
+  const itens=[]; let pend=[], ant=null, ignoradas=0, aplicacoes=0;
+  /* linha de saldo, fim da página útil ou do texto: o que ficou pendente só pode ser o detalhe do anterior */
+  const fechar=()=>{ if(ant&&ant.querDetalhe&&pend.length) ant.detalhe=pend[0]; if(ant) ant.querDetalhe=false; pend=[]; };
+  for(const bruta of String(texto||"").split(/\r?\n/)){
+    const linha=bruta.replace(/\s+/g," ").trim(), sem=semAcento(linha).toLowerCase();
+    if(linha.length<2||RE_CABECALHO_BLOCO.test(sem)) continue;
+    if(/lancamentos futuros/.test(sem)){ fechar(); break; }
+    const m=linha.match(RE_LINHA_BLOCO);
+    if(!m){ if(valores(linha).length) fechar(); else pend.push(linha); continue; }
+    const meio=m[4].replace(/^(?:\d+(?:\s+|$)){0,2}/,"").trim();
+    if(ehSaldoBloco(semAcento(meio).toLowerCase())){ fechar(); ignoradas++; continue; }
+    const it={d:m[3]+"-"+m[2]+"-"+m[1], v:parseInt(m[5].replace(/[.,]/g,""),10), k:m[6]==="+"?"e":"g", inline:meio, hist:"", detalhe:""};
+    /* as linhas soltas desde o lançamento anterior: o detalhe dele (se ainda falta) e o histórico deste */
+    if(ant&&ant.querDetalhe&&(pend.length>=2||(pend.length===1&&it.inline&&!ant.inline))) ant.detalhe=pend.shift();
+    if(ant) ant.querDetalhe=false;
+    it.hist=pend.join(" "); pend=[];
+    it.querDetalhe=!it.inline||!it.hist;
+    itens.push(it); ant=it; }
+  fechar();
+  const linhas=[];
+  itens.forEach(it=>{
+    const hist=it.hist||it.inline, det=limparDetalhe(it.hist?[it.inline,it.detalhe].filter(Boolean).join(" "):it.detalhe);
+    if(RE_RENDE_FACIL.test(semAcento(hist+" "+det).toLowerCase())){ aplicacoes++; return; }
+    if(!it.v) return;
+    const h=capitalizar(hist), d=capitalizar(det);
+    const desc=d?(/^compra com cartao$/i.test(semAcento(hist))?d:h+" · "+d):h;
+    linhas.push({d:it.d, desc:desc||"Lançamento do extrato", v:it.v, k:it.k, i0:1, n:1}); });
+  return {linhas, ignoradas, estornos:0, aplicacoes}; }
+
 function lerLancamentos(texto,tipo,mes){
-  const ref=(mes||mesDeHoje()).split("-").map(Number), ano=ref[0], mesRef=ref[1];
+  if(tipo==="extrato"&&ehExtratoEmBlocos(texto)) return lerExtratoEmBlocos(texto);
+  let ref=(mes||mesDeHoje()).split("-").map(Number);
   const fatura=tipo!=="extrato";
-  const linhas=[]; let ignoradas=0, estornos=0, dataDoDia=null;
-  const partes=[];
-  String(texto||"").split(/\r?\n/).forEach(bruta=>bruta.replace(/[|•]/g," ").split(RE_OUTRA_COLUNA).forEach(p=>partes.push(p)));
+  const linhas=[], creditos=[]; let ignoradas=0, estornos=0, anulados=0, dataDoDia=null;
+  let brutas=String(texto||"").split(/\r?\n/), fechada="", cartao="";
+  if(fatura){
+    /* a data de fechamento diz o ano das compras sem ano ("22/12" numa fatura fechada em 23/12/2025) */
+    const f=semAcento(texto||"").match(/(?:fatura fechada em|data de fechamento|fechamento da fatura)\D{0,12}(\d{2})\/(\d{2})\/(\d{4})/i);
+    if(f){ fechada=f[3]+"-"+f[2]+"-"+f[1]; ref=[+f[3],+f[2]]; }
+    const c=String(texto||"").match(/fatura de\s+(.{3,40}?)\s+final\s+(\d{4})/i); if(c) cartao=c[1].trim()+" final "+c[2];
+    /* só a tabela de lançamentos, quando ela tem cabeçalho: o resto da fatura é resumo, juros e avisos */
+    const ini=brutas.findIndex(l=>/^\s*data\s+descri/i.test(semAcento(l)));
+    if(ini>=0) brutas=brutas.slice(ini+1); }
+  const ano=ref[0], mesRef=ref[1], partes=[];
+  brutas.forEach(bruta=>bruta.replace(/[|•]/g," ").replace(/\s{2,}[A-Z]{2}(?=\s{2,}(?:R\$\s?)?-?\s?\d)/," ")      /* coluna País */
+    .split(RE_OUTRA_COLUNA).forEach(p=>partes.push(p)));
   partes.forEach(bruta=>{
     const linha=bruta.replace(/\s+/g," ").trim(); if(linha.length<4) return;
     const sem=semAcento(linha);
+    if(fatura&&/\d%/.test(linha)) return;                                      /* taxas de juros */
     let dt=dataNaLinha(linha,ano,mesRef);
     const vals=valores(linha).filter(x=>!dt||x.ini>=dt.len);
     if(dt&&!vals.length){
@@ -171,17 +228,22 @@ function lerLancamentos(texto,tipo,mes){
     desc=desc.replace(/\s{2,}/g," ").replace(/^[\-–—:*\s]+|[\-–—:*\s]+$/g,"");
     if(!desc) desc=fatura?"Compra no cartão":"Lançamento do extrato";
     let k="g";
-    if(fatura){ if(val.neg||val.cred){ estornos++; return; } }
+    if(!val.v) return;
+    if(fatura){ if(val.neg||val.cred){ estornos++; creditos.push({v:val.v, i0, n}); return; } }
     else if(val.cred||(!val.neg&&RE_ENTRADA.test(sem))) k="e";
     linhas.push({d:dt.iso, desc:capitalizar(desc), v:val.v, k, i0, n}); });
-  return {linhas, ignoradas, estornos}; }
+  /* crédito que anula uma cobrança da mesma fatura (mesmo valor e mesma parcela, como o desconto da anuidade):
+     os dois ficam de fora */
+  creditos.forEach(c=>{ const j=linhas.findIndex(l=>l.v===c.v&&l.i0===c.i0&&l.n===c.n);
+    if(j>=0){ linhas.splice(j,1); anulados++; } });
+  return {linhas, ignoradas, estornos, anulados, fechada, cartao}; }
 
 /* ---- saldo que o próprio banco imprime: serve para acertar a conta ---- */
 function saldosDoExtrato(texto,mes){
   const ref=(mes||mesDeHoje()).split("-").map(Number), ano=ref[0], mesRef=ref[1];
   const out={anterior:null, final:null};
   String(texto||"").split(/\r?\n/).forEach(bruta=>{
-    const linha=bruta.replace(/[|•]/g," ").replace(/\s+/g," ").trim(); if(linha.length<8) return;
+    const linha=bruta.replace(/[|•]/g," ").replace(/\s+/g," ").replace(/\bS A L D O\b/i,"Saldo").trim(); if(linha.length<8) return;
     const sem=semAcento(linha).toLowerCase();
     if(sem.indexOf("saldo")<0) return;
     const vals=valores(linha); if(!vals.length) return;
@@ -192,15 +254,23 @@ function saldosDoExtrato(texto,mes){
       if(dia>=1&&dia<=31&&mo>=1&&mo<=12){ if(!y){ y=ano; if(mo>mesRef+1) y=ano-1; } d=y+"-"+pad(mo)+"-"+pad(dia); } }
     if(/saldo (anterior|inicial)/.test(sem)){ if(!out.anterior) out.anterior={v,d}; return; }
     if(/saldo (final|atual|do dia|disponivel|em conta)/.test(sem)||/^saldo\b/.test(sem)) out.final={v,d}; });
-  return (out.anterior||out.final)?out:null; }
+  /* com BB Rende Fácil, o saldo impresso não conta o dinheiro aplicado. Só um saldo negativo é seguro:
+     se houvesse dinheiro aplicado, o banco teria coberto a conta com ele. */
+  if(RE_RENDE_FACIL.test(semAcento(texto||"").toLowerCase())){
+    out.rendeFacil=true; out.final=null;
+    if(out.anterior&&out.anterior.v>=0) out.anterior=null; }
+  return (out.anterior||out.final||out.rendeFacil)?out:null; }
 
 /* sem o tipo escolhido, tenta descobrir pelo conteúdo */
 function adivinharTipo(texto,codigo){
   if(codigo) return "boleto";
   const s=semAcento(texto).toLowerCase();
+  if(ehExtratoEmBlocos(texto)) return "extrato";
+  /* a fatura traz a linha digitável para pagar e o extrato fala em "pagamento fatura de água": primeiro as marcas fortes */
+  if(/pagamento minimo|melhor data de compra|lancamentos nesta fatura|total da fatura/.test(s)) return "fatura";
   if(/\d{5}[.\s]?\d{5}\s+\d{5}[.\s]?\d{6}\s+\d{5}[.\s]?\d{6}\s+\d\s+\d{14}/.test(s)||/8\d{10}[\s\-]?\d\s+\d{11}/.test(s)) return "boleto";
-  if(/fatura|limite (total|disponivel)|pagamento minimo/.test(s)) return "fatura";
   if(/extrato|saldo anterior|saldo do dia|conta corrente/.test(s)) return "extrato";
+  if(/fatura|limite (total|disponivel)/.test(s)) return "fatura";
   const datadas=s.split("\n").filter(l=>/^\s*\d{1,2}[\/.\-]\d{1,2}/.test(l)&&/\d,\d{2}/.test(l)).length;
   return datadas>=3?"fatura":"cupom"; }
 

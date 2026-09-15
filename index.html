@@ -508,7 +508,7 @@ const ECATS = [
   {id:"venda",n:"Venda"},{id:"decimo",n:"13º e férias"},{id:"emprest",n:"Empréstimo recebido"},{id:"outrae",n:"Outras entradas"}
 ];
 const EKW = {
-  sal:"salario holerite contracheque folha pagamento",
+  sal:"salario proventos holerite contracheque folha pagamento",
   prol:"prolabore pro labore retirada distribuicao lucros",
   extra:"freela freelance bico extra servico consultoria plantao",
   rend:"rendimento rendimentos juros dividendo dividendos cdb tesouro poupanca aplicacao",
@@ -1852,6 +1852,8 @@ function openAcct(id){
     S.cfg.accounts=A; saveCfg(); closeSheet(); render(); toast("Salvo"); };
   const k=$("#aKill");
   if(k) k.onclick=()=>{ if(A.length<=1){ toast("Precisa de pelo menos uma conta."); return; }
+    /* excluir fica no lugar do "Cancelar" das outras fichas: pede um segundo toque */
+    if(!k.dataset.certeza){ k.dataset.certeza="1"; k.textContent="Excluir mesmo?"; toast("Os lançamentos e cartões dessa conta ficam sem conta. Toque de novo para excluir."); return; }
     S.cfg.accounts=A.filter(x=>x.id!==a.id); saveCfg(); closeSheet(); render(); toast("Excluída"); }; }
 
 function openPay(cardId){
@@ -2442,6 +2444,7 @@ async function lerDoc(arquivo,senha,anexar){
     if(!r.linhas.length){
       if(r.tipo==="boleto"){ openLinhaBoleto(r.erro); return; }
       if(r.tipo==="cupom"&&!pdf){ toast(r.erro||"Não achei o valor nessa foto. Tente com mais luz e o papel reto."); return; }
+      if(r.tipo==="fatura"&&(r.anulados||r.estornos)){ toast("Nada para lançar: nesta fatura só há "+(r.anulados?"cobrança e desconto que se anulam":"créditos e estornos")+"."); return; }
       diagnosticoDoc(arquivo,r,null); return; }
     mostrarLidos(r,{mes,card:$("#docCard").value,conta:$("#docConta").value,pago:$("#docPago").value},anexar);
   }catch(e){
@@ -2510,7 +2513,9 @@ function mostrarLidos(r,op,anexar){
   const st=$("#parseStatus"); st.hidden=false;
   st.textContent=n+(n>1?" lançamentos lidos ":" lançamento lido ")+de+
     (rep?" · "+rep+(rep>1?" parecem já lançados e ficaram desmarcados":" parece já lançado e ficou desmarcado"):"")+
-    (r.estornos?" · "+r.estornos+(r.estornos>1?" estornos ficaram de fora":" estorno ficou de fora"):"")+
+    (r.estornos?" · "+r.estornos+(r.estornos>1?" estornos ficaram de fora":" estorno ficou de fora")+(r.anulados?" (com a cobrança de mesmo valor que "+(r.anulados>1?"eles anulam)":"ele anula)"):""):"")+
+    (r.aplicacoes?" · "+r.aplicacoes+" movimentos do BB Rende Fácil ficaram de fora: é o mesmo dinheiro da conta":"")+
+    (r.cartaoDoc?" · cartão no documento: "+r.cartaoDoc:"")+
     (S.docSaldo&&S.docSaldo.saldo?" · o banco diz saldo de "+fmt(S.docSaldo.saldo.v)+" em "+diaMesAno(S.docSaldo.saldo.d):"");
   if(r.tipo==="fatura"||r.tipo==="extrato"){ const b=document.createElement("button"); b.className="mini"; b.style.marginLeft="8px";
     b.textContent="Fotografar mais uma página"; b.onclick=()=>{ S.docMais=true; $("#docCam").click(); }; st.appendChild(b); }
@@ -2523,9 +2528,18 @@ function rascunhosDoc(r,op){
     return S.cfg.cards.find(c=>c.type==="credito"&&norm(c.alias+" "+c.n).split(" ").indexOf(w)>=0); };
   const boletoCard=S.cfg.cards.find(c=>c.type==="boleto"), pagoCom=op.pago?S.cfg.cards.find(c=>c.id===op.pago):null;
   const mesFat=r.tipo==="fatura"?mesDaFatura(r,op.mes||S.ym):"";
+  /* a fatura diz de qual cartão é ("OUROCARD MASTERCARD final 1234"): vale o documento, se ele bater com um cartão cadastrado */
+  let cardFat=op.card;
+  if(r.tipo==="fatura"&&r.cartao){
+    const w=norm(r.cartao).split(" "), nomes=c=>norm(c.n+" "+(c.alias||"")).split(" ");
+    const fim=(w[w.length-1]||"").length===4?w[w.length-1]:"", band=w.find(x=>/^(visa|master|mastercard|elo|amex|hipercard|diners)$/.test(x));
+    const bate=c=>{ const ns=nomes(c); return (fim&&ns.indexOf(fim)>=0)||(band&&ns.some(x=>x===band||(band.indexOf("master")===0&&x.indexOf("master")===0))); };
+    const escolhido=creditCards().find(c=>c.id===op.card), doc=creditCards().find(c=>fim&&nomes(c).indexOf(fim)>=0)||creditCards().find(bate);
+    if(doc&&!(escolhido&&bate(escolhido))) cardFat=doc.id;
+    r.cartaoDoc=r.cartao.toLowerCase().replace(/(^|\s)\S/g,x=>x.toUpperCase())+(doc?" ("+doc.n+")":" — confira o cartão"); }
   return r.linhas.map(l=>{
     const d={id:uid(), raw:"", v:l.v, desc:l.desc, k:l.k||"g", n:l.n||1, i0:l.i0||1, date:l.d||hoje, time:"", msg:"", origem:r.tipo, incluir:true};
-    if(r.tipo==="fatura"){ d.cardId=op.card; d.method="credito"; d.ym=mesFat; d.porParcela=d.n>1;
+    if(r.tipo==="fatura"){ d.cardId=cardFat; d.method="credito"; d.ym=mesFat; d.porParcela=d.n>1;
       d.raw="Fatura de "+ymLabel(d.ym)+(d.i0>1?" · parcela "+d.i0+" de "+d.n+" — as seguintes já ficam reservadas":""); }
     else if(r.tipo==="extrato"){ const c=debitoDaConta(op.conta); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id;
       d.method=d.k==="e"?"pix":"debito"; d.acct=op.conta||acctOf(d.cardId); d.raw="Extrato"; classificarLinhaExtrato(d); }
@@ -2930,17 +2944,18 @@ function importarPara(alvo,modo){
 
 /* o saldo impresso no extrato vira acerto da conta */
 function saldoDoDoc(r,drafts){
-  const s=r.saldos||{}, datas=(drafts||[]).map(d=>d.date).filter(Boolean).sort();
-  if(s.final&&(s.final.d||datas.length)) return {v:s.final.v, d:s.final.d||datas[datas.length-1]};
+  const s=r.saldos||{}, datas=(drafts||[]).map(d=>d.date).filter(Boolean).sort(), rende=!!s.rendeFacil;
+  if(s.final&&(s.final.d||datas.length)) return {v:s.final.v, d:s.final.d||datas[datas.length-1], rende};
   if(s.anterior){
-    if(s.anterior.d) return {v:s.anterior.v, d:s.anterior.d};
-    if(datas.length) return {v:s.anterior.v, d:new Date(Date.parse(datas[0]+"T12:00:00")-86400000).toISOString().slice(0,10)}; }
+    if(s.anterior.d) return {v:s.anterior.v, d:s.anterior.d, rende};
+    if(datas.length) return {v:s.anterior.v, d:new Date(Date.parse(datas[0]+"T12:00:00")-86400000).toISOString().slice(0,10), rende}; }
   return null; }
 function openAcerto(acctId,s){
   const a=(S.cfg.accounts||[]).find(x=>x.id===acctId); if(!a||!s||!s.d) return;
   const calc=balanceOf(acctId,s.d), dif=s.v-calc;
   sheet("Conferir o saldo da conta",
-    '<div class="set"><div class="note"><b>'+esc(a.n)+'</b>O extrato diz que em '+diaMesAno(s.d)+' o saldo era '+fmt(s.v)+'.</div>'+
+    '<div class="set"><div class="note"><b>'+esc(a.n)+'</b>O extrato diz que em '+diaMesAno(s.d)+' o saldo era '+fmt(s.v)+'.'+
+    (s.rende?' Como estava negativo, não havia nada no BB Rende Fácil: é o saldo inteiro da conta.':'')+'</div>'+
     '<div class="linkrow"><div class="m"><div class="t">A Caderneta calcula</div><div class="s">no mesmo dia</div></div><span class="row-v">'+fmtN(calc)+'</span></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Diferença</div><div class="s">'+(dif===0?"está batendo":dif>0?"falta entrar dinheiro aqui":"tem gasto a mais aqui")+'</div></div>'+
     '<span class="row-v'+(dif>0?" plus":"")+'">'+(dif>0?"+":"")+fmtN(dif)+'</span></div>'+
@@ -3209,10 +3224,12 @@ function migrar2(c){
    resgate é dinheiro mudando de lugar. Os dois viram movimento que não conta como gasto nem como renda. */
 function classificarLinhaExtrato(d){
   const s=norm(d.desc), C=creditCards();
-  if(d.k!=="e"&&/\b(pagamento|pagto|pgto|pag)\b.{0,16}\b(fatura|cartao|cartoes)\b|\bfatura\b.{0,16}\b(cartao|visa|master|mastercard|elo)\b|\bcartao de credito\b/.test(s)){
-    const palavras=s.split(" ");
-    const c=C.find(x=>norm(x.n+" "+(x.alias||"")).split(" ").some(w=>w.length>2&&palavras.indexOf(w)>=0))||(C.length===1?C[0]:null);
-    const ym=ymOf(d.date);
+  if(d.k!=="e"&&!/\bfatura de (agua|luz|energia|gas|telefone|internet|celular)\b/.test(s)&&
+    /\b(pagamento|pagto|pgto|pag)\b.{0,16}\b(fatura|cartao|cartoes)\b|\bfatura\b.{0,16}\b(cartao|visa|master|mastercard|elo)\b|\bcartao de credito\b/.test(s)){
+    const palavras=s.split(" "), ym=ymOf(d.date);
+    /* sem o nome do cartão ("Pagto cartão crédito"), vale o cartão cuja fatura tem exatamente esse valor */
+    const peloValor=C.find(x=>{ const ref=x.due&&x.closing&&x.due>x.closing?ym:ymShift(ym,-1), inv=cardInvoice(x.id,ref); return inv.total&&Math.abs(inv.total-d.v)<=1; });
+    const c=C.find(x=>norm(x.n+" "+(x.alias||"")).split(" ").some(w=>w.length>2&&palavras.indexOf(w)>=0))||peloValor||(C.length===1?C[0]:null);
     d.k="p"; d.method="debito"; d.n=1; d.cardId=(c||C[0]||{}).id||d.cardId;
     d.ref=c&&c.due&&c.closing&&c.due>c.closing?ym:ymShift(ym,-1);      /* paga em setembro a fatura de agosto */
     d.raw="Extrato · pagamento de fatura"+(c?"":" — confira o cartão"); return; }
@@ -3226,7 +3243,7 @@ function classificarLinhaExtrato(d){
 /* a fatura vai para o mês da compra mais recente (fora as parcelas de compras antigas), seja qual for o mês na tela */
 function mesDaFatura(r,padrao){
   const ds=r.linhas.filter(l=>(+l.i0||1)<=1&&l.d).map(l=>l.d).sort();
-  return ds.length?ymOf(ds[ds.length-1]):padrao; }
+  return ds.length?ymOf(ds[ds.length-1]):r.fechada?ymOf(r.fechada):padrao; }
 
 /* campos da conferência conforme o tipo: gasto, entrada, pagamento de fatura ou movimento entre contas */
 function camposDoRascunho(d){
