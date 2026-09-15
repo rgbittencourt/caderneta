@@ -40,6 +40,7 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 **Fixo todo mês:** marque na conferência — ou em *Tornar fixo*, ao editar um lançamento — o que se repete todo mês: aluguel, escola, assinaturas.
 
 **Salário:** a renda líquida de Ajustes entra sozinha no primeiro dia útil de cada mês (pulando fim de semana e feriado nacional), na conta escolhida ali. Em mês com parcela de consignado, ela entra já descontada. Se você lançar o salário à mão, o app não lança de novo. Dá para desligar em Ajustes.
+Teve aumento ou correção? Mude o valor em Ajustes: o app pergunta a partir de que mês vale. Os meses anteriores e os salários já lançados continuam com o valor antigo, e o histórico aparece embaixo do campo.
 
 **Método 50-30-20** (aba Meta): divide a renda líquida em Necessidades, Desejos e Futuro. A rosca mostra a meta (anel de fora) e para onde a renda foi (anel de dentro); abaixo, o que tem em cada grupo. Os percentuais e o grupo de cada categoria são ajustáveis.
 

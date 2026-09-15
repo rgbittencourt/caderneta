@@ -813,7 +813,7 @@ function openWelcome(){
   const done=()=>{ S.cfg.seen=true; saveCfg(); closeSheet(); render(); };
   $("#wX").onclick=done;
   $("#wOk").onclick=()=>{ const i=toCents($("#wI").value), c=toCents($("#wC").value), b=toCents($("#wB").value);
-    if(i) S.cfg.income=i; if(c) S.cfg.cap=c; if(b&&S.cfg.accounts[0]) S.cfg.accounts[0].opening=b;
+    if(i){ S.cfg.income=i; if(!(S.cfg.rendas||[]).length) S.cfg.rendas=[{desde:"2000-01",v:i}]; } if(c) S.cfg.cap=c; if(b&&S.cfg.accounts[0]) S.cfg.accounts[0].opening=b;
     done(); toast("Pronto. Agora é só lançar."); }; }
 
 /* ---- instalação ---- */
@@ -1120,7 +1120,10 @@ function projectMonth(ym){
   const st=monthStats(ym), last=ym+"-"+pad(daysIn(ym));
   const hoje=totalBalance(todayISO()), naData=totalBalance(last);
   const faturas=creditCards().reduce((s,c)=>s+Math.max(0,cardInvoice(c.id,ym).open),0);
-  const rendaFalta=(st.isCur||ym>ymOf(todayISO()))?Math.max(0,rendaPrevista(ym)-st.income):0;
+  /* renda que ainda vai entrar: nos meses à frente, sempre; no mês atual, só antes do primeiro dia útil (depois o salário já
+     entrou, ou foi apagado de propósito) ou, sem salário automático, até ser lançado. Durante a carga de extratos, não conta. */
+  const hojeISO=todayISO(), curYm=ymOf(hojeISO), falta=Math.max(0,rendaPrevista(ym)-st.income);
+  const rendaFalta=ym>curYm?falta:(ym===curYm&&!S.cfg.salPausa&&(S.cfg.salAuto===false||primeiroDiaUtil(ym)>hojeISO))?falta:0;
   return {hoje,naData,faturas,rendaFalta,fixPend:st.fixPend,fim:naData+rendaFalta-st.fixPendConta-faturas,goal:S.cfg.balanceGoal||0}; }
 
 function futureMonths(n,startYm){
@@ -1412,7 +1415,7 @@ function renderPainel(){
     '</div>'+
     '<div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));align-content:start">'+
       tile("Gasto no mês",fmt(st.spent),st.dayNow>0?("Fecha em "+fmt(Math.round(st.pace))):"",st.cap&&st.pace>st.cap?"up":"flat")+
-      tile("Entrou no mês",st.income?"+"+fmt(st.income):fmt(0),S.cfg.income?("Previsto "+fmt(rendaPrevista(S.ym))):"","down")+
+      tile("Entrou no mês",st.income?"+"+fmt(st.income):fmt(0),S.cfg.income&&!S.cfg.salPausa?("Previsto "+fmt(rendaPrevista(S.ym))):"","down")+
       tile("Saldo hoje",fmt(pr.hoje),(S.cfg.accounts||[]).length+" contas","flat")+
       tile("Previsto dia "+daysIn(S.ym),fmt(pr.fim),pr.goal?("Meta "+fmt(pr.goal)):"",pr.goal?(pr.fim>=pr.goal?"down":"up"):"flat")+
     '</div></div></div>';
@@ -1899,7 +1902,7 @@ function renderAjustes(){
   $("#p-ajustes").innerHTML=
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Meta do mês</h2></div><div class="card pad set">'+
     '<div class="set-f"><label for="sIncome">Renda líquida mensal</label>'+
-    '<input id="sIncome" inputmode="decimal" value="'+(c.income?fmtN(c.income):"")+'" placeholder="0,00"></div>'+
+    '<input id="sIncome" inputmode="decimal" value="'+(rendaDoMes(ymOf(todayISO()))?fmtN(rendaDoMes(ymOf(todayISO()))):"")+'" placeholder="0,00">'+historicoRendaHTML()+'</div>'+
     '<div class="two"><div class="set-f"><label for="sSalConta">O salário cai na conta</label><select id="sSalConta">'+optId(c.accounts||[],contaDoSalario())+'</select></div>'+
     '<div class="set-f"><label>Lançar sozinho</label><label style="display:flex;align-items:center;gap:9px;font-weight:500;color:var(--ink);min-height:38px"><input type="checkbox" id="sSalAuto" style="width:20px;height:20px"'+(c.salAuto!==false?" checked":"")+'>no 1º dia útil do mês</label></div></div>'+
     '<div class="set-f"><span class="hint">Em mês com parcela de consignado, o salário entra já com a parcela descontada, e a parcela aparece em Dívidas e empréstimos.</span></div>'+
@@ -1976,6 +1979,13 @@ function renderAjustes(){
   $("#sBal").oninput=()=>sync("bal");
   $("#sGoal").oninput=()=>{ c.balanceGoal=toCents($("#sGoal").value); };
   ["#sIncome","#sCap","#sBal","#sGoal"].forEach(s=>$(s).onblur=()=>{ saveCfg(); render(); });
+  /* mudou a renda: pergunta a partir de quando vale; o que já passou fica com o valor antigo */
+  const rendaAntes=rendaDoMes(ymOf(todayISO()));
+  $("#sIncome").onblur=()=>{ const v=toCents($("#sIncome").value);
+    if(v===rendaAntes){ saveCfg(); render(); return; }
+    if(!rendaAntes&&!(S.cfg.rendas||[]).length){ S.cfg.rendas=v?[{desde:"2000-01",v}]:[]; S.cfg.income=v; saveCfg(); render(); return; }
+    perguntarDataRenda(v,rendaAntes); };
+  $$("[data-rdel]").forEach(b=>b.onclick=()=>{ S.cfg.rendas=(S.cfg.rendas||[]).filter(r=>r.desde!==b.dataset.rdel); S.cfg.income=rendaDoMes(ymOf(todayISO())); saveCfg(); render(); });
   $("#sMode").onchange=()=>{ c.mode=$("#sMode").value; saveCfg(); render(); };
   $("#sSalAuto").onchange=()=>{ c.salAuto=$("#sSalAuto").checked; saveCfg(); render(); };
   $("#sSalConta").onchange=()=>{ c.salConta=$("#sSalConta").value; saveCfg(); };
@@ -2195,7 +2205,7 @@ const savedTotal=()=>(S.cfg.deposits||[]).reduce((s,x)=>s+x.v,0);
 function renderMeta(){
   const alvo=S.cfg.goalTarget||0, guardado=savedTotal();
   const pct=alvo>0?Math.min(100,guardado/alvo*100):0;
-  const sobra=(S.cfg.income&&S.cfg.cap)?S.cfg.income-S.cfg.cap:0;
+  const rendaM=rendaDoMes(S.ym), sobra=(rendaM&&S.cfg.cap)?rendaM-S.cfg.cap:0;
   const notas=[];
   if(alvo>0) notas.push(["Falta para chegar lá",fmt(Math.max(0,alvo-guardado)),guardado>=alvo?"var(--good)":""]);
   if(sobra>0){ notas.push(["Se fechar o mês no teto, guarda",fmt(sobra),"var(--good)"]);
@@ -2277,7 +2287,9 @@ const opcoesGrupo=sel=>Object.keys(NOMES_GRUPO).map(g=>'<option value="'+g+'"'+(
 
 /* acrescenta o que as versões novas trazem, sem desfazer escolhas antigas */
 function migrarCfg(){
-  const c=S.cfg; if(!c) return; migrar2(c); if(c.m1) return;
+  const c=S.cfg; if(!c) return; migrar2(c);
+  if(!c.rendas) c.rendas=+c.income>0?[{desde:"2000-01",v:+c.income}]:[];     /* renda com histórico */
+  if(c.m1) return;
   c.cats=c.cats||[]; c.cards=c.cards||[];
   if(!c.cats.some(x=>x.id==="divida")){ const i=c.cats.findIndex(x=>x.id==="outros");
     c.cats.splice(i<0?c.cats.length:i,0,{id:"divida",n:"Dívidas e empréstimos",limit:0,grupo:"fut"}); }
@@ -2707,7 +2719,7 @@ function simulacao(e){
 
 const diaMesAno=s=>s?s.slice(8,10)+"/"+s.slice(5,7)+"/"+s.slice(0,4):"";
 function htmlDividas(){
-  const L=S.cfg.dividas||[], renda=S.cfg.income||0;
+  const L=S.cfg.dividas||[], renda=rendaDoMes(ymOf(todayISO()));
   if(!L.length) return '<div class="card pad"><div class="empty"><b>Nenhuma dívida cadastrada</b>Cadastre consignados, empréstimos e financiamentos com o valor da parcela, em qual parcela você está e o juro ao mês. O app calcula o saldo, quando termina e quanto você economiza adiantando.</div>'+
     '<div style="text-align:center"><button class="btn" data-divnova>Cadastrar dívida</button></div></div>';
   const es=L.map(dv=>({dv,e:estadoDivida(dv)})), ativas=es.filter(x=>x.e.n>0);
@@ -3117,7 +3129,7 @@ function estadoCons(dv){
 function consDoMes(ym){
   return (S.cfg.dividas||[]).filter(ehConsSal).map(dv=>({dv,e:estadoCons(dv)}))
     .filter(x=>x.e.meses[ym]||(x.e.n>0&&ym>=x.e.start&&ym<=x.e.fim)); }
-function rendaPrevista(ym){ return Math.max(0,(+S.cfg.income||0)-consDoMes(ym).reduce((s,x)=>s+(+x.dv.parcela||0),0)); }
+function rendaPrevista(ym){ return Math.max(0,rendaDoMes(ym)-consDoMes(ym).reduce((s,x)=>s+(+x.dv.parcela||0),0)); }
 /* parcela prevista no mês, enquanto não foi lançada: entra como gasto fixo */
 function consVirtuais(ym){
   return consDoMes(ym).filter(x=>!x.e.meses[ym]).map(x=>({id:"cons:"+x.dv.id, name:x.dv.nome, amount:+x.dv.parcela||0,
@@ -3141,7 +3153,7 @@ function lancamentoDoFixo(f,ym){
    Chave fixa por mês ("sal-AAAA-MM"): dois aparelhos criam o mesmo lançamento, e a junção fica com um só. */
 let salarioRodando=false;
 async function garantirSalario(){
-  const c=S.cfg; if(salarioRodando||!c||!(+c.income>0)||c.salAuto===false||c.salPausa) return;
+  const c=S.cfg; if(salarioRodando||!c||!(+c.income>0||(c.rendas||[]).some(r=>r.v>0))||c.salAuto===false||c.salPausa) return;
   if(S.mode!=="local"&&!S.sincronizado) return;   /* conta Google: só depois de juntar com o Drive, senão duplicaria um salário lançado em outro aparelho */
   const hoje=todayISO(), cur=ymOf(hoje);
   salarioRodando=true;
@@ -3149,13 +3161,13 @@ async function garantirSalario(){
     if(!c.salDesde){ c.salDesde=cur; saveCfg(); }
     let criou=false;
     for(const ym of [ymShift(cur,-1),cur]){
-      if(ym<c.salDesde) continue;
+      if(ym<c.salDesde||!(rendaDoMes(ym)>0)) continue;
       const dia=primeiroDiaUtil(ym); if(dia>hoje) continue;
       const id="sal-"+ym;
       if(jaTemChave(ym,id)) continue;
       if(txOf(ym).some(t=>t.k==="e"&&t.cat==="sal")) continue;      /* já lançado à mão ou pelo extrato */
       const L=consDoMes(ym), P=L.reduce((s,x)=>s+(+x.dv.parcela||0),0);
-      await commit({id,raw:"",v:Math.max(0,+c.income-P),desc:"Salário",cat:"sal",method:"transferencia",cardId:"",
+      await commit({id,raw:"",v:Math.max(0,rendaDoMes(ym)-P),desc:"Salário",cat:"sal",method:"transferencia",cardId:"",
         acct:contaDoSalario(),n:1,date:dia,time:"08:00",k:"e",auto:1});
       for(const x of L) await lancarDesconto(x.dv,ym,x.e,dia);
       criou=true; }
@@ -3166,7 +3178,7 @@ async function descontarConsignados(ym,txId){
   const m=S.months[ym], sal=m&&m.tx&&m.tx[txId]; if(!sal||sal.del) return;
   const L=consDoMes(ym).filter(x=>x.e.n>0&&!x.e.meses[ym]&&!jaTemChave(ym,idDesconto(x.dv.id,ym)));
   if(!L.length) return;
-  const P=L.reduce((s,x)=>s+(+x.dv.parcela||0),0), liq=+S.cfg.income||0;
+  const P=L.reduce((s,x)=>s+(+x.dv.parcela||0),0), liq=rendaDoMes(ym);
   /* veio o valor cheio da renda? tira a parcela. Se já veio com o desconto, fica como está. */
   const cheio=liq>0&&Math.abs(sal.v-liq)<Math.abs(sal.v-(liq-P));
   if(cheio){ sal.v=Math.max(0,sal.v-P); sal.u=Date.now(); await saveMonth(ym); }
@@ -3362,6 +3374,35 @@ async function lerArquivoTexto(arquivo,tipo){
       if(pm&&+pm[2]>=2&&+pm[2]<=48&&+pm[1]>=1&&+pm[1]<=+pm[2]){ l.i0=+pm[1]; l.n=+pm[2]; l.desc=l.desc.replace(pm[0]," ").replace(/\s+/g," ").trim(); } }
     return l; });
   return {linhas, tipo:t, texto, saldos:null}; }
+
+/* =================== renda com histórico =================== */
+/* A renda líquida muda com aumentos e correções: cada valor vale a partir de um mês. Meses anteriores e salários
+   já lançados ficam com o valor antigo. cfg.rendas = [{desde:"AAAA-MM", v}]; "2000-01" é o valor inicial. */
+function rendaDoMes(ym){
+  let v=null, d="";
+  (S.cfg.rendas||[]).forEach(r=>{ if(r.desde<=ym&&r.desde>=d){ d=r.desde; v=+r.v||0; } });
+  return v==null?(+S.cfg.income||0):v; }
+function definirRenda(desde,v,antes){
+  let L=(S.cfg.rendas||[]).slice();
+  if(!L.length&&antes>0) L.push({desde:"2000-01",v:antes});
+  L=L.filter(r=>r.desde!==desde).concat([{desde,v}]).sort((a,b)=>a.desde.localeCompare(b.desde));
+  S.cfg.rendas=L; S.cfg.income=rendaDoMes(ymOf(todayISO()));
+  saveCfg(); }
+function perguntarDataRenda(v,antes){
+  const cur=ymOf(todayISO()), jaEntrou=txOf(cur).some(t=>t.k==="e"&&t.cat==="sal"), padrao=jaEntrou?ymShift(cur,1):cur;
+  sheet("Novo valor da renda",
+    '<div class="set"><div class="note"><b>'+fmt(antes)+' → '+fmt(v)+'</b>Os meses anteriores continuam com o valor antigo, e salário já lançado não muda.</div>'+
+    '<div class="set-f"><label for="rdDesde">Vale a partir de</label><input id="rdDesde" type="month" value="'+padrao+'">'+
+    (jaEntrou?'<span class="hint">O salário de '+esc(ymLabel(cur))+' já entrou; por isso a sugestão é o mês que vem.</span>':'')+'</div></div>',
+    '<button class="btn ghost" id="rdX">Cancelar</button><button class="btn" id="rdOk">Salvar</button>');
+  $("#rdX").onclick=()=>{ S.cfg.income=antes; closeSheet(); render(); };
+  $("#rdOk").onclick=()=>{ const m=$("#rdDesde").value; if(!m){ toast("Escolha o mês."); return; }
+    definirRenda(m,v,antes); closeSheet(); render(); toast("Renda de "+fmt(v)+" a partir de "+ymLabel(m)+"."); }; }
+function historicoRendaHTML(){
+  const L=(S.cfg.rendas||[]).slice().sort((a,b)=>a.desde.localeCompare(b.desde));
+  if(L.length<2) return "";
+  return '<span class="hint">'+L.map(r=>'<span style="white-space:nowrap">'+fmt(r.v)+' '+(r.desde==="2000-01"?"no início":"a partir de "+esc(ymLabel(r.desde)))+
+    (r.desde!=="2000-01"?' <button class="mini" data-rdel="'+r.desde+'" style="padding:1px 6px">tirar</button>':'')+'</span>').join(" · ")+'</span>'; }
 
 /* =================== partida =================== */
 $("#mPrev").onclick=()=>{ S.ym=ymShift(S.ym,-1); render(); };
