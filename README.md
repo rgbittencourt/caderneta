@@ -26,7 +26,7 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 - **Não conseguiu ler?** O app mostra uma *amostra sem seus dados* — números viram 9 e nomes viram x. Copie e mande ao Claude para ele ajustar o leitor ao seu banco.
 
 **Importar meses anteriores** (extratos e faturas em PDF):
-1. **Recomece** (recomendado): Ajustes → *Recomeçar os lançamentos*. O app guarda um backup no Drive, apaga os lançamentos em todos os aparelhos (mantém os gastos em dinheiro, se você quiser) e não mexe na configuração. Ali mesmo, informe a data do primeiro extrato (01/01/2026) e o saldo de cada conta no dia anterior — o *saldo anterior* que aparece nesse extrato. O salário automático fica pausado até você importar o extrato do mês atual.
+1. **Recomece** (recomendado): Ajustes → *Recomeçar os lançamentos*. O app sincroniza com o Drive, guarda um backup lá e apaga, em todos os aparelhos, os lançamentos, os gastos fixos e as dívidas (dá para manter os dois últimos, e os gastos em dinheiro, desmarcando/marcando na ficha). Ficam contas, cartões, categorias, renda, teto e metas. Ali mesmo, informe a data do primeiro extrato (01/01/2026) e o saldo de cada conta no dia anterior — o *saldo anterior* que aparece nesse extrato. O salário automático fica pausado até você importar o extrato do mês atual.
 2. Para acertar o saldo inicial depois: Contas → toque na conta → *Começar a contar de uma data*.
 3. Em Ajustes, confira os cartões (dia de fechamento e de vencimento) e as contas, inclusive poupança ou investimento.
 4. Cadastre os consignados com a data real do empréstimo e 0 parcelas já descontadas, e desmarque *Lançar o depósito* — ele virá no extrato.

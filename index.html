@@ -1961,7 +1961,7 @@ function renderAjustes(){
     '<button class="mini" id="bkBtn">Copiar</button></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Restaurar de um backup</div><div class="s">Traz os dados de um backup, inclusive da versão anterior</div></div>'+
     '<button class="mini del" id="rsBtn">Restaurar</button></div>'+
-    '<div class="linkrow"><div class="m"><div class="t">Recomeçar os lançamentos</div><div class="s">Apaga os lançamentos para carregar os extratos do zero, e guarda um backup antes</div></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Recomeçar os lançamentos</div><div class="s">Apaga lançamentos, gastos fixos e dívidas para carregar os extratos do zero, com backup antes</div></div>'+
     '<button class="mini del" id="rcBtn">Recomeçar</button></div>'+
     '</div></div>';
 
@@ -3246,19 +3246,29 @@ async function backupAntesDeRecomecar(){
     catch(e){ toast("Não consegui guardar o backup no Drive. Nada foi apagado."); return false; } }
   try{ await navigator.clipboard.writeText(JSON.stringify(pacote)); return "copiado para a área de transferência"; }
   catch(e){ toast("Não consegui copiar o backup. Use Backup completo em Ajustes antes. Nada foi apagado."); return false; } }
+/* conta Google: junta com o Drive antes (senão o que só existe em outro aparelho escaparia da exclusão) */
+async function sincronizarAgora(){
+  if(!S.user||S.user.kind!=="google") return true;
+  if(!navigator.onLine||!tokenOk()) return false;
+  const esperar=async()=>{ for(let i=0;i<80&&syncing;i++) await new Promise(r=>setTimeout(r,250)); };
+  await esperar(); await syncNow(); await esperar();
+  return S.sync.state==="ok"; }
 function openRecomecar(){
   const todos=allTx(), din=todos.filter(ehDinheiro).length, A=(S.cfg.accounts||[]).filter(a=>a.type!=="carteira");
   const datas=todos.map(t=>t.d).sort(), inicio=new Date().getFullYear()+"-01-01";
-  const google=S.user&&S.user.kind==="google";
-  sheet("Recomeçar os lançamentos",
+  const google=S.user&&S.user.kind==="google", nFix=(S.cfg.fixed||[]).length, nDiv=(S.cfg.dividas||[]).length;
+  const caixa=(id,txt,marcado,dica)=>'<div class="set-f"><label style="display:flex;align-items:center;gap:9px;font-weight:500;color:var(--ink)">'+
+    '<input type="checkbox" id="'+id+'" style="width:20px;height:20px"'+(marcado?" checked":"")+'>'+txt+'</label>'+(dica?'<span class="hint">'+dica+'</span>':'')+'</div>';
+  sheet("Recomeçar do zero",
     '<div class="set">'+
-    '<div class="note"><b>O que acontece</b>Apaga os '+todos.length+' lançamentos'+(datas.length?' ('+diaMesAno(datas[0])+' a '+diaMesAno(datas[datas.length-1])+')':'')+
-    ' em todos os aparelhos, e também o que foi marcado em Guardei um dinheiro. Contas, cartões, categorias, renda, teto, metas, gastos fixos e dívidas continuam como estão. '+
-    (google?'Antes de apagar, um backup completo vai para o seu Google Drive; dá para voltar em Ajustes → Restaurar de um backup.':'Antes de apagar, o backup completo é copiado — cole em um lugar seguro.')+
-    ' O salário automático fica pausado até você importar o extrato deste mês.</div>'+
-    (din?'<div class="set-f"><label style="display:flex;align-items:center;gap:9px;font-weight:500;color:var(--ink)"><input type="checkbox" id="rcDin" style="width:20px;height:20px" checked>Manter os '+din+' gastos pagos em dinheiro</label><span class="hint">Eles não aparecem em nenhum extrato.</span></div>':'')+
+    '<div class="note"><b>O que sai</b>Os '+todos.length+' lançamentos'+(datas.length?' ('+diaMesAno(datas[0])+' a '+diaMesAno(datas[datas.length-1])+')':'')+
+    ' e o que foi marcado em Guardei um dinheiro, em todos os aparelhos. Continuam só contas, cartões, categorias, palavras que o app aprendeu, renda, teto e metas. '+
+    (google?'Antes, o app sincroniza com o Drive e guarda lá um backup completo.':'Antes, o backup completo é copiado — cole em um lugar seguro.')+'</div>'+
+    (nFix?caixa("rcFix","Apagar também "+(nFix===1?"o gasto fixo":"os "+nFix+" gastos fixos"),true,"Depois, marque como fixo na conferência dos extratos o que se repete."):'')+
+    (nDiv?caixa("rcDiv","Apagar também "+(nDiv===1?"a dívida cadastrada":"as "+nDiv+" dívidas cadastradas")+" (inclui consignados)",true,"Cadastre de novo, com a data real do empréstimo, antes de importar."):'')+
+    (din?caixa("rcDin","Manter "+(din===1?"o gasto pago":"os "+din+" gastos pagos")+" em dinheiro",false,"Eles não aparecem em nenhum extrato."):'')+
     '<div class="set-f"><label for="rcDesde">Vou carregar os extratos a partir de</label><input id="rcDesde" type="date" value="'+inicio+'">'+
-    '<span class="hint">O saldo de cada conta passa a contar desta data.</span></div>'+
+    '<span class="hint">O saldo de cada conta passa a contar desta data. O salário automático fica pausado até você importar o extrato deste mês.</span></div>'+
     A.map(a=>'<div class="set-f"><label for="rcS_'+a.id+'">Saldo de '+esc(a.n)+' em <span class="rcDia">'+diaMesAno(diaAnterior(inicio))+'</span></label>'+
       '<input id="rcS_'+a.id+'" inputmode="decimal" placeholder="em branco: acertar depois"></div>').join("")+
     '<div class="set-f"><span class="hint">É o <b>saldo anterior</b> que aparece no primeiro extrato. Em branco, o app oferece o acerto quando você importar esse extrato.</span></div>'+
@@ -3269,21 +3279,34 @@ function openRecomecar(){
   $("#rcGo").onclick=async()=>{
     if($("#rcOk").value.trim().toUpperCase()!=="APAGAR"){ toast("Escreva APAGAR para confirmar."); return; }
     const desde=$("#rcDesde").value; if(!desde){ toast("Informe a data de início."); return; }
-    const manter=!!($("#rcDin")&&$("#rcDin").checked), saldos={};
+    const marcado=id=>!!($("#"+id)&&$("#"+id).checked);
+    const manter=marcado("rcDin"), tiraFix=marcado("rcFix"), tiraDiv=marcado("rcDiv"), saldos={};
     A.forEach(a=>{ const v=$("#rcS_"+a.id).value.trim(); if(v) saldos[a.id]=toCents(v); });
-    const bt=$("#rcGo"); bt.disabled=true; bt.textContent="Guardando o backup…";
+    const bt=$("#rcGo"), volta=msg=>{ toast(msg); bt.disabled=false; bt.textContent="Recomeçar"; };
+    bt.disabled=true;
+    if(google){ bt.textContent="Sincronizando…"; if(!await sincronizarAgora()) return volta("Não consegui sincronizar com o Drive. Toque em Sincronizar no topo e tente de novo. Nada foi apagado."); }
+    bt.textContent="Guardando o backup…";
     const bk=await backupAntesDeRecomecar();
-    if(bk===false){ bt.disabled=false; bt.textContent="Recomeçar"; return; }
+    if(bk===false) return volta("Nada foi apagado.");
     const agora=Date.now(); let apagados=0;
     Object.keys(S.months).forEach(ym=>{ const tx=(S.months[ym]||{}).tx||{};
       Object.keys(tx).forEach(id=>{ const t=tx[id]; if(!t||t.del) return;
         if(manter&&ehDinheiro(t)) return;
         tx[id]={del:1,u:agora,zerado:1}; apagados++; }); });
+    if(tiraFix) S.cfg.fixed=[];
+    if(tiraDiv) S.cfg.dividas=[];
     A.forEach(a=>{ a.openDate=desde; if(saldos[a.id]!=null){ a.opening=saldos[a.id]; a.adjust=[]; } });
     S.cfg.deposits=[]; S.cfg.salPausa=true; S.drafts=[];
     await saveCfg(); for(const ym of Object.keys(S.months)) await saveMonth(ym);
+    if(google) sincronizarAgora();
     closeSheet(); render();
-    toast(apagados+" lançamentos apagados. Backup: "+bk); }; }
+    const ficou=allTx().length;
+    sheet("Pronto para carregar os extratos",
+      '<div class="set"><div class="note"><b>Apagado</b>'+apagados+' lançamentos'+(tiraFix?', os gastos fixos':'')+(tiraDiv?', as dívidas e consignados':'')+'. '+
+      (ficou?'Ficaram '+ficou+' gastos pagos em dinheiro, como você pediu.':'Não sobrou nenhum lançamento.')+'</div>'+
+      '<div class="set-f"><span class="hint">Backup: '+esc(bk)+'. Nos outros aparelhos, abra o app com internet para a exclusão chegar lá.</span></div></div>',
+      '<button class="btn ghost" id="rcFim">Fechar</button><button class="btn" id="rcContas">Ir para Contas</button>');
+    $("#rcFim").onclick=closeSheet; $("#rcContas").onclick=()=>{ closeSheet(); setView("contas"); }; }; }
 
 /* restaurar: backups do Drive com um toque, ou colando o texto */
 function openRestore(){
