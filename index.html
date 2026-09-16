@@ -952,6 +952,10 @@ function parseOne(raw,cfg){
   if(!d.method) d.method = d.k==="e" ? "pix" : "credito";
   if(!d.cardId){ const c=cfg.cards.find(x=>x.type===d.method); if(c) d.cardId=c.id; }
   if(d.k==="e"){ d.n=1; d.acct=acctOf(d.cardId); }
+  /* "saquei duzentos reais": sai da conta corrente e vai para a carteira; não é gasto */
+  if(d.k==="g"&&t.some(w=>/^(saque|saquei|sacar|sacou|sacamos)$/.test(w))){
+    const A=cfg.accounts||[]; d.k="t"; d.n=1; d.method="transferencia"; d.cardId="transf";
+    d.acct=(A.find(a=>a.type==="corrente")||A[0]||{}).id||""; d.acct2=(A.find(a=>a.type==="carteira")||{}).id||""; }
 
   /* valor */
   let cand=null;
@@ -1048,7 +1052,7 @@ async function commit(d){
       desc:d.desc||"Sem descrição", cat:d.cat||(kind==="e"?"outrae":"outros"),
       method:d.method, card:d.cardId, raw:i===i0-1?d.raw:"", plan:planId, i:i+1, n:n, total:planTotal,
       fix:d.fix||"", k:kind, acct:kind==="t"?(d.acct||""):(d.acct||acctOf(d.cardId)), acct2:d.acct2||"", ref:d.ref||"", to:d.to||"", u:Date.now(),
-      ...(fat?{fat}:{}), ...(d.cons?{cons:d.cons}:{}), ...(d.emp?{emp:d.emp}:{}) };
+      ...(fat?{fat}:{}), ...(d.aj?{aj:1}:{}), ...(d.cons?{cons:d.cons}:{}), ...(d.emp?{emp:d.emp}:{}) };
     touched.add(ym); }
   if(kind==="g") learn(d);
   for(const ym of touched) await saveMonth(ym);
@@ -1502,10 +1506,10 @@ function catColorOf(t){ return t.k==="e"?"var(--good)":(t.k==="p"||t.k==="t")?"v
 function rowHTML(t){
   const isE=t.k==="e",isP=t.k==="p",isT=t.k==="t";
   const meio = isP ? "Fatura de "+ymLabel(t.ref||t.ym)+" · sai de "+acctName(t.acct)
-    : isT ? acctName(t.acct)+" → "+acctName(t.acct2)
+    : isT ? (t.aj?acctName(t.acct||t.acct2):acctName(t.acct)+" → "+acctName(t.acct2))
     : isE ? "cai em "+acctName(t.acct||acctOf(t.card))
     : (cardName(t.card)||METODOS[t.method]||(t.method==="folha"?"Desconto em folha":""))+(t.to?" · para "+t.to:"");
-  const rot = isP?"Pagamento de fatura":isT?"Entre contas":catLabel(t);
+  const rot = t.aj?(isT?"Acerto de saldo":"Acerto da fatura"):isP?"Pagamento de fatura":isT?"Entre contas":catLabel(t);
   return '<button class="row" data-ym="'+t.ym+'" data-id="'+t.id+'">'+
     '<span class="dot" style="background:'+catColorOf(t)+'"></span>'+
     '<span class="row-m"><span class="row-d">'+esc(t.desc)+'</span><span class="row-s"><span>'+esc(rot)+
@@ -1766,14 +1770,14 @@ function openTx(ym,id){
   const t=(S.months[ym]||{tx:{}}).tx[id]; if(!t) return;
   const kind=t.k||"g", A=S.cfg.accounts||[];
   const catList=kind==="e"?(S.cfg.ecats||ECATS):S.cfg.cats;
-  sheet(kind==="e"?"Entrada":kind==="p"?"Pagamento de fatura":kind==="t"?"Transferência entre contas"
+  sheet(t.aj?(kind==="t"?"Acerto de saldo":"Acerto da fatura"):kind==="e"?"Entrada":kind==="p"?"Pagamento de fatura":kind==="t"?"Transferência entre contas"
       :(t.n>1?"Parcela "+t.i+" de "+t.n:"Lançamento"),
     '<div class="set"><div class="set-f"><label>Descrição</label><input id="tD" value="'+esc(t.desc)+'"></div>'+
     '<div class="two"><div class="set-f"><label>Valor</label><input id="tV" inputmode="decimal" value="'+fmtN(t.v)+'"></div>'+
     '<div class="set-f"><label>Quando</label><input id="tDt" type="date" value="'+t.d+'"></div></div>'+
     (kind==="t"
-      ? '<div class="two"><div class="set-f"><label>Sai de</label><select id="tA">'+optId(A,t.acct)+'</select></div>'+
-        '<div class="set-f"><label>Vai para</label><select id="tB">'+optId(A,t.acct2)+'</select></div></div>'
+      ? '<div class="two"><div class="set-f"><label>Sai de</label><select id="tA"><option value="">Fora do app</option>'+optId(A,t.acct||"")+'</select></div>'+
+        '<div class="set-f"><label>Vai para</label><select id="tB"><option value="">Fora do app</option>'+optId(A,t.acct2||"")+'</select></div></div>'
       : '<div class="two">'+
         (kind==="p"?"":'<div class="set-f"><label>Categoria</label><select id="tC">'+optId(catList,t.cat)+'</select></div>')+
         (kind==="g"
@@ -1889,21 +1893,75 @@ function openSaldoInicial(id){
     Object.assign(a,{opening:v,openDate:dt,adjust:[]}); saveCfg(); closeSheet(); render();
     toast("Saldo de "+fmt(v)+" em "+diaMesAno(diaAnterior(dt))+". Os lançamentos contam a partir de "+diaMesAno(dt)+"."); }; }
 
-/* corrigir: o saldo que o banco mostra hoje; a diferença fica registrada como acerto */
+/* acerto de saldo: numa data antes do início da conta, muda o saldo inicial; depois, vira o lançamento "Acerto de saldo"
+   naquele dia, entre a conta e "fora do app". Não conta como gasto nem como renda e só mexe no saldo dali em diante. */
+async function acertarSaldo(acctId,dia,valor){
+  const a=(S.cfg.accounts||[]).find(x=>x.id===acctId); if(!a) return 0;
+  const delta=valor-balanceOf(acctId,dia); if(!delta) return 0;
+  if(a.openDate&&dia<a.openDate){ a.opening=(a.opening||0)+delta; a.adjust=(a.adjust||[]).concat([{d:dia,delta}]).slice(-20); await saveCfg(); return delta; }
+  await commit({id:uid(),raw:"",v:Math.abs(delta),desc:"Acerto de saldo",cat:"outros",method:"transferencia",cardId:"transf",
+    acct:delta<0?acctId:"",acct2:delta>0?acctId:"",n:1,date:dia,time:"23:59",k:"t",aj:1});
+  return delta; }
+/* acerto da fatura: a diferença entra na própria fatura como gasto no crédito (negativo, se o banco cobrou menos) */
+async function acertarFatura(cid,ym,valor){
+  const c=creditCards().find(x=>x.id===cid); if(!c) return 0;
+  const delta=valor-cardInvoice(cid,ym).total; if(!delta) return 0;
+  const dia=ym+"-"+pad(Math.min(c.closing||daysIn(ym),daysIn(ym)));
+  if(!S.months[ym]) S.months[ym]={tx:{}};
+  if(!S.months[ym].tx) S.months[ym].tx={};
+  S.months[ym].tx[uid()]={d:dia,t:"23:59",v:delta,desc:"Acerto da fatura",cat:"outros",method:"credito",card:cid,raw:"",plan:"",i:1,n:1,total:delta,
+    fix:"",k:"g",acct:acctOf(cid),acct2:"",ref:"",to:"",u:Date.now(),fat:ym,aj:1};
+  await saveMonth(ym); return delta; }
+const mesAtual=()=>ymOf(todayISO());
+const diaDoAcerto=ym=>ym>=mesAtual()?todayISO():ym+"-"+pad(daysIn(ym));
+function acertosDe(filtro){
+  const L=allTx().filter(t=>t.aj&&filtro(t)).sort((x,y)=>y.d.localeCompare(x.d)).slice(0,3);
+  return L.length?'<div class="set-f"><span class="hint">Últimos acertos: '+L.map(t=>diaMesAno(t.d)+" "+(t.k==="t"?(t.acct2?"+":"−")+fmtN(t.v):(t.v>0?"+":"")+fmtN(t.v))).join(" · ")+
+    '. Para desfazer, toque no acerto no extrato da aba Contas.</span></div>':''; }
+
+/* corrigir: o saldo que o banco (ou a carteira) mostra no fim de um mês, para o mês seguinte já começar certo */
 function openCorrigirSaldo(id){
   const a=(S.cfg.accounts||[]).find(x=>x.id===id); if(!a) return;
-  const bal=balanceOf(a.id,todayISO());
+  const carteira=a.type==="carteira", ym0=S.ym>mesAtual()?mesAtual():S.ym;
   sheet("Corrigir saldo · "+a.n,
-    '<div class="set"><div class="linkrow"><div class="m"><div class="t">A Caderneta calcula hoje</div><div class="s">saldo inicial, mais entradas, menos saídas</div></div><span class="row-v">'+fmtN(bal)+'</span></div>'+
-    '<div class="set-f"><label for="scV">O banco mostra hoje</label><input id="scV" inputmode="decimal" value="'+fmtN(bal)+'">'+
-    '<span class="hint">No Banco do Brasil, some o saldo da conta com o do BB Rende Fácil. Antes de corrigir, veja se falta importar algum extrato: a diferença pode ser só lançamento que ainda não entrou.</span></div>'+
-    ((a.adjust||[]).length?'<div class="set-f"><span class="hint">Últimos acertos: '+a.adjust.slice(-3).reverse()
-      .map(x=>x.d.slice(8,10)+"/"+x.d.slice(5,7)+" "+(x.delta>=0?"+":"")+fmtN(x.delta)).join(" · ")+'</span></div>':'')+'</div>',
+    '<div class="set"><div class="set-f"><label for="scM">Mês</label><input id="scM" type="month" max="'+mesAtual()+'" value="'+ym0+'">'+
+    '<span class="hint">O saldo é o do último dia do mês (no mês atual, o de hoje). Acertando um mês, o seguinte já começa certo.</span></div>'+
+    '<div class="linkrow"><div class="m"><div class="t" id="scRot"></div><div class="s">saldo inicial, mais entradas, menos saídas</div></div><span class="row-v" id="scCalc"></span></div>'+
+    '<div class="set-f"><label for="scV" id="scLbl"></label><input id="scV" inputmode="decimal">'+
+    '<span class="hint">'+(carteira?'Conte o dinheiro que está na carteira. ':'No Banco do Brasil, some o saldo da conta com o do BB Rende Fácil. ')+
+    'Antes, veja se falta lançar ou importar algo daquele mês: a diferença pode ser só isso. O acerto aparece no extrato como <b>Acerto de saldo</b> e não conta como gasto nem como renda.</span></div>'+
+    acertosDe(t=>t.acct===a.id||t.acct2===a.id)+'</div>',
     '<button class="btn ghost" id="scX">Cancelar</button><button class="btn" id="scOk">Corrigir</button>');
+  const mes=()=>{ const v=$("#scM").value||ym0; return v>mesAtual()?mesAtual():v; };
+  const atualiza=()=>{ const ym=mes(), dia=diaDoAcerto(ym), hoje=ym===mesAtual(), calc=balanceOf(a.id,dia);
+    $("#scRot").textContent="A Caderneta calcula "+(hoje?"hoje":"em "+diaMesAno(dia));
+    $("#scCalc").textContent=fmtN(calc);
+    $("#scLbl").textContent=(carteira?(hoje?"Tenho hoje":"Tinha em "+diaMesAno(dia)):(hoje?"O banco mostra hoje":"Saldo do banco em "+diaMesAno(dia)));
+    $("#scV").value=fmtN(calc); };
+  $("#scM").onchange=atualiza; atualiza();
   $("#scX").onclick=closeSheet;
-  $("#scOk").onclick=()=>{ const delta=toCents($("#scV").value)-bal;
-    if(delta){ a.opening=(a.opening||0)+delta; a.adjust=(a.adjust||[]).concat([{d:todayISO(),delta}]).slice(-20); saveCfg(); }
-    closeSheet(); render(); toast(delta?"Saldo corrigido em "+(delta>0?"+":"")+fmt(delta):"O saldo já batia"); }; }
+  $("#scOk").onclick=async()=>{ const ym=mes(), dia=diaDoAcerto(ym);
+    const delta=await acertarSaldo(a.id,dia,toCents($("#scV").value));
+    closeSheet(); render(); toast(delta?"Saldo de "+diaMesAno(dia)+" corrigido em "+(delta>0?"+":"")+fmt(delta):"O saldo já batia"); }; }
+
+/* corrigir a fatura de um cartão: o total do banco para as compras e encargos daquele mês */
+function openCorrigirFatura(cid){
+  const c=creditCards().find(x=>x.id===cid); if(!c) return;
+  sheet("Corrigir fatura · "+c.n,
+    '<div class="set"><div class="set-f"><label for="cfM">Fatura de</label><input id="cfM" type="month" value="'+S.ym+'"></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">A Caderneta soma</div><div class="s" id="cfS"></div></div><span class="row-v" id="cfCalc"></span></div>'+
+    '<div class="set-f"><label for="cfV">Total do banco nesta fatura</label><input id="cfV" inputmode="decimal">'+
+    '<span class="hint">Some, no resumo da fatura, as compras, tarifas e encargos do período — sem o saldo da fatura anterior e sem pagamentos. '+
+    'A diferença entra na fatura como <b>Acerto da fatura</b>: conta como gasto daquele mês, ou abate, se o banco cobrou menos. Não mexe na conta corrente.</span></div>'+
+    acertosDe(t=>t.card===cid&&t.k==="g")+'</div>',
+    '<button class="btn ghost" id="cfX">Cancelar</button><button class="btn" id="cfOk">Corrigir</button>');
+  const atualiza=()=>{ const ym=$("#cfM").value||S.ym, inv=cardInvoice(cid,ym), n=comprasDaFatura(cid,ym).length;
+    $("#cfS").textContent=n+(n===1?" lançamento":" lançamentos")+" na fatura de "+ymLabel(ym);
+    $("#cfCalc").textContent=fmtN(inv.total); $("#cfV").value=fmtN(inv.total); };
+  $("#cfM").onchange=atualiza; atualiza();
+  $("#cfX").onclick=closeSheet;
+  $("#cfOk").onclick=async()=>{ const ym=$("#cfM").value||S.ym, delta=await acertarFatura(cid,ym,toCents($("#cfV").value));
+    closeSheet(); render(); toast(delta?"Fatura de "+ymLabel(ym)+" corrigida em "+(delta>0?"+":"")+fmt(delta):"A fatura já batia"); }; }
 
 function openPay(cardId){
   const c=S.cfg.cards.find(x=>x.id===cardId); if(!c) return;
@@ -1957,13 +2015,17 @@ function renderAjustes(){
     '<div id="drafts"></div><div class="sheet-acts" style="max-width:420px">'+
     '<button class="btn ghost" id="dCancel">Descartar</button><button class="btn" id="dSave">Salvar</button></div></div>'+
 
-    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Saldo de cada conta</h2>'+
+    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Saldo de cada conta e cartão</h2>'+
     '<button class="sec-a" data-new="acct">Adicionar conta</button></div><div class="card pad">'+
     (A.length?A.map(a=>'<div class="linkrow wrap"><div class="m"><div class="t">'+esc(a.n)+'</div><div class="s">'+
       esc((ACCT_TIPO[a.type]||a.type)+" · hoje "+fmtN(balanceOf(a.id,todayISO()))+(a.openDate?" · começou com "+fmtN(a.opening||0)+" em "+diaMesAno(diaAnterior(a.openDate)):""))+
       '</div></div><div class="acts"><button class="mini" data-sini="'+a.id+'">Saldo inicial</button><button class="mini" data-scor="'+a.id+'">Corrigir saldo</button>'+
       '<button class="mini" data-acct="'+a.id+'">Editar</button></div></div>').join("")
-      :'<div class="empty"><b>Nenhuma conta</b>Cadastre onde seu dinheiro fica.</div>')+'</div></div>'+
+      :'<div class="empty"><b>Nenhuma conta</b>Cadastre onde seu dinheiro fica.</div>')+
+    creditCards().map(k=>'<div class="linkrow wrap"><div class="m"><div class="t">'+esc(k.n)+'</div><div class="s">'+
+      esc("Cartão de crédito · fatura de "+ymLabel(S.ym)+" "+fmtN(cardInvoice(k.id,S.ym).total))+'</div></div>'+
+      '<div class="acts"><button class="mini" data-cfat="'+k.id+'">Corrigir fatura</button><button class="mini" data-card="'+k.id+'">Editar</button></div></div>').join("")+
+    '</div></div>'+
 
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Meta do mês</h2></div><div class="card pad set">'+
     '<div class="set-f"><label for="sIncome">Renda líquida mensal</label>'+
@@ -2054,6 +2116,7 @@ function renderAjustes(){
   $("#kwBtn").onclick=openKw;
   $$("[data-sini]").forEach(b=>b.onclick=()=>openSaldoInicial(b.dataset.sini));
   $$("[data-scor]").forEach(b=>b.onclick=()=>openCorrigirSaldo(b.dataset.scor));
+  $$("[data-cfat]").forEach(b=>b.onclick=()=>openCorrigirFatura(b.dataset.cfat));
   montarLeitorDoc();
   $("#dSave").onclick=saveDrafts;
   $("#dCancel").onclick=()=>{ S.drafts=[]; S.docSaldo=null; render(); };
@@ -2369,6 +2432,15 @@ function repararContas(){
 function migrarCfg(){
   const c=S.cfg; if(!c) return; migrar2(c);
   const volta=repararContas();
+  if(!c.m3){ c.m3=true;
+    const car=(c.accounts||[]).find(a=>a.type==="carteira"), meses=new Set(); let n=0;
+    Object.keys(S.months||{}).forEach(ym=>{ const tx=(S.months[ym]||{}).tx||{};
+      Object.keys(tx).forEach(id=>{ const t=tx[id];
+        if(!t||t.del||(t.k||"g")!=="g"||!/^Extrato/.test(t.raw||"")||!/^saque\b/.test(norm(t.desc||""))) return;
+        Object.assign(t,{k:"t",method:"transferencia",acct:t.acct||acctOf(t.card),acct2:car?car.id:"",raw:"Extrato · saque, vai para a carteira",u:Date.now()});
+        meses.add(ym); n++; }); });
+    if(n) setTimeout(()=>{ saveCfg(); meses.forEach(ym=>saveMonth(ym)); render();
+      toast(n+(n>1?" saques do extrato viraram":" saque do extrato virou")+" transferência para a Carteira."); },500); }
   if(volta){ setTimeout(()=>{ saveCfg(); render();
     sheet("A "+volta+" voltou",
       '<div class="set"><div class="note"><b>Ela tinha sido excluída</b>Cartões e lançamentos continuavam ligados a ela, e o saldo estava sendo somado na primeira conta da lista. O app trouxe a conta de volta, vazia.</div>'+
@@ -2970,7 +3042,7 @@ function recorrentes(){
   const chave=d=>norm(d).split(" ").filter(w=>w.length>2).slice(0,2).join(" ");
   const jaFixo=new Set((S.cfg.fixed||[]).map(f=>chave(f.name))), mapa={};
   meses.forEach((ym,mi)=>txOf(ym).forEach(t=>{
-    if(t.k!=="g"||t.fix||(+t.n||1)>1) return;
+    if(t.k!=="g"||t.fix||t.aj||(+t.n||1)>1) return;
     const c=chave(t.desc); if(c.length<3||jaFixo.has(c)) return;
     const e=mapa[c]||(mapa[c]={}); (e[mi]=e[mi]||[]).push(t); }));
   const out=[];
@@ -3000,7 +3072,7 @@ function movsConta(acctId,ym){
   return out.sort((x,y)=>(x.t.d+(x.t.t||"")).localeCompare(y.t.d+(y.t.t||""))); }
 const diaMes=s=>s.slice(8,10)+"/"+s.slice(5,7);
 function linhaExt(t,v,saldo,hoje){
-  const sub=[t.k==="t"?"Entre contas":t.k==="p"?"Pagamento de fatura":catLabel(t),t.to?"para "+t.to:"",t.n>1?"parcela "+t.i+"/"+t.n:""].filter(Boolean).join(" · ");
+  const sub=[t.aj?(t.k==="t"?"Acerto de saldo":"Acerto da fatura"):t.k==="t"?"Entre contas":t.k==="p"?"Pagamento de fatura":catLabel(t),t.to?"para "+t.to:"",t.n>1?"parcela "+t.i+"/"+t.n:""].filter(Boolean).join(" · ");
   return '<button class="row" data-ym="'+t.ym+'" data-id="'+t.id+'"><span class="ext-d">'+diaMes(t.d)+'</span>'+
     '<span class="row-m"><span class="row-d">'+esc(t.desc)+'</span><span class="row-s"><span>'+esc(sub)+'</span>'+(t.d>hoje?'<span class="chip">agendado</span>':'')+'</span></span>'+
     '<span class="ext-v"><span class="row-v'+(v>0?' plus':'')+'">'+(v>0?"+":"−")+fmtN(Math.abs(v))+'</span>'+(saldo!=null?'<span class="ext-s">'+fmtN(saldo)+'</span>':'')+'</span></button>'; }
@@ -3060,8 +3132,8 @@ function openAcerto(acctId,s){
     '<button class="btn ghost" id="acX">Deixar como está</button>'+(dif?'<button class="btn" id="acOk">Acertar</button>':''));
   $("#acX").onclick=closeSheet;
   const ok=$("#acOk");
-  if(ok) ok.onclick=()=>{ a.opening=(a.opening||0)+dif; a.adjust=(a.adjust||[]).concat([{d:s.d,delta:dif}]).slice(-20);
-    saveCfg(); closeSheet(); render(); toast("Saldo acertado em "+(dif>0?"+":"")+fmt(dif)); }; }
+  if(ok) ok.onclick=async()=>{ await acertarSaldo(acctId,s.d,s.v);
+    closeSheet(); render(); toast("Saldo acertado em "+(dif>0?"+":"")+fmt(dif)); }; }
 
 /* na conferência: mostra o que já está lançado e pergunta antes de descartar */
 function dupHTML(d,i){
@@ -3085,7 +3157,7 @@ function repetidosDe(alvo,ym){
     const a=L[i], b=L[j];
     if(usado[a.id]||usado[b.id]) continue;
     if(a.k!==b.k||Math.abs(a.v-b.v)>1) continue;
-    if(a.plan||b.plan||a.cons||b.cons||a.emp||b.emp) continue;                       /* parcela pertence a uma compra: nunca é repetida */
+    if(a.plan||b.plan||a.cons||b.cons||a.emp||b.emp||a.aj||b.aj) continue;                       /* parcela pertence a uma compra: nunca é repetida */
     if((a.card||"")!==(b.card||"")) continue;
     if(Math.abs(Date.parse(a.d+"T12:00:00")-Date.parse(b.d+"T12:00:00"))>3*86400000) continue;
     const pa=norm(a.desc).split(" ").filter(w=>w.length>3), pb=norm(b.desc).split(" ").filter(w=>w.length>3);
@@ -3330,6 +3402,11 @@ function classificarLinhaExtrato(d){
     d.k="p"; d.method="debito"; d.n=1; d.cardId=(c||C[0]||{}).id||d.cardId;
     d.ref=c&&c.due&&c.closing&&c.due>c.closing?ym:ymShift(ym,-1);      /* paga em setembro a fatura de agosto */
     d.raw="Extrato · pagamento de fatura"+(c?"":" — confira o cartão"); return; }
+  /* saque (regra do dono): o dinheiro sai da conta e vai para a carteira; gasto é quando sai da carteira */
+  if(d.k!=="e"&&/\bsaque\b/.test(s)){
+    const car=(S.cfg.accounts||[]).find(a=>a.type==="carteira");
+    d.k="t"; d.method="transferencia"; d.cardId="transf"; d.n=1; d.acct2=car?car.id:"";
+    d.raw="Extrato · saque, vai para "+(car?car.n:"fora do app"); return; }
   if(/\b(aplic\w*|resgate\w*|poupanca|investimento\w*|rdb|cdb|lci|lca|tesouro|caixinha\w*|cofrinho\w*|porquinho\w*)\b/.test(s)){
     const A=S.cfg.accounts||[], inv=A.find(a=>a.type==="invest")||A.find(a=>a.type==="poupanca");
     const conta=d.acct, entra=d.k==="e"||/\bresgate/.test(s);

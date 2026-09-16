@@ -29,7 +29,7 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **Importar meses anteriores** (extratos e faturas em PDF):
 1. **Recomece** (recomendado): Ajustes → *Recomeçar os lançamentos*. O app sincroniza com o Drive, guarda um backup lá e apaga, em todos os aparelhos, os lançamentos, os gastos fixos e as dívidas (dá para manter os dois últimos, e os gastos em dinheiro, desmarcando/marcando na ficha). Ficam contas, cartões, categorias, renda, teto e metas. Ali mesmo, informe a data do primeiro extrato (01/01/2026) e o saldo de cada conta no dia anterior — o *saldo anterior* que aparece nesse extrato. O salário automático fica pausado até você importar o extrato do mês atual.
-2. Para acertar o saldo inicial depois: Ajustes → *Saldo de cada conta* → **Saldo inicial**. Para acertar o saldo de hoje: **Corrigir saldo**.
+2. Para acertar o saldo inicial depois: Ajustes → *Saldo de cada conta e cartão* → **Saldo inicial**.
 3. Em Ajustes, confira os cartões (dia de fechamento e de vencimento) e as contas, inclusive poupança ou investimento.
 4. Cadastre os consignados com a data real do empréstimo e 0 parcelas já descontadas, e desmarque *Lançar o depósito* — ele virá no extrato.
 5. Teste com um documento só (o extrato de janeiro). Se não ler, mande a amostra sem dados.
@@ -38,6 +38,13 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 8. Depois de cada extrato da conta, a conferência do saldo deve dizer "está batendo". Se não bater, falta ou sobra algo naquele mês.
 9. No extrato, pagamento de fatura e aplicação ou resgate não contam como gasto nem renda. Parcelas que o app já reservou vêm desmarcadas sozinhas. O salário do extrato precisa estar na categoria *Salário* para o desconto do consignado ser registrado.
 10. Errou? Ajustes → *Restaurar de um backup* lista os backups do Drive; o de antes de recomeçar traz tudo de volta.
+
+**Saldos e acertos** (Ajustes → *Saldo de cada conta e cartão*):
+- **Corrigir saldo** (conta corrente, poupança, carteira…): escolha o mês e digite o saldo que o banco mostrava no último dia dele — ou, na carteira, o dinheiro que havia. A diferença vira um *Acerto de saldo* naquele dia: o mês seguinte já começa certo, e os meses anteriores não mudam. Não conta como gasto nem como renda.
+- **Corrigir fatura** (cada cartão): escolha o mês e digite o total do banco para compras, tarifas e encargos daquela fatura. A diferença entra na fatura como *Acerto da fatura*.
+- Os acertos aparecem no extrato da aba Contas; tocando neles, dá para apagar.
+
+**Saque e carteira:** saque não é gasto — o dinheiro sai da conta corrente e vai para a Carteira (no extrato e falando "saquei duzentos reais"). O gasto conta quando você paga com ele: "trinta reais, feira, em dinheiro". Assim a Carteira mostra quanto tem no bolso.
 
 **Fixo todo mês:** marque na conferência — ou em *Tornar fixo*, ao editar um lançamento — o que se repete todo mês: aluguel, escola, assinaturas.
 
