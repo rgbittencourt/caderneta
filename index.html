@@ -1611,8 +1611,14 @@ function readInput(){
   st.innerHTML=S.drafts.length+" lançamento"+(S.drafts.length>1?"s lidos":" lido")+(bad?" · "+bad+" sem valor":"");
   renderDrafts(); $("#draftSec").scrollIntoView({behavior:"smooth",block:"start"}); }
 async function saveDrafts(){
-  const ok=S.drafts.filter(d=>d.v&&d.incluir!==false); let fixos=0;
-  if(!ok.length){ toast("Nenhum lançamento com valor."); return; }
+  const ok=S.drafts.filter(d=>d.v&&d.incluir!==false); let fixos=0, acertadas=0, empurradas=0;
+  for(const d of S.drafts) if(d.dupAuto&&d.dup&&(d.ajustarValor||d.moverPara)){ await ajustarParcelaReservada(d); acertadas++; }
+  /* uma fatura inteira acabou de ser lida: as parcelas que ela não traz vão para a fatura seguinte */
+  const fatDoc=[...new Set(S.drafts.filter(d=>d.origem==="fatura"&&d.cardId&&d.ym).map(d=>d.cardId+"|"+d.ym))];
+  for(const chave of fatDoc){ const [cid,ym]=chave.split("|"); empurradas+=await empurrarParcelasNaoCobradas(cid,ym,S.drafts); }
+  if(!ok.length){ S.drafts=[]; render();
+    toast(acertadas?acertadas+(acertadas>1?" parcelas acertadas":" parcela acertada")+" pelo valor da fatura; nada novo para lançar.":"Nada novo para lançar: tudo já estava lançado.");
+    return; }
   $("#dSave").disabled=true;
   for(const d of ok){ if(d.fixo&&d.k!=="e"&&(+d.n||1)<=1){ const fx={id:uid(),name:d.desc||"Gasto fixo",amount:d.v,day:+String(d.date).slice(8,10)||1,cat:d.cat,card:d.cardId}; (S.cfg.fixed=S.cfg.fixed||[]).push(fx); d.fix=fx.id; fixos++; } await commit(d); } if(fixos) await saveCfg();
   /* carga de extratos chegou ao mês atual: o salário automático volta */
@@ -1620,6 +1626,8 @@ async function saveDrafts(){
   const religados=ok.some(d=>d.origem==="fatura")?await religarPagamentos():0;
   S.drafts=[]; render();
   toast(ok.length+(ok.length>1?" lançamentos salvos":" lançamento salvo")+(fixos?" · "+fixos+" como fixo todo mês":"")+
+    (acertadas?" · "+acertadas+(acertadas>1?" parcelas acertadas":" parcela acertada")+" pelo valor da fatura":"")+
+    (empurradas?" · "+empurradas+(empurradas>1?" parcelas ainda não cobradas foram":" parcela ainda não cobrada foi")+" para a fatura seguinte":"")+
     (religados?" · "+religados+(religados>1?" pagamentos do extrato ligados ao cartão":" pagamento do extrato ligado ao cartão"):""));
   /* aplicação automática: quando o banco resgata mais do que aplicou, a diferença é o rendimento */
   const invs=[...new Set(ok.filter(d=>d.k==="t").map(d=>d.acct).concat(ok.filter(d=>d.k==="t").map(d=>d.acct2)))]
@@ -2802,12 +2810,58 @@ function rascunhosDoc(r,op){
     else { const c=pagoCom||porBandeira(l.bandeira)||S.cfg.cards.find(x=>x.type===(l.metodo||"credito"))||S.cfg.cards[0];
       d.cardId=c.id; d.method=c.type; d.raw="Canhoto"; }
     d.cat=(l.cat&&S.cfg.cats.some(c=>c.id===l.cat))?l.cat:guessCat(d.desc,S.cfg,d.k);
-    const rep=pareceRepetido(d);
-    if(rep){ d.incluir=false; d.dup={ym:rep.ym,id:rep.id,desc:rep.desc,d:rep.d,v:rep.v,card:rep.card||"",k:rep.k};
-      /* parcela que o app já reservou quando importou a fatura em que a compra começou: mesmo número, mesmo valor, mesmo cartão */
-      const reservada=d.i0>1&&allTx().find(t=>t.plan&&t.i===d.i0&&faturaDe(t)===(d.ym||ymOf(d.date))&&Math.abs(t.v-d.v)<=1&&(!d.cardId||t.card===d.cardId));
-      if(reservada){ d.dup={ym:reservada.ym,id:reservada.id,desc:reservada.desc,d:reservada.d,v:reservada.v,card:reservada.card||"",k:reservada.k}; d.dupResp=1; d.dupAuto=1; } }
+    /* parcela que o app já reservou quando importou a fatura em que a compra começou. O banco arredonda os centavos
+       de cada parcela e às vezes cobra numa fatura diferente da prevista: a reservada vale, e é ela que se acerta. */
+    const reservada=d.i0>1?parcelaReservada(d):null;
+    if(reservada){
+      d.incluir=false; d.dupResp=1; d.dupAuto=1;
+      d.dup={ym:reservada.ym,id:reservada.id,desc:reservada.desc,d:reservada.d,v:reservada.v,card:reservada.card||"",k:reservada.k};
+      if(reservada.v!==d.v) d.ajustarValor=1;
+      if(faturaDe(reservada)!==(d.ym||ymOf(d.date))) d.moverPara=d.ym||ymOf(d.date); }
+    else { const rep=pareceRepetido(d);
+      if(rep){ d.incluir=false; d.dup={ym:rep.ym,id:rep.id,desc:rep.desc,d:rep.d,v:rep.v,card:rep.card||"",k:rep.k}; } }
     return d; }).concat(extras); }
+
+/* a parcela k de um plano já lançado, em qualquer mês: o banco muda centavos entre parcelas (232,00 vira 231,98) */
+function parcelaReservada(d){
+  const tol=Math.max(100,Math.round(d.v*0.02));
+  return allTx().find(t=>t.plan&&t.k==="g"&&t.i===d.i0&&t.n===d.n&&Math.abs(t.v-d.v)<=tol&&(!d.cardId||t.card===d.cardId))||null; }
+
+/* a fatura chegou sem uma parcela que o app tinha reservado nela: o banco ainda não cobrou (costuma cair na seguinte).
+   Empurra essa parcela e as seguintes do mesmo plano um mês para a frente, para a fatura fechar com a do banco. */
+async function empurrarParcelasNaoCobradas(cardId,ym,drafts){
+  const confirmadas=new Set(drafts.filter(d=>d.dupAuto&&d.dup).map(d=>d.dup.id));
+  const pend=allTx().filter(t=>t.plan&&t.i>1&&t.card===cardId&&faturaDe(t)===ym&&!confirmadas.has(t.id));
+  if(!pend.length) return 0;
+  const desde={}; pend.forEach(t=>{ if(desde[t.plan]==null||t.i<desde[t.plan]) desde[t.plan]=t.i; });
+  const mover=allTx().filter(t=>t.plan&&desde[t.plan]!=null&&t.i>=desde[t.plan]).sort((a,b)=>b.ym.localeCompare(a.ym));
+  const meses=new Set();
+  for(const t of mover){
+    const ymNovo=ymShift(t.ym,1), novo=Object.assign({},t,{fat:ymShift(faturaDe(t),1),d:firstOfMonth(ymNovo,t.d),u:Date.now()});
+    delete novo.id; delete novo.ym;
+    S.months[t.ym].tx[t.id]={del:1,u:Date.now()};
+    if(!S.months[ymNovo]) S.months[ymNovo]={tx:{}};
+    if(!S.months[ymNovo].tx) S.months[ymNovo].tx={};
+    S.months[ymNovo].tx[t.id]=novo; meses.add(t.ym); meses.add(ymNovo); }
+  for(const m of meses) await saveMonth(m);
+  return pend.length; }
+
+/* acerta a parcela reservada com o que o banco cobrou: valor e, se for o caso, a fatura em que ela caiu */
+const mesesEntre=(a,b)=>(+b.slice(0,4)-+a.slice(0,4))*12+(+b.slice(5,7)-+a.slice(5,7));
+async function ajustarParcelaReservada(d){
+  const m=S.months[d.dup.ym], t=m&&m.tx&&m.tx[d.dup.id]; if(!t||t.del) return;
+  const delta=d.moverPara?mesesEntre(t.fat||d.dup.ym,d.moverPara):0;
+  const novo=Object.assign({},t,{v:d.v,u:Date.now()});
+  if(delta){ novo.fat=d.moverPara; }
+  const ym=delta?ymShift(d.dup.ym,delta):d.dup.ym;
+  if(ym!==d.dup.ym){
+    novo.d=firstOfMonth(ym,t.d);
+    m.tx[d.dup.id]={del:1,u:Date.now()};
+    if(!S.months[ym]) S.months[ym]={tx:{}};
+    if(!S.months[ym].tx) S.months[ym].tx={};
+    S.months[ym].tx[d.dup.id]=novo;
+    await saveMonth(d.dup.ym); await saveMonth(ym); }
+  else { Object.assign(t,novo); await saveMonth(ym); } }
 
 /* o mesmo gasto já lançado por voz ou por outro documento: mesmo valor, mesma data (±3 dias) */
 function pareceRepetido(d){

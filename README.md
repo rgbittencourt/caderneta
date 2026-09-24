@@ -39,6 +39,8 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 9. No extrato, pagamento de fatura e aplicação ou resgate não contam como gasto nem renda. Parcelas que o app já reservou vêm desmarcadas sozinhas. O salário do extrato precisa estar na categoria *Salário* para o desconto do consignado ser registrado.
 10. Errou? Ajustes → *Restaurar de um backup* lista os backups do Drive; o de antes de recomeçar traz tudo de volta.
 
+**Parcelas:** o banco muda os centavos de uma parcela para a outra e às vezes cobra uma parcela só na fatura seguinte. O app reconhece a parcela que ele já tinha reservado, acerta o valor pelo da fatura e, se ela não veio, empurra para a fatura seguinte — sem lançar nada duas vezes.
+
 **Fatura anterior:** a fatura começa com o saldo da fatura anterior e o pagamento que a quitou. Os dois não são compras e ficam de fora. Se faltou pagar alguma coisa, a diferença entra como *Saldo da fatura anterior* — a não ser que a fatura anterior já esteja no app, porque aí é ela que mostra o que falta.
 
 **A fatura entra no mês em que ela fechou:** a fatura que fechou em 23/12 é a "fatura de dezembro", mesmo pagando em janeiro — é assim que o pagamento do extrato encontra ela. Se alguma fatura entrou no mês errado, use Ajustes → *Corrigir fatura* → **Apagar esta fatura** e importe o arquivo de novo; o pagamento não é apagado.
