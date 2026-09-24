@@ -194,7 +194,7 @@ function lerLancamentos(texto,tipo,mes){
   if(tipo==="extrato"&&ehExtratoEmBlocos(texto)) return lerExtratoEmBlocos(texto);
   let ref=(mes||mesDeHoje()).split("-").map(Number);
   const fatura=tipo!=="extrato";
-  const linhas=[], creditos=[]; let ignoradas=0, estornos=0, anulados=0, dataDoDia=null;
+  const linhas=[], creditos=[]; let ignoradas=0, estornos=0, anulados=0, dataDoDia=null, saldoAnterior=0, pagoAnterior=0;
   let brutas=String(texto||"").split(/\r?\n/), fechada="", cartao="";
   if(fatura){
     /* a data de fechamento diz o ano das compras sem ano ("22/12" numa fatura fechada em 23/12/2025) */
@@ -211,6 +211,15 @@ function lerLancamentos(texto,tipo,mes){
     const linha=bruta.replace(/\s+/g," ").trim(); if(linha.length<4) return;
     const sem=semAcento(linha);
     if(fatura&&/\d%/.test(linha)) return;                                      /* taxas de juros */
+    /* a fatura começa com o saldo da fatura anterior e o pagamento que a quitou. Os dois não são compras: se somam
+       zero, a anterior foi paga; o que sobrar é o que faltou pagar e o banco cobra de novo nesta fatura. */
+    if(fatura){
+      const vs=valores(linha), baixa=sem.toLowerCase();
+      if(vs.length){
+        const x=vs[vs.length-1], sinal=x.neg?-1:1;
+        if(/\bsaldo\b.{0,24}\banterior\b/.test(baixa)){ saldoAnterior=sinal*x.v; ignoradas++; return; }
+        if(!/minimo/.test(baixa)&&/\b(pagamento|pagto|pgto)\b|\bdebito (automatico|em conta)\b|\bdeb(ito)? autom/.test(baixa)){
+          pagoAnterior+=x.v; ignoradas++; return; } } }
     let dt=dataNaLinha(linha,ano,mesRef);
     const vals=valores(linha).filter(x=>!dt||x.ini>=dt.len);
     if(dt&&!vals.length){
@@ -239,7 +248,7 @@ function lerLancamentos(texto,tipo,mes){
      os dois ficam de fora */
   creditos.forEach(c=>{ const j=linhas.findIndex(l=>l.v===c.v&&l.i0===c.i0&&l.n===c.n);
     if(j>=0){ linhas.splice(j,1); anulados++; } });
-  return {linhas, ignoradas, estornos, anulados, fechada, cartao}; }
+  return {linhas, ignoradas, estornos, anulados, fechada, cartao, saldoAnterior, pagoAnterior}; }
 
 /* ---- saldo que o próprio banco imprime: serve para acertar a conta ---- */
 function saldosDoExtrato(texto,mes){

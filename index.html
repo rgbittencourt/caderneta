@@ -2749,6 +2749,7 @@ function mostrarLidos(r,op,anexar){
     (r.aplicacoes?" · "+r.aplicacoes+(r.aplicacoes>1?" movimentos":" movimento")+" da aplicação automática do saldo, entre a conta e a conta da aplicação":"")+
     (S.contaCriada?" · criei a conta "+S.contaCriada+" para o dinheiro aplicado":"")+
     (S.fechamentoAprendido?" · anotei que o "+S.fechamentoAprendido:"")+
+    (r.anteriorFalta?" · faltaram "+fmt(r.anteriorFalta)+" da fatura anterior"+(r.anteriorNaApp?", que já aparecem nela como a pagar":", lançados nesta fatura"):"")+
     (r.cartaoDoc?" · cartão no documento: "+r.cartaoDoc:"")+
     (S.docSaldo&&S.docSaldo.saldo?" · o banco diz saldo de "+fmt(S.docSaldo.saldo.v)+" em "+diaMesAno(S.docSaldo.saldo.d):"");
   if(r.tipo==="fatura"||r.tipo==="extrato"){ const b=document.createElement("button"); b.className="mini"; b.style.marginLeft="8px";
@@ -2777,6 +2778,17 @@ function rascunhosDoc(r,op){
   if(r.tipo==="fatura"&&r.fechada){ const c=creditCards().find(x=>x.id===cardFat);
     if(c&&!c.closing){ c.closing=+r.fechada.slice(8,10)||0;
       if(c.closing){ S.fechamentoAprendido=c.n+" fecha dia "+c.closing; saveCfg(); } } }
+  /* o que faltou pagar da fatura anterior volta cobrado nesta. Só entra quando a fatura anterior não está no app —
+     se estiver, ela mesma já mostra o que falta pagar, e lançar de novo contaria o gasto duas vezes. */
+  const extras=[];
+  if(r.tipo==="fatura"){
+    const falta=Math.round((r.saldoAnterior||0)-(r.pagoAnterior||0));
+    r.anteriorFalta=falta>1?falta:0; r.anteriorNaApp=false;
+    if(falta>1){
+      if(cardInvoice(cardFat,ymShift(mesFat,-1)).total) r.anteriorNaApp=true;
+      else extras.push({id:uid(), raw:"Fatura de "+ymLabel(mesFat)+" · o que faltou pagar da fatura anterior", v:falta,
+        desc:"Saldo da fatura anterior", k:"g", n:1, i0:1, date:r.fechada||(mesFat+"-01"), time:"", msg:"", origem:"fatura",
+        incluir:true, cardId:cardFat, method:"credito", ym:mesFat, cat:"outros"}); } }
   return r.linhas.map(l=>{
     const d={id:uid(), raw:"", v:l.v, desc:l.desc, k:l.k||"g", n:l.n||1, i0:l.i0||1, date:l.d||hoje, time:"", msg:"", origem:r.tipo, incluir:true};
     if(r.tipo==="fatura"){ d.cardId=cardFat; d.method="credito"; d.ym=mesFat; d.porParcela=d.n>1;
@@ -2795,7 +2807,7 @@ function rascunhosDoc(r,op){
       /* parcela que o app já reservou quando importou a fatura em que a compra começou: mesmo número, mesmo valor, mesmo cartão */
       const reservada=d.i0>1&&allTx().find(t=>t.plan&&t.i===d.i0&&faturaDe(t)===(d.ym||ymOf(d.date))&&Math.abs(t.v-d.v)<=1&&(!d.cardId||t.card===d.cardId));
       if(reservada){ d.dup={ym:reservada.ym,id:reservada.id,desc:reservada.desc,d:reservada.d,v:reservada.v,card:reservada.card||"",k:reservada.k}; d.dupResp=1; d.dupAuto=1; } }
-    return d; }); }
+    return d; }).concat(extras); }
 
 /* o mesmo gasto já lançado por voz ou por outro documento: mesmo valor, mesma data (±3 dias) */
 function pareceRepetido(d){
