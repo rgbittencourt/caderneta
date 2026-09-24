@@ -78,6 +78,8 @@ Teve aumento ou correção? Mude o valor em Ajustes: o app pergunta a partir de 
 - **Conferência do saldo:** depois de importar um extrato, quando ele traz o saldo impresso pelo banco, o app compara com o que calculou, mostra a diferença e pergunta se pode acertar.
 - **Repetidos** (no alto do extrato): procura, no mês, dois lançamentos iguais no mesmo lugar. Ele mostra os dois lado a lado e pergunta se é a mesma coisa; só apaga se você mandar. Parcelas de compras parceladas ficam de fora dessa busca.
 
+**Fatura prevista:** enquanto você não importa a fatura do banco daquele mês, o app mostra o valor que ele mesmo calculou, marcado como *prevista* — nunca como atrasada. Depois de importar, ela passa a valer como a fatura de verdade.
+
 **Contas a pagar** (aba Mês): tudo o que vence no mês, em ordem de data — gastos fixos, parcelas de dívidas, o consignado que sai do salário e a fatura de cada cartão. Cada linha mostra o dia, o valor e como está: *pago*, *vence hoje* ou *atrasada*. O botão *Lançar* dá baixa no gasto fixo, e *Pagar* abre o pagamento da fatura. No Painel aparece um resumo, *Próximos vencimentos*, com o que vence em até dez dias e o que já passou.
 
 **Sem internet** funciona normalmente: tudo é salvo no aparelho e vai para o Drive quando a conexão volta. O acesso ao Drive dura cerca de uma hora; depois disso aparece *Sincronizar* no topo — um toque e pronto.

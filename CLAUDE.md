@@ -36,6 +36,8 @@ Leia este arquivo inteiro antes de mudar qualquer coisa. Ao mudar arquitetura, f
    - Dívidas: `TIPOS_DIVIDA`, `saldoPrice`, `quitar`, `normDivida`, `vencDivida`, `estadoDivida`, `consignadoNoMes`, `simulacao`, `openDivida`. Gastos que se repetem: `recorrentes`, `tornarFixo`.
    - Extrato por conta e fatura do cartão, na aba Contas: `movsConta`, `linhaExt`, `htmlExtrato`, `bindExtrato` (a seleção fica em `S.ext`; `card:<id>` é cartão). Fatura: `faturaDe`, `comprasDaFatura`, `cardInvoice`.
    - Importar, acertar e repetidos: `saldoDoDoc` + `openAcerto` (acerto pelo saldo impresso no extrato), `dupHTML` (a pergunta na conferência) e `repetidosDe`/`procurarRepetidos`/`openRepetido` (repetidos já lançados).
+   - Fatura **prevista**: enquanto a fatura daquele mês não foi importada (`cfg.faturasLidas["<cartão>|<AAAA-MM>"]`), o valor é só a previsão pelas compras e parcelas que o app conhece — ela aparece como *prevista*, nunca como *atrasada*, e não entra na conta de "passaram do vencimento" no Painel.
+   - Ajustes → Dados mostra a **versão instalada** (`mostrarVersao` lê o nome do cache `caderneta-vNN`) e tem *Procurar atualização*: serve para saber se o aparelho já está na versão nova.
    - Contas a pagar do mês: `contasDoMes` junta gastos fixos (pagos = têm lançamento com `fix`), parcelas de dívida, consignado em folha (só informativo) e a fatura de cada cartão (vencimento no mês seguinte quando `due < closing`); `linhaConta`, `htmlContas` (seção da aba Mês), `htmlProximas` (bloco do Painel, dez dias à frente), `lancarFixoUm`, `bindContas`.
    - Salário e consignado: `primeiroDiaUtil` (+ `feriado`, `pascoa`), `garantirSalario`, `descontarConsignados`, `estadoCons`, `consDoMes`, `consVirtuais`, `rendaPrevista`, `lancarDesconto`, `lancamentoDoFixo`, `migrar2`.
    - Ler documento, além do básico: `pedirSenhaPdf`, `diagnosticoDoc` + `amostraSemDados`.
@@ -189,7 +191,7 @@ Primeira publicação num computador novo: o dono autoriza no navegador (Git Cre
 
 ## Situação e próximos passos
 
-- **Publicado:** `caderneta-v24` (24/09/2026). O que existe está descrito acima; os commits contam a ordem.
+- **Publicado:** `caderneta-v25` (24/09/2026). O que existe está descrito acima; os commits contam a ordem.
 - **O que o dono está fazendo:** carregando os extratos da conta corrente e as faturas dos cartões (Visa, Mastercard, Elo) de janeiro a setembro de 2026, todos em PDF, no MacBook Air, depois de usar *Recomeçar do zero*. O passo a passo está no README, em *Importar meses anteriores*.
 - **Documentos reais (15/09/2026):** o dono mandou, por iniciativa própria, o extrato da conta corrente do BB de jan/2026 e uma fatura Ourocard Mastercard. Até a v14 o extrato vinha com descrições erradas (lote e documento no lugar do nome) e o Rende Fácil contado como gasto e entrada; a fatura lia taxas de juros como compras. Os formatos estão descritos acima e foram conferidos com os dois PDFs, que **não** estão no repositório. A fatura recebida só tinha anuidade e desconto; compras parceladas no formato do BB foram testadas com linhas simuladas. Se outro documento falhar, peça a *amostra sem dados*.
 - **Consignados:** ele tem dois — um pagando a 4ª de 12 em setembro de 2026, outro com a 1ª parcela em 01/10/2026. Depois do Recomeçar, precisam ser cadastrados de novo, com a data real do empréstimo e 0 já descontadas, antes de importar janeiro.

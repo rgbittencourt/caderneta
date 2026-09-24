@@ -1616,6 +1616,9 @@ async function saveDrafts(){
   /* uma fatura inteira acabou de ser lida: as parcelas que ela não traz vão para a fatura seguinte */
   const fatDoc=[...new Set(S.drafts.filter(d=>d.origem==="fatura"&&d.cardId&&d.ym).map(d=>d.cardId+"|"+d.ym))];
   for(const chave of fatDoc){ const [cid,ym]=chave.split("|"); empurradas+=await empurrarParcelasNaoCobradas(cid,ym,S.drafts); }
+  /* fatura que veio do documento do banco: o app sabe o valor de verdade e pode cobrar vencimento */
+  if(fatDoc.length){ S.cfg.faturasLidas=S.cfg.faturasLidas||{};
+    fatDoc.forEach(k=>{ S.cfg.faturasLidas[k]=todayISO(); }); await saveCfg(); }
   if(!ok.length){ S.drafts=[]; render();
     toast(acertadas?acertadas+(acertadas>1?" parcelas acertadas":" parcela acertada")+" pelo valor da fatura; nada novo para lançar.":"Nada novo para lançar: tudo já estava lançado.");
     return; }
@@ -2062,6 +2065,14 @@ function openTransfer(){
     closeSheet(); render(); toast("Transferido"); }; }
 
 /* =================== ajustes =================== */
+/* a versão instalada é o nome do cache que o service worker criou (caderneta-vNN) */
+async function mostrarVersao(){
+  const el=$("#verApp"); if(!el) return;
+  try{
+    const ks=await caches.keys();
+    const v=ks.filter(k=>/^caderneta-v\d+$/.test(k)).sort((a,b)=>(+a.slice(11))-(+b.slice(11))).pop();
+    el.textContent=v?v+" · para atualizar, feche e abra o app":"sem cópia offline ainda";
+  }catch(e){ el.textContent="—"; } }
 function linkrow(t,s,attr){ return '<div class="linkrow"><div class="m"><div class="t">'+esc(t)+
   '</div><div class="s">'+esc(s)+'</div></div><button class="mini" '+attr+'>Editar</button></div>'; }
 
@@ -2130,6 +2141,8 @@ function renderAjustes(){
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Dados</h2></div><div class="card pad">'+
     '<div class="linkrow"><div class="m"><div class="t">Onde ficam seus dados</div><div class="s">'+
     esc(storageText())+'</div></div></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Versão do app</div><div class="s" id="verApp">procurando…</div></div>'+
+    '<button class="mini" id="verBtn">Procurar atualização</button></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Levar para uma planilha</div><div class="s">Copia todos os lançamentos em CSV</div></div>'+
     '<button class="mini" id="expBtn">Copiar</button></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Backup completo</div><div class="s">Configurações e lançamentos em JSON</div></div>'+
@@ -2171,6 +2184,10 @@ function renderAjustes(){
   $$("[data-sini]").forEach(b=>b.onclick=()=>openSaldoInicial(b.dataset.sini));
   $$("[data-scor]").forEach(b=>b.onclick=()=>openCorrigirSaldo(b.dataset.scor));
   $$("[data-cfat]").forEach(b=>b.onclick=()=>openCorrigirFatura(b.dataset.cfat));
+  mostrarVersao();
+  $("#verBtn").onclick=async()=>{ toast("Procurando atualização…");
+    try{ const r=await navigator.serviceWorker.getRegistration(); if(r) await r.update(); }catch(e){}
+    setTimeout(mostrarVersao,1500); };
   $("#expBtn").onclick=exportCSV;
   $("#bkBtn").onclick=()=>copyText(JSON.stringify({app:"caderneta",v:1,cfg:S.cfg,months:S.months}),"Backup copiado.");
   $("#rsBtn").onclick=openRestore;
@@ -3370,17 +3387,20 @@ function contasDoMes(ym){
     const inv=cardInvoice(c.id,ym); if(!inv.total) return;
     const outroMes=c.due&&(!c.closing||c.due<c.closing), prox=ymShift(ym,1);
     const venc=outroMes?prox+"-"+pad(Math.min(c.due,daysIn(prox))):diaDoMes(c.due||dim);
-    out.push({tipo:"fatura", id:c.id, nome:"Fatura "+c.n, v:inv.open>0?inv.open:inv.total, d:venc, pago:inv.open<=0,
+    /* sem a fatura do banco importada, o valor é só a previsão pelas compras e parcelas que o app conhece */
+    const prevista=!((S.cfg.faturasLidas||{})[c.id+"|"+ym]);
+    out.push({tipo:"fatura", id:c.id, nome:"Fatura "+c.n, v:inv.open>0?inv.open:inv.total, d:venc, pago:inv.open<=0, prevista,
       sub:"Fatura de "+ymLabel(ym)+(c.due?" · vence "+venc.slice(8,10)+"/"+venc.slice(5,7):" · sem data de vencimento")+
-        (inv.paid>0&&inv.open>0?" · já pagou "+fmtN(inv.paid):"")}); });
+        (inv.paid>0&&inv.open>0?" · já pagou "+fmtN(inv.paid):"")+(prevista?" · ainda sem a fatura do banco":"")}); });
   return out.sort((a,b)=>a.d.localeCompare(b.d)||b.v-a.v); }
 
 function linhaConta(x,hoje){
-  const atrasada=!x.pago&&x.d<hoje&&x.tipo!=="folha";
+  const atrasada=!x.pago&&x.d<hoje&&x.tipo!=="folha"&&!x.prevista;
   const acao=x.pago?"":x.tipo==="fixo"?'<button class="mini" data-pagafixo="'+x.id+'">Lançar</button>'
     :x.tipo==="fatura"?'<button class="mini" data-pagafat="'+x.id+'">Pagar</button>':"";
   const chip=x.pago?'<span class="chip ok">'+(x.tipo==="folha"?"descontado":"pago")+'</span>'
-    :atrasada?'<span class="chip atraso">atrasada</span>':x.d===hoje?'<span class="chip hoje">vence hoje</span>':"";
+    :atrasada?'<span class="chip atraso">atrasada</span>':x.prevista&&x.d<hoje?'<span class="chip">prevista</span>'
+    :x.d===hoje?'<span class="chip hoje">vence hoje</span>':"";
   return '<div class="cta'+(x.pago?" pago":"")+'" data-cta="'+x.tipo+":"+x.id+'">'+
     '<span class="cta-d">'+x.d.slice(8,10)+"/"+x.d.slice(5,7)+'</span>'+
     '<span class="row-m"><span class="row-d">'+esc(x.nome)+'</span>'+
@@ -3408,7 +3428,7 @@ function htmlProximas(ym){
   const hoje=todayISO(), lim=new Date(Date.parse(hoje+"T12:00:00")+10*86400000).toISOString().slice(0,10);
   const L=contasDoMes(ym).filter(x=>!x.pago&&x.d<=lim);
   if(!L.length) return "";
-  const tot=L.reduce((s,x)=>s+x.v,0), atrasadas=L.filter(x=>x.d<hoje).length;
+  const tot=L.reduce((s,x)=>s+x.v,0), atrasadas=L.filter(x=>x.d<hoje&&!x.prevista).length;
   return '<div class="sec"><div class="sec-h"><h2 class="sec-t">Próximos vencimentos</h2>'+
     '<button class="sec-a" data-irmes="1">Ver todas</button></div>'+
     '<div class="card pad"><div class="ch-s" style="margin-bottom:4px">'+
