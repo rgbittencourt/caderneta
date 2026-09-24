@@ -59,6 +59,8 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **Saque e carteira:** saque não é gasto — o dinheiro sai da conta corrente e vai para a Carteira (no extrato e falando "saquei duzentos reais"). O gasto conta quando você paga com ele: "trinta reais, feira, em dinheiro". Assim a Carteira mostra quanto tem no bolso.
 
+**Lançou e depois importou?** Toda linha do extrato ou da fatura é comparada com o que já está lançado: mesmo valor, data a até três dias e mesmo tipo. O que já existe vem **desmarcado**, mostrando os dois lado a lado para você decidir. No crédito, se você disse o cartão errado, o app ainda reconhece quando a descrição bate. Depois de salvar, *Repetidos* (na aba Contas) procura duplicados que já estejam gravados.
+
 **Fixo todo mês:** marque na conferência — ou em *Tornar fixo*, ao editar um lançamento — o que se repete todo mês: aluguel, escola, assinaturas.
 
 **Salário:** a renda líquida de Ajustes entra sozinha no primeiro dia útil de cada mês (pulando fim de semana e feriado nacional), na conta escolhida ali. Em mês com parcela de consignado, ela entra já descontada. Se você lançar o salário à mão, o app não lança de novo. Dá para desligar em Ajustes.
