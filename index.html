@@ -1972,12 +1972,21 @@ function openCorrigirFatura(cid){
     '<span class="hint">Some, no resumo da fatura, as compras, tarifas e encargos do período — sem o saldo da fatura anterior e sem pagamentos. '+
     'A diferença entra na fatura como <b>Acerto da fatura</b>: conta como gasto daquele mês, ou abate, se o banco cobrou menos. Não mexe na conta corrente.</span></div>'+
     acertosDe(t=>t.card===cid&&t.k==="g")+'</div>',
-    '<button class="btn ghost" id="cfX">Cancelar</button><button class="btn" id="cfOk">Corrigir</button>');
+    '<button class="btn danger" id="cfDel">Apagar esta fatura</button><button class="btn" id="cfOk">Corrigir</button>');
   const atualiza=()=>{ const ym=$("#cfM").value||S.ym, inv=cardInvoice(cid,ym), n=comprasDaFatura(cid,ym).length;
+    const del=$("#cfDel"); if(del){ delete del.dataset.certeza; del.textContent="Apagar esta fatura"; }
     $("#cfS").textContent=n+(n===1?" lançamento":" lançamentos")+" na fatura de "+ymLabel(ym);
     $("#cfCalc").textContent=fmtN(inv.total); $("#cfV").value=fmtN(inv.total); };
   $("#cfM").onchange=atualiza; atualiza();
-  $("#cfX").onclick=closeSheet;
+  /* fatura importada no mês errado: apaga só os lançamentos dela (com as parcelas seguintes), sem tocar no pagamento */
+  $("#cfDel").onclick=async()=>{ const ym=$("#cfM").value||S.ym, L=comprasDaFatura(cid,ym);
+    if(!L.length){ toast("Não há lançamentos nesta fatura."); return; }
+    const del=$("#cfDel");
+    if(!del.dataset.certeza){ del.dataset.certeza="1"; del.textContent="Apagar mesmo?";
+      toast(L.length+(L.length>1?" lançamentos":" lançamento")+" da fatura de "+ymLabel(ym)+(L.some(t=>t.plan)?", com as parcelas seguintes":"")+". Toque de novo para apagar."); return; }
+    const planos=new Set();
+    for(const t of L){ if(t.plan){ if(planos.has(t.plan)) continue; planos.add(t.plan); } await removeTx(t.ym,t.id,!!t.plan); }
+    closeSheet(); render(); toast("Fatura de "+ymLabel(ym)+" apagada. Importe o arquivo de novo."); };
   $("#cfOk").onclick=async()=>{ const ym=$("#cfM").value||S.ym, delta=await acertarFatura(cid,ym,toCents($("#cfV").value));
     closeSheet(); render(); toast(delta?"Fatura de "+ymLabel(ym)+" corrigida em "+(delta>0?"+":"")+fmt(delta):"A fatura já batia"); }; }
 
@@ -1985,7 +1994,7 @@ function openCorrigirFatura(cid){
    com o mês errado. Procura um pagamento perto do vencimento que ainda não está contado nesta fatura. */
 function pagamentoJaLancado(cardId,ym,valor){
   const c=creditCards().find(x=>x.id===cardId)||{};
-  const venc=c.due&&c.closing&&c.due<c.closing?ymShift(ym,1):ym;
+  const venc=c.due&&(!c.closing||c.due<c.closing)?ymShift(ym,1):ym;
   const alvo=Date.parse(venc+"-"+pad(Math.min(c.due||daysIn(venc),daysIn(venc)))+"T12:00:00");
   const perto=t=>Math.abs(Date.parse(t.d+"T12:00:00")-alvo)<=25*86400000;
   const cand=allTx().filter(t=>t.k==="p"&&!(t.card===cardId&&t.ref===ym)&&perto(t))
@@ -2739,12 +2748,13 @@ function mostrarLidos(r,op,anexar){
     (r.estornos?" · "+r.estornos+(r.estornos>1?" estornos ficaram de fora":" estorno ficou de fora")+(r.anulados?" (com a cobrança de mesmo valor que "+(r.anulados>1?"eles anulam)":"ele anula)"):""):"")+
     (r.aplicacoes?" · "+r.aplicacoes+(r.aplicacoes>1?" movimentos":" movimento")+" da aplicação automática do saldo, entre a conta e a conta da aplicação":"")+
     (S.contaCriada?" · criei a conta "+S.contaCriada+" para o dinheiro aplicado":"")+
+    (S.fechamentoAprendido?" · anotei que o "+S.fechamentoAprendido:"")+
     (r.cartaoDoc?" · cartão no documento: "+r.cartaoDoc:"")+
     (S.docSaldo&&S.docSaldo.saldo?" · o banco diz saldo de "+fmt(S.docSaldo.saldo.v)+" em "+diaMesAno(S.docSaldo.saldo.d):"");
   if(r.tipo==="fatura"||r.tipo==="extrato"){ const b=document.createElement("button"); b.className="mini"; b.style.marginLeft="8px";
     const cam=op.box?$(".docCam",op.box):null;
     if(cam){ b.textContent="Fotografar mais uma página"; b.onclick=()=>{ S.docMais=true; cam.click(); }; st.appendChild(b); } }
-  S.contaCriada="";
+  S.contaCriada=""; S.fechamentoAprendido="";
   renderDrafts(); $("#draftSec").scrollIntoView({behavior:"smooth",block:"start"}); }
 
 function rascunhosDoc(r,op){
@@ -2763,6 +2773,10 @@ function rascunhosDoc(r,op){
     const escolhido=creditCards().find(c=>c.id===op.card), doc=creditCards().find(c=>fim&&nomes(c).indexOf(fim)>=0)||creditCards().find(bate);
     if(doc&&!(escolhido&&bate(escolhido))) cardFat=doc.id;
     r.cartaoDoc=r.cartao.toLowerCase().replace(/(^|\s)\S/g,x=>x.toUpperCase())+(doc?" ("+doc.n+")":" — confira o cartão"); }
+  /* a fatura traz o dia do fechamento: o app aprende, para saber em que fatura cai uma compra lançada por fala */
+  if(r.tipo==="fatura"&&r.fechada){ const c=creditCards().find(x=>x.id===cardFat);
+    if(c&&!c.closing){ c.closing=+r.fechada.slice(8,10)||0;
+      if(c.closing){ S.fechamentoAprendido=c.n+" fecha dia "+c.closing; saveCfg(); } } }
   return r.linhas.map(l=>{
     const d={id:uid(), raw:"", v:l.v, desc:l.desc, k:l.k||"g", n:l.n||1, i0:l.i0||1, date:l.d||hoje, time:"", msg:"", origem:r.tipo, incluir:true};
     if(r.tipo==="fatura"){ d.cardId=cardFat; d.method="credito"; d.ym=mesFat; d.porParcela=d.n>1;
@@ -3288,7 +3302,7 @@ function contasDoMes(ym){
     out.push({tipo:"folha", id:dv.id, nome:dv.nome, v:+dv.parcela||0, d, pago:d<=hoje, sub:"Descontado do salário"}); });
   creditCards().forEach(c=>{
     const inv=cardInvoice(c.id,ym); if(!inv.total) return;
-    const outroMes=c.due&&c.closing&&c.due<c.closing, prox=ymShift(ym,1);
+    const outroMes=c.due&&(!c.closing||c.due<c.closing), prox=ymShift(ym,1);
     const venc=outroMes?prox+"-"+pad(Math.min(c.due,daysIn(prox))):diaDoMes(c.due||dim);
     out.push({tipo:"fatura", id:c.id, nome:"Fatura "+c.n, v:inv.open>0?inv.open:inv.total, d:venc, pago:inv.open<=0,
       sub:"Fatura de "+ymLabel(ym)+(c.due?" · vence "+venc.slice(8,10)+"/"+venc.slice(5,7):" · sem data de vencimento")+
@@ -3526,9 +3540,13 @@ async function religarPagamentos(){
   return n; }
 
 /* a fatura vai para o mês da compra mais recente (fora as parcelas de compras antigas), seja qual for o mês na tela */
+/* o mês da fatura é o do fechamento impresso nela ("Fatura fechada em 23/12/2025" → dez/2025): juros, IOF e tarifas
+   costumam vir com a data do mês seguinte e jogavam a fatura inteira um mês para a frente. Sem o fechamento, vale a
+   compra mais recente (fora as parcelas de compras antigas). */
 function mesDaFatura(r,padrao){
+  if(r.fechada) return ymOf(r.fechada);
   const ds=r.linhas.filter(l=>(+l.i0||1)<=1&&l.d).map(l=>l.d).sort();
-  return ds.length?ymOf(ds[ds.length-1]):r.fechada?ymOf(r.fechada):padrao; }
+  return ds.length?ymOf(ds[ds.length-1]):padrao; }
 
 /* campos da conferência conforme o tipo: gasto, entrada, pagamento de fatura ou movimento entre contas */
 function camposDoRascunho(d){

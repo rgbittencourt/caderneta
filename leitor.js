@@ -124,7 +124,8 @@ function dataNoInicio(linha,ano,mesRef){
     m=semAcento(linha).match(/^(\d{1,2})\s*(?:de\s+)?(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*\.?(?:\s*(?:de\s+)?(\d{4}))?/i);
     if(!m) return null; d=+m[1]; mo=MESES[m[2].toLowerCase()]; y=m[3]?+m[3]:0; }
   if(d<1||d>31||mo<1||mo>12) return null;
-  if(!y){ y=ano; if(mo>mesRef+1) y=ano-1; }      /* "20/12" numa fatura de janeiro é do ano anterior */
+  /* "20/12" numa fatura de janeiro é do ano anterior; "05/01" numa fatura fechada em dezembro é do ano seguinte */
+  if(!y){ y=ano; const dif=mo-mesRef; if(dif>1) y=ano-1; else if(dif<-10) y=ano+1; }
   return {iso:y+"-"+pad(mo)+"-"+pad(d), len:m[0].length}; }
 
 /* linhas que não são lançamento */
