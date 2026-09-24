@@ -489,7 +489,7 @@ const KW = {
   alim:"almoco almocei janta jantar jantei cafe lanche lanchei restaurante churrascaria pizzaria pizza hamburguer lanchonete padaria confeitaria sorvete acai bar chopp cerveja ifood rappi marmita buffet doceria cafeteria salgado espetinho pastel sushi",
   merc:"mercado supermercado atacado atacadao feira hortifruti sacolao acougue mercearia angeloni carrefour assai bistek giassi comper zaffari nacional big fort koch imperatriz",
   comb:"gasolina etanol alcool diesel abastecimento abasteci combustivel posto ipiranga shell petrobras arla gnv",
-  carro:"oficina mecanico mecanica pneu pneus revisao alinhamento balanceamento oleo lavagem lavacao borracharia funilaria guincho autopecas bateria embreagem freio vistoria licenciamento",
+  carro:"carro veiculo automovel manutencao oficina mecanico mecanica pneu pneus revisao alinhamento balanceamento oleo lavagem lavacao borracharia funilaria guincho autopecas bateria embreagem freio vistoria licenciamento",
   transp:"uber taxi onibus passagem pedagio estacionamento metro barca rodoviaria aeroporto voo",
   medic:"farmacia drogaria remedio remedios medicamento medicamentos panvel drogasil raia nissei dimed pacheco vitamina antibiotico",
   saude:"medico consulta dentista exame exames laboratorio clinica hospital fisioterapia psicologo psicologa terapia nutricionista oftalmo oculista dermato unimed cirurgia vacina ressonancia",
@@ -2373,6 +2373,18 @@ async function aiParse(){
   b.textContent="Usar IA"; b.disabled=false; }
 
 /* =================== microfone =================== */
+/* o ditado entrega a frase em pedaços, e cada navegador faz de um jeito: uns mandam só o trecho novo, outros
+   repetem a frase inteira crescendo. Somar tudo virava "325 pago325 pago para325 pago para manutenção…". */
+function textoDaFala(results){
+  const junta=(acc,txt)=>{ txt=String(txt||"").trim(); if(!txt) return acc; if(!acc) return txt;
+    if(txt.indexOf(acc)===0) return txt;                                   /* repetiu tudo e cresceu */
+    if(acc.length>=txt.length&&acc.slice(-txt.length)===txt) return acc;   /* repetiu o mesmo pedaço */
+    return acc+" "+txt; };
+  let fim="", parcial="";
+  for(let i=0;i<results.length;i++){ const r=results[i], t=r&&r[0]?r[0].transcript:"";
+    if(r.isFinal) fim=junta(fim,t); else parcial=t; }
+  return junta(fim,parcial); }
+
 function setupMic(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   const btn=$("#micBtn"); if(!SR||!btn) return;
@@ -2384,8 +2396,7 @@ function setupMic(){
       rec=new SR(); rec.lang="pt-BR"; rec.continuous=true; rec.interimResults=true;
       const base=$("#say").value?$("#say").value.trim()+" ":"";
       rec.onstart=()=>{ on=true; btn.classList.add("rec"); btn.textContent="Parar"; };
-      rec.onresult=e=>{ let s=""; for(let i=0;i<e.results.length;i++) s+=e.results[i][0].transcript;
-        $("#say").value=base+s; };
+      rec.onresult=e=>{ $("#say").value=base+textoDaFala(e.results); };
       rec.onerror=ev=>{ on=false; btn.classList.remove("rec"); btn.textContent="Microfone";
         if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){
           $("#sayHint").innerHTML="O microfone do app está bloqueado aqui. Use o <kbd>🎤</kbd> do teclado — funciona igual.";
