@@ -1995,9 +1995,13 @@ function openCorrigirFatura(cid){
     const del=$("#cfDel");
     if(!del.dataset.certeza){ del.dataset.certeza="1"; del.textContent="Apagar mesmo?";
       toast(L.length+(L.length>1?" lançamentos":" lançamento")+" da fatura de "+ymLabel(ym)+(L.some(t=>t.plan)?", com as parcelas seguintes":"")+". Toque de novo para apagar."); return; }
-    const planos=new Set();
-    for(const t of L){ if(t.plan){ if(planos.has(t.plan)) continue; planos.add(t.plan); } await removeTx(t.ym,t.id,!!t.plan); }
-    closeSheet(); render(); toast("Fatura de "+ymLabel(ym)+" apagada. Importe o arquivo de novo."); };
+    /* de uma compra parcelada saem esta parcela e as seguintes; as anteriores, que estão em faturas já conferidas, ficam */
+    const fora=[];
+    L.forEach(t=>{ if(!t.plan){ fora.push(t); return; }
+      allTx().forEach(x=>{ if(x.plan===t.plan&&x.i>=t.i&&!fora.some(y=>y.id===x.id)) fora.push(x); }); });
+    for(const t of fora) await removeTx(t.ym,t.id,false);
+    closeSheet(); render();
+    toast(fora.length+(fora.length>1?" lançamentos apagados":" lançamento apagado")+" da fatura de "+ymLabel(ym)+". Importe o arquivo de novo."); };
   $("#cfOk").onclick=async()=>{ const ym=$("#cfM").value||S.ym, delta=await acertarFatura(cid,ym,toCents($("#cfV").value));
     closeSheet(); render(); toast(delta?"Fatura de "+ymLabel(ym)+" corrigida em "+(delta>0?"+":"")+fmt(delta):"A fatura já batia"); }; }
 
