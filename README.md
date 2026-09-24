@@ -39,6 +39,13 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 9. No extrato, pagamento de fatura e aplicação ou resgate não contam como gasto nem renda. Parcelas que o app já reservou vêm desmarcadas sozinhas. O salário do extrato precisa estar na categoria *Salário* para o desconto do consignado ser registrado.
 10. Errou? Ajustes → *Restaurar de um backup* lista os backups do Drive; o de antes de recomeçar traz tudo de volta.
 
+**Pagamento da fatura, sem sair duas vezes:** o pagamento aparece no extrato do banco ("Pagto cartão crédito") e também pode ser lançado pelo botão *Pagar fatura*. O app procura, perto do vencimento, um pagamento do mesmo valor que já tenha saído da conta:
+- no botão *Pagar fatura*, ele avisa e oferece **É este pagamento** — a fatura fica paga e o dinheiro não sai de novo;
+- ao importar a fatura, se ela ficaria em aberto, ele pergunta se o pagamento que já está lançado é dela;
+- se dois pagamentos iguais já foram lançados, ao abrir o app ele mostra os dois e pergunta qual apagar. Nada é apagado sozinho.
+
+**Crédito ou débito:** cada gasto mostra a marca *crédito · não sai da conta* ou *débito*. A compra no crédito entra nos gastos do mês, nos gráficos e nas análises, mas só sai da conta corrente quando a fatura é paga. No extrato da conta, um rodapé lembra quanto foi no crédito naquele mês.
+
 **Saldos e acertos** (Ajustes → *Saldo de cada conta e cartão*):
 - **Corrigir saldo** (conta corrente, poupança, carteira…): escolha o mês e digite o saldo que o banco mostrava no último dia dele — ou, na carteira, o dinheiro que havia. A diferença vira um *Acerto de saldo* naquele dia: o mês seguinte já começa certo, e os meses anteriores não mudam. Não conta como gasto nem como renda.
 - **Corrigir fatura** (cada cartão): escolha o mês e digite o total do banco para compras, tarifas e encargos daquela fatura. A diferença entra na fatura como *Acerto da fatura*.

@@ -333,6 +333,8 @@ table.dv td.n{text-align:right;font-family:var(--f-m);font-variant-numeric:tabul
   color:var(--ink-2);border:1px solid var(--line)}
 .chip.p{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
 .chip.f{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+.chip.c{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+.chip.d{background:var(--surface-2);color:var(--ink-2)}
 
 /* ===== contas e cartões ===== */
 .acct{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);
@@ -1514,6 +1516,8 @@ function rowHTML(t){
     '<span class="dot" style="background:'+catColorOf(t)+'"></span>'+
     '<span class="row-m"><span class="row-d">'+esc(t.desc)+'</span><span class="row-s"><span>'+esc(rot)+
     '</span><span>·</span><span>'+esc(meio)+'</span>'+
+    (t.k==="g"&&t.method==="credito"?'<span class="chip c">crédito · não sai da conta</span>':'')+
+    (t.k==="g"&&t.method==="debito"?'<span class="chip d">débito</span>':'')+
     (t.n>1?'<span class="chip p">'+t.i+"/"+t.n+'</span>':'')+
     (t.fix?'<span class="chip f">fixo</span>':'')+'</span></span>'+
     '<span class="row-v'+(isE?" plus":(isP||isT)?" pay":"")+'">'+(isE?"+":"")+fmtN(t.v)+'</span></button>'; }
@@ -1627,7 +1631,25 @@ async function saveDrafts(){
   toast(ok.length+(ok.length>1?" lançamentos salvos":" lançamento salvo")+(fixos?" · "+fixos+" como fixo todo mês":"")+
     (religados?" · "+religados+(religados>1?" pagamentos do extrato ligados ao cartão":" pagamento do extrato ligado ao cartão"):""));
   const sd=S.docSaldo; S.docSaldo=null;
-  if(sd&&sd.conta&&sd.saldo) setTimeout(()=>openAcerto(sd.conta,sd.saldo),700); }
+  if(sd&&sd.conta&&sd.saldo){ setTimeout(()=>openAcerto(sd.conta,sd.saldo),700); return; }
+  /* acabou de importar uma fatura: o pagamento dela pode já ter vindo do extrato do banco */
+  const fat=ok.filter(d=>d.origem==="fatura"&&d.cardId&&d.ym);
+  for(const d of fat) if(perguntarPagamentoDaFatura(d.cardId,d.ym)) break; }
+
+/* pergunta antes de deixar a fatura "a pagar" quando o pagamento já saiu da conta pelo extrato */
+function perguntarPagamentoDaFatura(cardId,ym){
+  const inv=cardInvoice(cardId,ym); if(inv.open<=0) return false;
+  const t=pagamentoJaLancado(cardId,ym,inv.open); if(!t) return false;
+  setTimeout(()=>sheet("Esta fatura já foi paga?",
+    '<div class="set"><div class="note"><b>'+esc(cardName(cardId))+' · fatura de '+esc(ymLabel(ym))+'</b>Falta pagar '+fmt(inv.open)+
+    ', e já existe um pagamento de '+fmt(t.v)+' em '+diaMesAno(t.d)+', saindo de '+esc(acctName(t.acct||acctOf(t.card)))+
+    (t.card&&t.card!==cardId?' (lançado no '+esc(cardName(t.card))+')':'')+'. Se for esta fatura, ligo os dois: o dinheiro não sai de novo da conta.</div></div>',
+    '<button class="btn ghost" id="pfN">Não é esta fatura</button><button class="btn" id="pfS">Sim, é esta</button>'),500);
+  setTimeout(()=>{ const n=$("#pfN"), y=$("#pfS"); if(!n||!y) return;
+    n.onclick=closeSheet;
+    y.onclick=async()=>{ await ligarPagamento(t,cardId,ym); closeSheet(); render();
+      toast("Fatura de "+ymLabel(ym)+" marcada como paga pelo lançamento de "+diaMesAno(t.d)+"."); }; },620);
+  return true; }
 
 /* =================== mês =================== */
 function renderMes(){
@@ -1712,9 +1734,9 @@ function renderContas(){
       const p=lim>0?Math.min(100,owed/lim*100):0;
       const bits=[c.closing>0?"fecha dia "+c.closing:"sem fechamento"];
       if(c.due>0) bits.push("vence dia "+c.due);
-      if(inv.paid>0) bits.push("pago "+fmtN(inv.paid));
+      if(inv.paid>0) bits.push(inv.open<=0?"paga":"pago "+fmtN(inv.paid));
       return '<div class="cardbox"><div class="cardbox-h"><span class="cardbox-n">'+esc(c.n)+'</span>'+
-        '<span class="cardbox-v">'+fmtN(inv.open)+'</span></div>'+
+        '<span class="cardbox-v">'+fmtN(Math.max(0,inv.open))+'</span></div>'+
         '<div class="cardbox-s">Fatura de '+esc(ymLabel(S.ym))+' · '+esc(bits.join(" · "))+'</div>'+
         (lim>0?'<div class="meter"><i class="'+(p>85?"bad":p>65?"warn":"")+'" style="width:'+p+'%"></i></div>'+
           '<div class="meter-s"><span>usado '+fmtN(owed)+'</span><span>livre '+fmtN(Math.max(0,lim-owed))+' de '+fmtN(lim)+'</span></div>'
@@ -1963,18 +1985,43 @@ function openCorrigirFatura(cid){
   $("#cfOk").onclick=async()=>{ const ym=$("#cfM").value||S.ym, delta=await acertarFatura(cid,ym,toCents($("#cfV").value));
     closeSheet(); render(); toast(delta?"Fatura de "+ymLabel(ym)+" corrigida em "+(delta>0?"+":"")+fmt(delta):"A fatura já batia"); }; }
 
+/* o pagamento desta fatura pode já ter saído da conta pelo extrato do banco, com outro nome, em outro cartão ou
+   com o mês errado. Procura um pagamento perto do vencimento que ainda não está contado nesta fatura. */
+function pagamentoJaLancado(cardId,ym,valor){
+  const c=creditCards().find(x=>x.id===cardId)||{};
+  const venc=c.due&&c.closing&&c.due<c.closing?ymShift(ym,1):ym;
+  const alvo=Date.parse(venc+"-"+pad(Math.min(c.due||daysIn(venc),daysIn(venc)))+"T12:00:00");
+  const perto=t=>Math.abs(Date.parse(t.d+"T12:00:00")-alvo)<=25*86400000;
+  const cand=allTx().filter(t=>t.k==="p"&&!(t.card===cardId&&t.ref===ym)&&perto(t))
+    .map(t=>({t,dif:Math.abs(t.v-valor)}))
+    .filter(x=>x.dif<=1||(valor>0&&x.dif<=Math.round(valor*0.02)))
+    .sort((a,b)=>a.dif-b.dif||Math.abs(Date.parse(a.t.d)-alvo)-Math.abs(Date.parse(b.t.d)-alvo));
+  return cand.length?cand[0].t:null; }
+async function ligarPagamento(t,cardId,ym){
+  const m=S.months[t.ym]; if(!m||!m.tx||!m.tx[t.id]) return;
+  Object.assign(m.tx[t.id],{card:cardId, ref:ym, raw:"Extrato · pagamento de fatura", u:Date.now()});
+  await saveMonth(t.ym); }
+
 function openPay(cardId){
   const c=S.cfg.cards.find(x=>x.id===cardId); if(!c) return;
   const inv=cardInvoice(cardId,S.ym), A=S.cfg.accounts||[];
   if(!A.length){ toast("Cadastre uma conta antes."); return; }
+  const ja=pagamentoJaLancado(cardId,S.ym,inv.open);
   sheet("Pagar fatura · "+c.n,
-    '<div class="set"><div class="set-f"><label>Valor</label><input id="yV" inputmode="decimal" value="'+fmtN(inv.open)+'"></div>'+
+    '<div class="set">'+
+    (ja?'<div class="note"><b>Esse pagamento já parece ter saído da conta</b>'+fmt(ja.v)+' em '+diaMesAno(ja.d)+
+      (ja.card&&ja.card!==cardId?' · lançado no '+esc(cardName(ja.card)):'')+(ja.ref&&ja.ref!==S.ym?' · como fatura de '+esc(ymLabel(ja.ref)):'')+
+      ' · sai de '+esc(acctName(ja.acct||acctOf(ja.card)))+'. Se for este, use <b>É este pagamento</b>: a fatura fica paga e o dinheiro não sai de novo da conta.</div>':'')+
+    '<div class="set-f"><label>Valor</label><input id="yV" inputmode="decimal" value="'+fmtN(inv.open)+'"></div>'+
     '<div class="two"><div class="set-f"><label>Sai de qual conta</label><select id="yA">'+optId(A,acctOf(cardId))+'</select></div>'+
     '<div class="set-f"><label>Quando</label><input id="yD" type="date" value="'+todayISO()+'"></div></div>'+
     '<div class="note"><b>Isso não é um gasto novo</b>Tira o dinheiro da conta e abate a fatura de '+esc(ymLabel(S.ym))+
     '. As compras já foram contadas no teto quando você comprou.</div></div>',
-    '<button class="btn ghost" id="yX">Cancelar</button><button class="btn" id="yOk">Pagar</button>');
-  $("#yX").onclick=closeSheet;
+    (ja?'<button class="btn ghost" id="yJa">É este pagamento</button>':'<button class="btn ghost" id="yX">Cancelar</button>')+
+    '<button class="btn" id="yOk">'+(ja?'Pagar mesmo assim':'Pagar')+'</button>');
+  const x=$("#yX"); if(x) x.onclick=closeSheet;
+  const j=$("#yJa"); if(j) j.onclick=async()=>{ await ligarPagamento(ja,cardId,S.ym); closeSheet(); render();
+    toast("Fatura de "+ymLabel(S.ym)+" marcada como paga pelo lançamento de "+diaMesAno(ja.d)+"."); };
   $("#yOk").onclick=async()=>{ const v=toCents($("#yV").value);
     if(!v){ toast("Coloque o valor."); return; }
     await commit({id:uid(),raw:"",v,desc:"Fatura "+c.n+" · "+ymLabel(S.ym),cat:"outros",method:"debito",
@@ -2745,7 +2792,7 @@ function pareceRepetido(d){
     if(t.k!==d.k||Math.abs(t.v-d.v)>1) continue;
     if(d.i0>1&&t.plan&&t.i===d.i0&&faturaDe(t)===alvo) return t;
     if(d.method==="credito"&&t.card&&d.cardId&&t.card!==d.cardId) continue;
-    if(Math.abs(dia(t.d)-dia(d.date))<=3*86400000) return t; }
+    if(Math.abs(dia(t.d)-dia(d.date))<=(d.k==="p"?6:3)*86400000) return t; }
   return null; }
 
 function openLinhaBoleto(erro){
@@ -3098,6 +3145,9 @@ function htmlExtrato(){
     corpo=linhaSaldo("Saldo em "+diaMes(ant+"-"+pad(daysIn(ant))),ini)+
       (M.length?M.map(m=>{ s+=m.v; return linhaExt(m.t,m.v,s,hoje); }).join(""):'<div class="empty" style="padding:14px">Nenhum movimento nesta conta em '+esc(ymLabel(ym))+'. O extrato se importa em Ajustes.</div>')+
       linhaSaldo(rotFim,s,true);
+    const credito=txOf(ym).filter(t=>t.k==="g"&&t.method==="credito").reduce((x,t)=>x+t.v,0);
+    if(credito) corpo+='<div class="ext-p">Compras no crédito em '+esc(ymLabel(ym))+': '+fmtN(credito)+
+      '. Elas não aparecem aqui — saem da conta no pagamento da fatura.</div>';
     const pend=fimMes>=hoje?fixedFor(ym).filter(f=>acctOf(f.card)===S.ext&&(S.cfg.cards.find(c=>c.id===f.card)||{}).type!=="credito"):[];
     if(pend.length) corpo+='<div class="ext-p">Fixos ainda não lançados: '+pend.map(f=>esc(f.name)+" "+fmtN(f.amount)+" (dia "+f.day+")").join(" · ")+'</div>';
   }
@@ -3168,7 +3218,7 @@ function procurarRepetidos(){
   const pares=repetidosDe(S.ext,S.ym);
   if(!pares.length){ toast("Nenhum lançamento repetido em "+ymLabel(S.ym)+"."); return; }
   openRepetido(pares,0); }
-function openRepetido(pares,i){
+function openRepetido(pares,i,aoDiferentes){
   if(i>=pares.length){ closeSheet(); render(); toast("Conferência dos repetidos terminada."); return; }
   const par=pares[i], a=par[0], b=par[1];
   const linha=(rot,t)=>'<div class="dup-l"><b>'+rot+':</b> '+esc(t.desc)+' · '+diaMesAno(t.d)+' · '+fmtN(t.v)+' · '+esc(catLabel(t))+
@@ -3177,8 +3227,26 @@ function openRepetido(pares,i){
     '<div class="set"><div class="dup">'+linha("Primeiro",a)+linha("Segundo",b)+'</div>'+
     '<div class="set-f"><span class="hint">Se foram duas compras de verdade, no mesmo valor e quase no mesmo dia, escolha <b>São diferentes</b>. Só apague se for a mesma coisa lançada duas vezes.</span></div></div>',
     '<button class="btn ghost" id="rpN">São diferentes</button><button class="btn danger" id="rpD">Apagar o segundo</button>');
-  $("#rpN").onclick=()=>openRepetido(pares,i+1);
-  $("#rpD").onclick=async()=>{ await removeTx(b.ym,b.id,false); toast("Apagado: "+b.desc); openRepetido(pares,i+1); }; }
+  $("#rpN").onclick=()=>{ if(aoDiferentes) aoDiferentes(par); openRepetido(pares,i+1,aoDiferentes); };
+  $("#rpD").onclick=async()=>{ await removeTx(b.ym,b.id,false); toast("Apagado: "+b.desc); openRepetido(pares,i+1,aoDiferentes); }; }
+
+/* dois pagamentos da mesma fatura: um veio do extrato, outro do botão Pagar fatura. Nunca apaga sozinho:
+   mostra os dois e pergunta. Um "são diferentes" fica guardado em cfg.pagPares e não volta a perguntar. */
+function pagamentosRepetidos(){
+  const L=allTx().filter(t=>t.k==="p").sort((a,b)=>a.d.localeCompare(b.d)), vistos=S.cfg.pagPares||[];
+  const dia=x=>Date.parse(x+"T12:00:00"), pares=[], usado={};
+  for(let i=0;i<L.length;i++) for(let j=i+1;j<L.length;j++){
+    const a=L[i], b=L[j]; if(usado[a.id]||usado[b.id]) continue;
+    if(Math.abs(a.v-b.v)>Math.max(100,Math.round(a.v*0.02))) continue;
+    if((a.acct||acctOf(a.card))!==(b.acct||acctOf(b.card))) continue;
+    if(Math.abs(dia(a.d)-dia(b.d))>8*86400000) continue;
+    if(vistos.indexOf(a.id+"|"+b.id)>=0) continue;
+    pares.push([a,b]); usado[a.id]=usado[b.id]=1; }
+  return pares; }
+function conferirPagamentosRepetidos(){
+  const pares=pagamentosRepetidos(); if(!pares.length) return false;
+  openRepetido(pares,0,par=>{ S.cfg.pagPares=(S.cfg.pagPares||[]).concat([par[0].id+"|"+par[1].id]).slice(-40); saveCfg(); });
+  return true; }
 
 /* =================== contas a pagar do mês =================== */
 /* tudo que vence no mês, em ordem de data: gastos fixos, parcelas de dívidas,
@@ -3615,6 +3683,8 @@ $("#mNext").onclick=()=>{ S.ym=ymShift(S.ym,1); render(); };
 loadLocal();
 render();
 boot();
+/* pagamento de fatura lançado duas vezes (extrato + botão Pagar): pergunta uma vez por sessão */
+setTimeout(()=>{ if($("#scrim").hidden) conferirPagamentosRepetidos(); },1600);
 </script>
 </body>
 </html>
