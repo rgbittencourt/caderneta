@@ -180,8 +180,10 @@ function lerExtratoEmBlocos(texto){
   const linhas=[];
   itens.forEach(it=>{
     const hist=it.hist||it.inline, det=limparDetalhe(it.hist?[it.inline,it.detalhe].filter(Boolean).join(" "):it.detalhe);
-    if(RE_RENDE_FACIL.test(semAcento(hist+" "+det).toLowerCase())){ aplicacoes++; return; }
     if(!it.v) return;
+    /* aplicação automática do saldo (BB Rende Fácil): vira transferência para a conta da aplicação */
+    const aplic=RE_RENDE_FACIL.test(semAcento(hist+" "+det).toLowerCase())?capitalizar(hist):"";
+    if(aplic){ aplicacoes++; linhas.push({d:it.d, desc:aplic, v:it.v, k:it.k, i0:1, n:1, aplic}); return; }
     const h=capitalizar(hist), d=capitalizar(det);
     const desc=d?(/^compra com cartao$/i.test(semAcento(hist))?d:h+" · "+d):h;
     linhas.push({d:it.d, desc:desc||"Lançamento do extrato", v:it.v, k:it.k, i0:1, n:1}); });
@@ -253,13 +255,13 @@ function saldosDoExtrato(texto,mes){
     if(m){ const dia=+m[1], mo=+m[2]; let y=m[3]?(m[3].length===2?2000+(+m[3]):+m[3]):0;
       if(dia>=1&&dia<=31&&mo>=1&&mo<=12){ if(!y){ y=ano; if(mo>mesRef+1) y=ano-1; } d=y+"-"+pad(mo)+"-"+pad(dia); } }
     if(/saldo (anterior|inicial)/.test(sem)){ if(!out.anterior) out.anterior={v,d}; return; }
-    if(/saldo (final|atual|do dia|disponivel|em conta)/.test(sem)||/^saldo\b/.test(sem)) out.final={v,d}; });
-  /* com BB Rende Fácil, o saldo impresso não conta o dinheiro aplicado. Só um saldo negativo é seguro:
-     se houvesse dinheiro aplicado, o banco teria coberto a conta com ele. */
-  if(RE_RENDE_FACIL.test(semAcento(texto||"").toLowerCase())){
-    out.rendeFacil=true; out.final=null;
-    if(out.anterior&&out.anterior.v>=0) out.anterior=null; }
-  return (out.anterior||out.final||out.rendeFacil)?out:null; }
+    /* "28/02/2026 S A L D O 3.629,98 (-)" no fim do extrato do BB: é o saldo do último dia, e vale mais que o do dia a dia */
+    if(/saldo (final|atual|do dia|disponivel|em conta)/.test(sem)||/^saldo\b/.test(sem)
+      ||/^\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?\s+saldo\b/.test(sem)) out.final={v,d}; });
+  /* as aplicações automáticas (BB Rende Fácil) entram como transferência para a conta da aplicação,
+     então o saldo impresso pelo banco vale como está */
+  if(RE_RENDE_FACIL.test(semAcento(texto||"").toLowerCase())) out.rendeFacil=true;
+  return (out.anterior||out.final)?out:null; }
 
 /* sem o tipo escolhido, tenta descobrir pelo conteúdo */
 function adivinharTipo(texto,codigo){

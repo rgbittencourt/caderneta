@@ -1630,8 +1630,13 @@ async function saveDrafts(){
   S.drafts=[]; render();
   toast(ok.length+(ok.length>1?" lançamentos salvos":" lançamento salvo")+(fixos?" · "+fixos+" como fixo todo mês":"")+
     (religados?" · "+religados+(religados>1?" pagamentos do extrato ligados ao cartão":" pagamento do extrato ligado ao cartão"):""));
+  /* aplicação automática: quando o banco resgata mais do que aplicou, a diferença é o rendimento */
+  const invs=[...new Set(ok.filter(d=>d.k==="t").map(d=>d.acct).concat(ok.filter(d=>d.k==="t").map(d=>d.acct2)))]
+    .filter(id=>id&&((S.cfg.accounts||[]).find(a=>a.id===id)||{}).type==="invest");
+  const datas=ok.map(d=>d.date).filter(Boolean).sort(), ate=datas[datas.length-1]||todayISO();
   const sd=S.docSaldo; S.docSaldo=null;
-  if(sd&&sd.conta&&sd.saldo){ setTimeout(()=>openAcerto(sd.conta,sd.saldo),700); return; }
+  if(sd&&sd.conta&&sd.saldo){ setTimeout(()=>openAcerto(sd.conta,sd.saldo,()=>perguntarRendimento(invs,ate)),700); return; }
+  if(perguntarRendimento(invs,ate)) return;
   /* acabou de importar uma fatura: o pagamento dela pode já ter vindo do extrato do banco */
   const fat=ok.filter(d=>d.origem==="fatura"&&d.cardId&&d.ym);
   for(const d of fat) if(perguntarPagamentoDaFatura(d.cardId,d.ym)) break; }
@@ -2742,11 +2747,13 @@ function mostrarLidos(r,op,anexar){
   st.textContent=n+(n>1?" lançamentos lidos ":" lançamento lido ")+de+
     (rep?" · "+rep+(rep>1?" parecem já lançados e ficaram desmarcados":" parece já lançado e ficou desmarcado"):"")+
     (r.estornos?" · "+r.estornos+(r.estornos>1?" estornos ficaram de fora":" estorno ficou de fora")+(r.anulados?" (com a cobrança de mesmo valor que "+(r.anulados>1?"eles anulam)":"ele anula)"):""):"")+
-    (r.aplicacoes?" · "+r.aplicacoes+" movimentos do BB Rende Fácil ficaram de fora: é o mesmo dinheiro da conta":"")+
+    (r.aplicacoes?" · "+r.aplicacoes+(r.aplicacoes>1?" movimentos":" movimento")+" da aplicação automática do saldo, entre a conta e a conta da aplicação":"")+
+    (S.contaCriada?" · criei a conta "+S.contaCriada+" para o dinheiro aplicado":"")+
     (r.cartaoDoc?" · cartão no documento: "+r.cartaoDoc:"")+
     (S.docSaldo&&S.docSaldo.saldo?" · o banco diz saldo de "+fmt(S.docSaldo.saldo.v)+" em "+diaMesAno(S.docSaldo.saldo.d):"");
   if(r.tipo==="fatura"||r.tipo==="extrato"){ const b=document.createElement("button"); b.className="mini"; b.style.marginLeft="8px";
     b.textContent="Fotografar mais uma página"; b.onclick=()=>{ S.docMais=true; $("#docCam").click(); }; st.appendChild(b); }
+  S.contaCriada="";
   renderDrafts(); $("#draftSec").scrollIntoView({behavior:"smooth",block:"start"}); }
 
 function rascunhosDoc(r,op){
@@ -2770,7 +2777,9 @@ function rascunhosDoc(r,op){
     if(r.tipo==="fatura"){ d.cardId=cardFat; d.method="credito"; d.ym=mesFat; d.porParcela=d.n>1;
       d.raw="Fatura de "+ymLabel(d.ym)+(d.i0>1?" · parcela "+d.i0+" de "+d.n+" — as seguintes já ficam reservadas":""); }
     else if(r.tipo==="extrato"){ const c=debitoDaConta(op.conta); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id;
-      d.method=d.k==="e"?"pix":"debito"; d.acct=op.conta||acctOf(d.cardId); d.raw="Extrato"; classificarLinhaExtrato(d); }
+      d.method=d.k==="e"?"pix":"debito"; d.acct=op.conta||acctOf(d.cardId); d.raw="Extrato";
+      if(l.aplic) d.aplic=l.aplic;
+      classificarLinhaExtrato(d); }
     else if(r.tipo==="boleto"){ const c=pagoCom||boletoCard||debitoDaConta(); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id; d.method=pagoCom?pagoCom.type:"boleto"; d.date=hoje;
       d.raw=l.vencimento?"Vence em "+l.vencimento.split("-").reverse().join("/"):"Boleto"; }
     else { const c=pagoCom||porBandeira(l.bandeira)||S.cfg.cards.find(x=>x.type===(l.metodo||"credito"))||S.cfg.cards[0];
@@ -3169,21 +3178,39 @@ function saldoDoDoc(r,drafts){
     if(s.anterior.d) return {v:s.anterior.v, d:s.anterior.d, rende};
     if(datas.length) return {v:s.anterior.v, d:new Date(Date.parse(datas[0]+"T12:00:00")-86400000).toISOString().slice(0,10), rende}; }
   return null; }
-function openAcerto(acctId,s){
+/* o rendimento não vem escrito no extrato: ele volta escondido dentro dos resgates. Se a conta da aplicação
+   ficou negativa, o banco devolveu mais do que tirou — a diferença é o rendimento. Nunca lança sozinho. */
+function perguntarRendimento(ids,ate){
+  for(const id of ids||[]){
+    const a=(S.cfg.accounts||[]).find(x=>x.id===id); if(!a) continue;
+    const v=-balanceOf(id,ate); if(v<=1) continue;
+    setTimeout(()=>{ sheet("Rendimento de "+a.n,
+      '<div class="set"><div class="note"><b>'+fmt(v)+'</b>Até '+diaMesAno(ate)+', o banco devolveu para a conta '+fmt(v)+
+      ' a mais do que tirou: é o que o dinheiro rendeu enquanto ficou aplicado. O extrato não traz essa linha — o valor vem junto com os resgates.</div>'+
+      '<div class="set-f"><span class="hint">Lançando, entra como <b>Rendimentos</b> em '+esc(a.n)+', não conta no teto de gastos e zera a conta da aplicação.</span></div></div>',
+      '<button class="btn ghost" id="rdX">Agora não</button><button class="btn good" id="rdOk">Lançar rendimento</button>');
+      $("#rdX").onclick=closeSheet;
+      $("#rdOk").onclick=async()=>{ await commit({id:uid(),raw:"",v,desc:"Rendimento de "+a.n,cat:"rend",
+        method:"pix",cardId:(S.cfg.cards.find(c=>c.type==="pix")||S.cfg.cards[0]||{}).id,acct:a.id,n:1,date:ate,time:"23:59",k:"e"});
+        closeSheet(); render(); toast("Rendimento de "+fmt(v)+" lançado em "+esc(a.n)+"."); }; },700);
+    return true; }
+  return false; }
+
+function openAcerto(acctId,s,depois){
   const a=(S.cfg.accounts||[]).find(x=>x.id===acctId); if(!a||!s||!s.d) return;
   const calc=balanceOf(acctId,s.d), dif=s.v-calc;
   sheet("Conferir o saldo da conta",
     '<div class="set"><div class="note"><b>'+esc(a.n)+'</b>O extrato diz que em '+diaMesAno(s.d)+' o saldo era '+fmt(s.v)+'.'+
-    (s.rende?' Como estava negativo, não havia nada no BB Rende Fácil: é o saldo inteiro da conta.':'')+'</div>'+
+    (s.rende?' As aplicações automáticas já entraram como transferência, então este é o saldo que dá para comparar.':'')+'</div>'+
     '<div class="linkrow"><div class="m"><div class="t">A Caderneta calcula</div><div class="s">no mesmo dia</div></div><span class="row-v">'+fmtN(calc)+'</span></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Diferença</div><div class="s">'+(dif===0?"está batendo":dif>0?"falta entrar dinheiro aqui":"tem gasto a mais aqui")+'</div></div>'+
     '<span class="row-v'+(dif>0?" plus":"")+'">'+(dif>0?"+":"")+fmtN(dif)+'</span></div>'+
     (dif?'<div class="set-f"><span class="hint">Acertando, a diferença fica registrada como acerto e o saldo passa a bater com o do banco. Faça isso depois de conferir os lançamentos do extrato: a diferença pode ser só coisa que ainda não foi lançada.</span></div>':'')+'</div>',
     '<button class="btn ghost" id="acX">Deixar como está</button>'+(dif?'<button class="btn" id="acOk">Acertar</button>':''));
-  $("#acX").onclick=closeSheet;
+  $("#acX").onclick=()=>{ closeSheet(); if(depois) depois(); };
   const ok=$("#acOk");
   if(ok) ok.onclick=async()=>{ await acertarSaldo(acctId,s.d,s.v);
-    closeSheet(); render(); toast("Saldo acertado em "+(dif>0?"+":"")+fmt(dif)); }; }
+    closeSheet(); render(); toast("Saldo acertado em "+(dif>0?"+":"")+fmt(dif)); if(depois) depois(); }; }
 
 /* na conferência: mostra o que já está lançado e pergunta antes de descartar */
 function dupHTML(d,i){
@@ -3475,12 +3502,23 @@ function classificarLinhaExtrato(d){
     const car=(S.cfg.accounts||[]).find(a=>a.type==="carteira");
     d.k="t"; d.method="transferencia"; d.cardId="transf"; d.n=1; d.acct2=car?car.id:"";
     d.raw="Extrato · saque, vai para "+(car?car.n:"fora do app"); return; }
-  if(/\b(aplic\w*|resgate\w*|poupanca|investimento\w*|rdb|cdb|lci|lca|tesouro|caixinha\w*|cofrinho\w*|porquinho\w*)\b/.test(s)){
-    const A=S.cfg.accounts||[], inv=A.find(a=>a.type==="invest")||A.find(a=>a.type==="poupanca");
+  if(d.aplic||/\b(aplic\w*|resgate\w*|poupanca|investimento\w*|rdb|cdb|lci|lca|tesouro|caixinha\w*|cofrinho\w*|porquinho\w*)\b/.test(s)){
+    const inv=contaDaAplicacao(d.aplic||"");
     const conta=d.acct, entra=d.k==="e"||/\bresgate/.test(s);
-    d.k="t"; d.method="transferencia"; d.n=1;
+    d.k="t"; d.method="transferencia"; d.cardId="transf"; d.n=1;
     d.acct=entra?(inv?inv.id:""):conta; d.acct2=entra?conta:(inv?inv.id:"");
-    d.raw="Extrato · "+(entra?"resgate":"aplicação")+", movimento entre contas"; } }
+    d.raw="Extrato · "+(entra?"resgate":"aplicação")+(inv?", entre a conta e "+inv.n:", movimento entre contas"); } }
+
+/* a aplicação automática do saldo (BB Rende Fácil) tem conta própria: o dinheiro continua sendo dele, mas
+   sai da conta corrente, que assim fica igual ao extrato do banco. A conta é criada na primeira importação. */
+function contaDaAplicacao(nome){
+  const A=S.cfg.accounts=S.cfg.accounts||[], alvo=norm(nome||"");
+  let c=alvo&&A.find(a=>norm(a.n)===alvo);
+  if(!c&&alvo) c=A.find(a=>a.type==="invest"&&norm(a.n).indexOf(alvo)>=0);
+  if(!c) c=A.find(a=>a.type==="invest");
+  if(!c&&!nome) c=A.find(a=>a.type==="poupanca");
+  if(!c&&nome){ c={id:uid(),n:nome,type:"invest",opening:0,openDate:"",adjust:[]}; A.push(c); S.contaCriada=c.n; saveCfg(); }
+  return c||null; }
 
 /* extrato importado antes da fatura: o pagamento ficou com "confira o cartão". Quando a fatura chega, ele vai para o
    cartão cuja fatura tem exatamente o valor pago. */
