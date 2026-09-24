@@ -2903,7 +2903,10 @@ function pareceRepetido(d){
   for(const ym of meses) for(const t of txOf(ym)){
     if(t.k!==d.k||Math.abs(t.v-d.v)>1) continue;
     if(d.i0>1&&t.plan&&t.i===d.i0&&faturaDe(t)===alvo) return t;
-    if(d.method==="credito"&&t.card&&d.cardId&&t.card!==d.cardId) continue;
+    /* cartão diferente: só é o mesmo gasto se a descrição também bate (na fala é fácil dizer o cartão errado) */
+    if(d.method==="credito"&&t.card&&d.cardId&&t.card!==d.cardId){
+      const pa=norm(t.desc).split(" ").filter(w=>w.length>3), pb=norm(d.desc).split(" ").filter(w=>w.length>3);
+      if(!pa.length||!pa.some(w=>pb.indexOf(w)>=0)) continue; }
     if(Math.abs(dia(t.d)-dia(d.date))<=(d.k==="p"?6:3)*86400000) return t; }
   return null; }
 
