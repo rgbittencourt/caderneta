@@ -398,8 +398,16 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <div class="dica">
   <b>Para funcionar, informe as datas</b>
-  Em <b>Ajustes → Formas de pagamento</b>, cada cartão precisa do dia de fechamento e do dia de vencimento. Ao importar uma fatura, o app aprende o fechamento sozinho.
+  Em <b>Ajustes → Formas de pagamento</b>, cada cartão precisa do dia de fechamento e do dia de vencimento. Ao importar uma fatura, o app aprende essas datas sozinho.
 </div>
+
+<h3>As datas mudam todo mês</h3>
+<p>O banco ajusta o fechamento pelos dias úteis: no Ourocard, por exemplo, a fatura fechou no dia 6 em janeiro e no dia 4 em fevereiro. Por isso, cada fatura traz impressas duas datas que o app guarda ao importar:</p>
+<ul>
+  <li><b>Fechamento da próxima fatura</b> — a data exata do próximo ciclo. Enquanto ela não chega, é ela que vale no cálculo, e o app avisa que aquela data veio da fatura.</li>
+  <li><b>Melhor data de compra</b> — o dia em que comprar rende o prazo máximo. Ela aparece junto com a recomendação.</li>
+</ul>
+<p>A fatura que fecha hoje já traz o fechamento do mês seguinte: importando cada fatura quando ela sai, você fica sempre um ciclo à frente. Sem essas datas, o app estima pelo dia do mês — o erro é de um ou dois dias.</p>
 
 <h3>Como o app trata o crédito</h3>
 <ul>

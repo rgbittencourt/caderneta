@@ -195,11 +195,23 @@ function lerLancamentos(texto,tipo,mes){
   let ref=(mes||mesDeHoje()).split("-").map(Number);
   const fatura=tipo!=="extrato";
   const linhas=[], creditos=[]; let ignoradas=0, estornos=0, anulados=0, dataDoDia=null, saldoAnterior=0, pagoAnterior=0;
-  let brutas=String(texto||"").split(/\r?\n/), fechada="", cartao="";
+  let brutas=String(texto||"").split(/\r?\n/), fechada="", cartao="", vencimento="", proxFechamento="", melhorCompra="";
   if(fatura){
     /* a data de fechamento diz o ano das compras sem ano ("22/12" numa fatura fechada em 23/12/2025) */
     const f=semAcento(texto||"").match(/(?:fatura fechada em|data de fechamento|fechamento da fatura)\D{0,12}(\d{2})\/(\d{2})\/(\d{4})/i);
     if(f){ fechada=f[3]+"-"+f[2]+"-"+f[1]; ref=[+f[3],+f[2]]; }
+    /* o banco muda o dia a cada mês e imprime as datas do ciclo seguinte */
+    const sem2=semAcento(texto||"");
+    const px=sem2.match(/fechamento da proxima fatura\D{0,14}(\d{2})\/(\d{2})\/(\d{4})/i);
+    if(px) proxFechamento=px[3]+"-"+px[2]+"-"+px[1];
+    const mc=sem2.match(/melhor data de compra\D{0,14}(\d{2})\/(\d{2})\/(\d{4})/i);
+    if(mc) melhorCompra=mc[3]+"-"+mc[2]+"-"+mc[1];
+    /* o vencimento é a primeira data cheia do resumo, antes da tabela de lançamentos */
+    const iCab=brutas.findIndex(l=>/^\s*data\s+descri/i.test(semAcento(l)));
+    const resumo=(iCab>=0?brutas.slice(0,iCab):brutas).join("\n");
+    const vs=resumo.replace(/(?:fatura fechada em|fechamento da proxima fatura|melhor data de compra)\D{0,14}\d{2}\/\d{2}\/\d{4}/gi," ")
+      .match(/\b(\d{2})\/(\d{2})\/(\d{4})\b/);
+    if(vs) vencimento=vs[3]+"-"+vs[2]+"-"+vs[1];
     const c=String(texto||"").match(/fatura de\s+(.{3,40}?)\s+final\s+(\d{4})/i); if(c) cartao=c[1].trim()+" final "+c[2];
     /* só a tabela de lançamentos, quando ela tem cabeçalho: o resto da fatura é resumo, juros e avisos */
     const ini=brutas.findIndex(l=>/^\s*data\s+descri/i.test(semAcento(l)));
@@ -248,7 +260,7 @@ function lerLancamentos(texto,tipo,mes){
      os dois ficam de fora */
   creditos.forEach(c=>{ const j=linhas.findIndex(l=>l.v===c.v&&l.i0===c.i0&&l.n===c.n);
     if(j>=0){ linhas.splice(j,1); anulados++; } });
-  return {linhas, ignoradas, estornos, anulados, fechada, cartao, saldoAnterior, pagoAnterior}; }
+  return {linhas, ignoradas, estornos, anulados, fechada, cartao, vencimento, proxFechamento, melhorCompra, saldoAnterior, pagoAnterior}; }
 
 /* ---- saldo que o próprio banco imprime: serve para acertar a conta ---- */
 function saldosDoExtrato(texto,mes){

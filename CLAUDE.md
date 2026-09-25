@@ -173,6 +173,7 @@ Cada achado tem gravidade (crítico, atenção, informação, boa notícia), um 
 - Todo gráfico tem `tableView` logo abaixo, com os números.
 - Fontes: IBM Plex Sans (interface) e IBM Plex Mono (valores).
 - Celular: abas embaixo; Futuro, Meta, Análises e Ajustes ficam em *Mais*. A partir de 960px: menu lateral.
+- **Datas do cartão vêm da fatura:** o leitor guarda `fechada`, `vencimento` (a primeira data cheia do resumo), `proxFechamento` ("Fechamento da próxima fatura") e `melhorCompra` ("Melhor data de compra"). Ao importar, a fatura mais recente já lida (`c.fatLida`) atualiza `closing`, `due`, `proxFecha` e `melhorDia` do cartão — o BB muda o dia a cada mês (fechou 06/01 e 04/02 nas faturas reais do dono). `prazoCartao` usa `proxFecha` enquanto ela não passa; depois, estima pelo dia.
 - **Melhor cartão para comprar hoje (pedido do dono, 25/09/2026):** `prazoCartao` + `melhoresCartoes` + `htmlMelhorCartao`, no Painel (depois dos saldos) e no alto de Lançar. A compra de hoje entra na fatura que ainda vai fechar (`closing`; se o dia já passou, a do mês seguinte) e essa fatura vence no `due` — no mês seguinte ao fechamento quando `due <= closing`. Ordena pelo maior prazo em dias; cartão sem limite livre cai para o fim; sem `closing`/`due`, pede o cadastro.
 - **Painel, logo no topo (pedido do dono, 25/09/2026):** `htmlBancoCartoes` — *No banco hoje* (soma das contas, com a carteira à parte e uma linha por conta) e *Lançado nos cartões* (a fatura do mês de cada cartão, com o que está em aberto e o limite livre). Tocar numa linha abre o extrato daquela conta ou cartão na aba Contas.
 - **Cadastrar dívida fica em Lançar**, no fim, junto com as importações (`htmlDividasLancar`): é coisa que se faz uma vez por dívida. O acompanhamento (saldo, juros, simulação) continua em Análises.
@@ -205,7 +206,7 @@ Primeira publicação num computador novo: o dono autoriza no navegador (Git Cre
 
 ## Situação e próximos passos
 
-- **Publicado:** `caderneta-v37` (25/09/2026). O que existe está descrito acima; os commits contam a ordem.
+- **Publicado:** `caderneta-v38` (25/09/2026). O que existe está descrito acima; os commits contam a ordem.
 - **O que o dono está fazendo:** carregando os extratos da conta corrente e as faturas dos cartões (Visa, Mastercard, Elo) de janeiro a setembro de 2026, todos em PDF, no MacBook Air, depois de usar *Recomeçar do zero*. O passo a passo está no README, em *Importar meses anteriores*.
 - **Documentos reais (15/09/2026):** o dono mandou, por iniciativa própria, o extrato da conta corrente do BB de jan/2026 e uma fatura Ourocard Mastercard. Até a v14 o extrato vinha com descrições erradas (lote e documento no lugar do nome) e o Rende Fácil contado como gasto e entrada; a fatura lia taxas de juros como compras. Os formatos estão descritos acima e foram conferidos com os dois PDFs, que **não** estão no repositório. A fatura recebida só tinha anuidade e desconto; compras parceladas no formato do BB foram testadas com linhas simuladas. Se outro documento falhar, peça a *amostra sem dados*.
 - **Consignados:** ele tem dois — um pagando a 4ª de 12 em setembro de 2026, outro com a 1ª parcela em 01/10/2026. Depois do Recomeçar, precisam ser cadastrados de novo, com a data real do empréstimo e 0 já descontadas, antes de importar janeiro.

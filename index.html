@@ -1472,16 +1472,19 @@ function tone(v,limit){ return v>limit?"bad":v>limit*0.85?"warn":""; }
 /* melhor cartão para comprar hoje: o que demora mais para cobrar. A compra de hoje entra na fatura que ainda
    vai fechar; essa fatura vence no dia do vencimento — no mês seguinte, quando o vencimento vem antes do fechamento. */
 function prazoCartao(c,hoje){
-  if(!c.closing||!c.due) return null;
+  if(!c.due||(!c.closing&&!c.proxFecha)) return null;
   const Y=+hoje.slice(0,4), M=+hoje.slice(5,7), D=+hoje.slice(8,10);
-  let fy=Y, fm=M;
-  if(D>c.closing){ fm++; if(fm>12){ fm=1; fy++; } }
-  const fecha=fy+"-"+pad(fm)+"-"+pad(Math.min(c.closing,new Date(fy,fm,0).getDate()));
+  let fy=Y, fm=M, exata=false;
+  if(c.closing&&D>c.closing){ fm++; if(fm>12){ fm=1; fy++; } }
+  let fecha=fy+"-"+pad(fm)+"-"+pad(Math.min(c.closing||28,new Date(fy,fm,0).getDate()));
+  /* a própria fatura diz quando fecha a próxima: enquanto essa data não passou, é ela que vale */
+  if(c.proxFecha&&c.proxFecha>=hoje&&c.proxFecha<=fecha){ fecha=c.proxFecha; fy=+fecha.slice(0,4); fm=+fecha.slice(5,7); exata=true; }
+  else if(c.proxFecha&&c.proxFecha>=hoje&&!c.closing){ fecha=c.proxFecha; fy=+fecha.slice(0,4); fm=+fecha.slice(5,7); exata=true; }
   let py=fy, pm=fm;
-  if(c.due<=c.closing){ pm++; if(pm>12){ pm=1; py++; } }
+  if(c.due<=+fecha.slice(8,10)){ pm++; if(pm>12){ pm=1; py++; } }
   const paga=py+"-"+pad(pm)+"-"+pad(Math.min(c.due,new Date(py,pm,0).getDate()));
   const dias=Math.round((Date.parse(paga+"T12:00:00")-Date.parse(hoje+"T12:00:00"))/86400000);
-  return {fecha,paga,dias,fat:fy+"-"+pad(fm)}; }
+  return {fecha,paga,dias,exata,fat:fy+"-"+pad(fm),melhor:(c.melhorDia&&c.melhorDia>=hoje)?c.melhorDia:""}; }
 function melhoresCartoes(){
   const hoje=todayISO();
   return creditCards().map(c=>{ const p=prazoCartao(c,hoje), livre=c.limit?Math.max(0,c.limit-cardOwed(c.id)):null;
@@ -1504,8 +1507,9 @@ function htmlMelhorCartao(){
     (top
       ? '<span class="tile-v" style="font-size:26px">'+esc(top.c.n)+'</span>'+
         '<div class="tile-s">A compra de hoje entra na fatura de '+esc(ymLabel(top.p.fat))+', que fecha em '+diaMes2(top.p.fecha)+
-        ' e vence em '+diaMes2(top.p.paga)+': são <b>'+top.p.dias+(top.p.dias===1?" dia":" dias")+'</b> até o dinheiro sair da conta.'+
-        (top.livre!==null?" Limite livre de "+fmtN(top.livre)+".":"")+'</div>'
+        (top.p.exata?" (data impressa na fatura)":"")+' e vence em '+diaMes2(top.p.paga)+': são <b>'+top.p.dias+(top.p.dias===1?" dia":" dias")+'</b> até o dinheiro sair da conta.'+
+        (top.livre!==null?" Limite livre de "+fmtN(top.livre)+".":"")+
+        (top.p.melhor?" O banco indica "+diaMes2(top.p.melhor)+" como melhor data de compra.":"")+'</div>'
       : '<span class="tile-v" style="font-size:20px">Falta o fechamento</span>'+
         '<div class="tile-s">Informe o dia de fechamento e o de vencimento de cada cartão em Ajustes → Formas de pagamento.</div>')+
     (L.length>1?'<div style="margin-top:10px">'+L.map(linha).join("")+'</div>':'')+
@@ -2286,7 +2290,11 @@ const AJUDA=[
  {g:"Cartões",t:"Qual cartão é melhor usar hoje?",
   c:"O app calcula e mostra no alto do Painel e da aba Lançar: é o cartão cuja compra de hoje demora mais para ser cobrada. Ele diz em que fatura a compra entra, quando essa fatura fecha, quando vence e quantos dias faltam até o dinheiro sair da conta — e lista os outros cartões em ordem.",a:"cartoes"},
  {g:"Cartões",t:"O app diz \"falta o fechamento\" nos cartões",
-  c:"Informe o dia de fechamento e o de vencimento de cada cartão em Ajustes → Formas de pagamento. Sem eles, o app não tem como calcular o prazo. Ao importar uma fatura, ele aprende o fechamento sozinho.",a:"cartoes"},
+  c:"Informe o dia de fechamento e o de vencimento de cada cartão em Ajustes → Formas de pagamento. Sem eles, o app não tem como calcular o prazo. Ao importar uma fatura, ele aprende essas datas sozinho.",a:"cartoes"},
+ {g:"Cartões",t:"As datas do cartão mudam de um mês para o outro?",
+  c:"Mudam: o banco ajusta o fechamento pelos dias úteis — no Ourocard, por exemplo, fechou dia 6 em janeiro e dia 4 em fevereiro. Cada fatura traz impressas a data do próximo fechamento e a melhor data de compra, e o app guarda as duas ao importar. Enquanto essa data não chega, é ela que manda; depois, ele volta a estimar pelo dia do mês, que erra no máximo um ou dois dias.",a:"cartoes"},
+ {g:"Cartões",t:"Só vou saber a data exata quando importar a fatura?",
+  c:"A fatura que fecha hoje já traz o fechamento do mês seguinte. Importando cada fatura quando ela sai, você fica sempre um ciclo à frente — não perde dias. E mesmo sem importar, o app já indica o melhor cartão pela estimativa do dia.",a:"cartoes"},
  {g:"Cartões",t:"A compra no cartão sai da minha conta?",
   c:"Não. Ela conta como gasto no mês em que foi feita e entra nas análises, mas o dinheiro só sai quando a fatura é paga. Cada linha mostra a marca crédito · não sai da conta.",a:"cartoes"},
  {g:"Cartões",t:"A fatura aparece atrasada, mas eu paguei",
@@ -3114,10 +3122,17 @@ function rascunhosDoc(r,op){
     const escolhido=creditCards().find(c=>c.id===op.card), doc=creditCards().find(c=>fim&&nomes(c).indexOf(fim)>=0)||creditCards().find(bate);
     if(doc&&!(escolhido&&bate(escolhido))) cardFat=doc.id;
     r.cartaoDoc=r.cartao.toLowerCase().replace(/(^|\s)\S/g,x=>x.toUpperCase())+(doc?" ("+doc.n+")":" — confira o cartão"); }
-  /* a fatura traz o dia do fechamento: o app aprende, para saber em que fatura cai uma compra lançada por fala */
-  if(r.tipo==="fatura"&&r.fechada){ const c=creditCards().find(x=>x.id===cardFat);
-    if(c&&!c.closing){ c.closing=+r.fechada.slice(8,10)||0;
-      if(c.closing){ S.fechamentoAprendido=c.n+" fecha dia "+c.closing; saveCfg(); } } }
+  /* a fatura ensina as datas do cartão. O banco muda o dia a cada mês, então vale a fatura mais recente já lida,
+     e a data exata do próximo fechamento ("Fechamento da próxima fatura") entra no cálculo do melhor cartão. */
+  if(r.tipo==="fatura"&&cardFat&&(r.fechada||r.proxFechamento)){
+    const c=creditCards().find(x=>x.id===cardFat);
+    if(c&&r.fechada&&(!c.fatLida||r.fechada>=c.fatLida)){
+      let mudou=false; c.fatLida=r.fechada;
+      const d=+r.fechada.slice(8,10)||0; if(d&&d!==c.closing){ c.closing=d; mudou=true; }
+      const v=r.vencimento?+r.vencimento.slice(8,10):0; if(v&&v!==c.due){ c.due=v; mudou=true; }
+      if(r.proxFechamento&&r.proxFechamento>todayISO()){ c.proxFecha=r.proxFechamento; mudou=true; }
+      if(r.melhorCompra&&r.melhorCompra>todayISO()){ c.melhorDia=r.melhorCompra; mudou=true; }
+      if(mudou){ S.fechamentoAprendido=c.n+" fecha dia "+c.closing+(c.due?" e vence dia "+c.due:""); saveCfg(); } } }
   /* o que faltou pagar da fatura anterior volta cobrado nesta. Só entra quando a fatura anterior não está no app —
      se estiver, ela mesma já mostra o que falta pagar, e lançar de novo contaria o gasto duas vezes. */
   const extras=[];
