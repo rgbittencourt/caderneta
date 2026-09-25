@@ -370,6 +370,7 @@ table.dv td.n{text-align:right;font-family:var(--f-m);font-variant-numeric:tabul
   border-bottom:1px solid var(--line)}
 .linkrow:last-child{border-bottom:0}
 .linkrow.wrap{flex-wrap:wrap}.linkrow.wrap .m{flex:1 1 190px}
+.linkrow.clicavel{cursor:pointer}.linkrow.clicavel:hover .t{color:var(--accent)}
 .linkrow .acts{display:flex;gap:6px;flex-wrap:wrap}
 .linkrow .m{flex:1;min-width:0}
 .linkrow .t{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1419,14 +1420,43 @@ function render(){
 
 /* =================== painel =================== */
 function tone(v,limit){ return v>limit?"bad":v>limit*0.85?"warn":""; }
+/* logo de cara no Painel: quanto tem no banco, conta por conta, e quanto já foi lançado em cada cartão */
+function htmlBancoCartoes(){
+  const hoje=todayISO(), A=S.cfg.accounts||[];
+  const linha=(nome,valor,sub,attr)=>'<div class="linkrow'+(attr?' clicavel':'')+'"'+(attr||"")+'><div class="m"><div class="t">'+esc(nome)+'</div>'+
+    (sub?'<div class="s">'+esc(sub)+'</div>':'')+'</div><span class="row-v'+(valor<0?' neg':'')+'">'+fmtN(valor)+'</span></div>';
+  const contas=A.map(a=>({a, v:balanceOf(a.id,hoje)}));
+  const banco=contas.filter(x=>x.a.type!=="carteira").reduce((s,x)=>s+x.v,0);
+  const C=creditCards().map(c=>({c, fat:cardInvoice(c.id,S.ym).total, devo:cardOwed(c.id)}));
+  const totalFat=C.reduce((s,x)=>s+x.fat,0);
+  return '<div class="sec"><div class="grid g2">'+
+    '<div class="card pad"><div class="tile-l">No banco hoje</div>'+
+    '<span class="tile-v" style="font-size:30px;color:'+(banco<0?"var(--bad)":"var(--ink)")+'">'+fmt(banco)+'</span>'+
+    '<div class="tile-s" style="margin-bottom:8px">Somando as contas; o dinheiro da carteira aparece à parte.</div>'+
+    (contas.length?contas.map(x=>{ const t=ACCT_TIPO[x.a.type]||x.a.type;
+      return linha(x.a.n,x.v,norm(t)===norm(x.a.n)?"":t,' data-irext="'+x.a.id+'"'); }).join("")
+      :'<div class="empty" style="padding:14px">Cadastre suas contas em Ajustes.</div>')+
+    '</div>'+
+    '<div class="card pad"><div class="tile-l">Lançado nos cartões · fatura de '+esc(ymLabel(S.ym))+'</div>'+
+    '<span class="tile-v" style="font-size:30px">'+fmt(totalFat)+'</span>'+
+    '<div class="tile-s" style="margin-bottom:8px">Compra no crédito só sai da conta quando a fatura é paga.</div>'+
+    (C.length?C.map(x=>linha(x.c.n,x.fat,
+      "em aberto "+fmtN(x.devo)+(x.c.limit?" · livre "+fmtN(Math.max(0,x.c.limit-x.devo)):""),
+      ' data-irext="card:'+x.c.id+'"')).join("")
+      :'<div class="empty" style="padding:14px">Cadastre seus cartões em Ajustes.</div>')+
+    '</div></div></div>'; }
+
 function renderPainel(){
   const st=monthStats(S.ym), pr=projectMonth(S.ym);
   const usado=st.spent+st.commit, pctTeto=st.cap?Math.min(100,usado/st.cap*100):0;
   const cls=st.cap?tone(usado,st.cap):"";
   const availColor=st.avail<0?"var(--bad)":"var(--ink)";
 
+  /* o mais básico primeiro: dinheiro no banco e o que já está lançado em cada cartão */
+  let html=htmlBancoCartoes();
+
   /* hero + tiles */
-  let html='<div class="sec"><div class="grid g23">'+
+  html+='<div class="sec"><div class="grid g23">'+
     '<div class="hero"><div class="hero-l">Disponível até o fim de '+esc(ymLabel(S.ym))+'</div>'+
     '<span class="hero-v" style="color:'+availColor+'">'+fmt(st.avail)+'</span>'+
     '<div class="hero-s">'+(st.cap?("Teto de "+fmt(st.cap)+" · já usou "+fmt(usado)):"Defina seu teto em Ajustes")+'</div>'+
@@ -1490,6 +1520,8 @@ function renderPainel(){
     '</div></div>';
 
   $("#p-painel").innerHTML=topNotices()+html; bindInstall(); bindContas($("#p-painel"));
+  $$("[data-irext]").forEach(b=>b.onclick=()=>{ S.ext=b.dataset.irext; setView("contas");
+    setTimeout(()=>{ const x=$("#extSec"); if(x) x.scrollIntoView({behavior:"smooth",block:"start"}); },60); });
   bindTips($("#p-painel"));
 }
 function tile(l,v,d,dir){
@@ -1540,7 +1572,7 @@ function renderLancar(){
     '<button class="btn good" id="entBtn">+ Entrada (salário, freela…)</button>'+
     '<button class="btn ghost" id="gasBtn">+ Gasto na mão</button>'+
     '<button class="btn ghost" id="trfBtn">Transferir entre contas</button></div>'+
-    htmlLeitorDoc("extrato")+htmlLeitorDoc("gastos")+
+    htmlLeitorDoc("extrato")+htmlLeitorDoc("gastos")+htmlDividasLancar()+
     '<div id="parseStatus" style="font-size:12px;color:var(--ink-3);margin-top:10px" hidden></div></div>'+
     '<div class="sec" id="draftSec" hidden><div class="sec-h"><h2 class="sec-t">Confira antes de salvar</h2></div>'+
     '<div id="drafts"></div><div class="sheet-acts" style="max-width:420px">'+
@@ -1557,11 +1589,28 @@ function renderLancar(){
   $("#entBtn").onclick=()=>openManual("e");
   $("#gasBtn").onclick=()=>openManual("g");
   $("#trfBtn").onclick=openTransfer; montarLeitorDoc();
+  $$("[data-divnova]",$("#p-lancar")).forEach(b=>b.onclick=()=>openDivida(""));
+  $$("[data-div]",$("#p-lancar")).forEach(b=>b.onclick=()=>openDivida(b.dataset.div));
   $("#aiBtn").hidden=!S.ai; $("#aiBtn").onclick=aiParse;
   $("#exBtn").onclick=()=>{ $("#say").value="Vinte e três reais, almoço no IFSC, cartão de crédito Visa. Trezentos e oitenta reais na Kit Jolo, em três vezes no crédito Mastercard. Caiu o salário, dezesseis mil reais."; readInput(); };
   setupMic();
   if(S.drafts.length) renderDrafts();
 }
+/* cadastrar dívidas fica junto com as importações, no fim de Lançar: é coisa que se faz uma vez por dívida */
+function htmlDividasLancar(){
+  const L=(S.cfg.dividas||[]).map(dv=>({dv,e:estadoDivida(dv)}));
+  const ativas=L.filter(x=>x.e.n>0);
+  return '<div class="card pad" style="margin-top:14px"><div class="sec-h" style="margin-bottom:10px">'+
+    '<h2 class="sec-t">Dívidas e empréstimos</h2><button class="sec-a" data-divnova>Cadastrar dívida</button></div>'+
+    (L.length
+      ? L.map(x=>'<div class="linkrow"><div class="m"><div class="t">'+esc(x.dv.nome||"Dívida")+'</div>'+
+          '<div class="s">'+esc((x.dv.folha||x.dv.tipo==="consignado"?"Sai do salário · ":"")+
+            (x.e.n>0?"parcela "+Math.min(x.e.pagas+1,x.e.total)+" de "+x.e.total+" · "+fmtN(x.e.P)+" por mês":"quitada"))+'</div></div>'+
+          '<button class="mini" data-div="'+x.dv.id+'">Editar</button></div>').join("")+
+        (ativas.length?'<div class="say-hint" style="margin-top:9px">Somando '+fmt(ativas.reduce((s,x)=>s+x.e.P,0))+' por mês. O acompanhamento completo fica na aba Análises.</div>':"")
+      : '<div class="say-hint">Consignado, empréstimo ou financiamento: cadastre uma vez, com o valor da parcela e em qual parcela você está. O app lança sozinho todo mês e acompanha o saldo em Análises.</div>')+
+    '</div>'; }
+
 function renderDrafts(){
   const box=$("#drafts"); if(!box) return;
   $("#draftSec").hidden=!S.drafts.length;
