@@ -45,6 +45,8 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **A fatura entra no mês em que ela fechou:** a fatura que fechou em 23/12 é a "fatura de dezembro", mesmo pagando em janeiro — é assim que o pagamento do extrato encontra ela. Se alguma fatura entrou no mês errado, use Ajustes → *Corrigir fatura* → **Apagar esta fatura** e importe o arquivo de novo; o pagamento não é apagado.
 
+**Fatura paga em pedaços:** quando o banco debita a fatura em partes, o app soma os pedaços. Enquanto falta, ele mostra *pagamento parcial de X em N vezes*; quando fecha, *paga em N pagamentos*. Pedaços da mesma fatura não são tratados como pagamento repetido.
+
 **Pagamento da fatura, sem sair duas vezes:** o pagamento aparece no extrato do banco ("Pagto cartão crédito") e também pode ser lançado pelo botão *Pagar fatura*. O app procura, perto do vencimento, um pagamento do mesmo valor que já tenha saído da conta:
 - no botão *Pagar fatura*, ele avisa e oferece **É este pagamento** — a fatura fica paga e o dinheiro não sai de novo;
 - ao importar a fatura, se ela ficaria em aberto, ele pergunta se o pagamento que já está lançado é dela;

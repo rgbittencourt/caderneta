@@ -1159,6 +1159,7 @@ function cardInvoice(cardId,ym){ let total=0,paid=0;
     else if(t.k==="p"&&t.ref===ym) paid+=t.v; });
   return {total,paid,open:total-paid}; }
 const comprasDaFatura=(cardId,ym)=>allTx().filter(t=>t.card===cardId&&t.k==="g"&&t.method==="credito"&&faturaDe(t)===ym);
+const pagamentosDaFatura=(cardId,ym)=>allTx().filter(t=>t.k==="p"&&t.card===cardId&&t.ref===ym).sort((a,b)=>a.d.localeCompare(b.d));
 const creditCards=()=>(S.cfg.cards||[]).filter(c=>c.type==="credito");
 function fixedFor(ym){ const done=new Set(txOf(ym).map(t=>t.fix).filter(Boolean));
   return (S.cfg.fixed||[]).filter(f=>f.amount&&!done.has(f.id)&&(!f.ate||ym<=f.ate)&&(!f.desde||ym>=f.desde)).concat(consVirtuais(ym))
@@ -1747,7 +1748,8 @@ function perguntarPagamentoDaFatura(cardId,ym){
   setTimeout(()=>sheet("Esta fatura já foi paga?",
     '<div class="set"><div class="note"><b>'+esc(cardName(cardId))+' · fatura de '+esc(ymLabel(ym))+'</b>Falta pagar '+fmt(inv.open)+
     ', e já existe um pagamento de '+fmt(t.v)+' em '+diaMesAno(t.d)+', saindo de '+esc(acctName(t.acct||acctOf(t.card)))+
-    (t.card&&t.card!==cardId?' (lançado no '+esc(cardName(t.card))+')':'')+'. Se for esta fatura, ligo os dois: o dinheiro não sai de novo da conta.</div></div>',
+    (t.card&&t.card!==cardId?' (lançado no '+esc(cardName(t.card))+')':'')+'. Se for desta fatura, ligo os dois'+
+    (t.v<inv.open?': ela fica com pagamento parcial de '+fmt(t.v)+', faltando '+fmt(inv.open-t.v)+'.':': o dinheiro não sai de novo da conta.')+'</div></div>',
     '<button class="btn ghost" id="pfN">Não é esta fatura</button><button class="btn" id="pfS">Sim, é esta</button>'),500);
   setTimeout(()=>{ const n=$("#pfN"), y=$("#pfS"); if(!n||!y) return;
     n.onclick=closeSheet;
@@ -1838,7 +1840,8 @@ function renderContas(){
       const p=lim>0?Math.min(100,owed/lim*100):0;
       const bits=[c.closing>0?"fecha dia "+c.closing:"sem fechamento"];
       if(c.due>0) bits.push("vence dia "+c.due);
-      if(inv.paid>0) bits.push(inv.open<=0?"paga":"pago "+fmtN(inv.paid));
+      if(inv.paid>0){ const np=pagamentosDaFatura(c.id,S.ym).length;
+        bits.push(inv.open<=0?"paga"+(np>1?" em "+np+" pagamentos":""):"parcial: pago "+fmtN(inv.paid)+(np>1?" em "+np+" pagamentos":"")); }
       return '<div class="cardbox"><div class="cardbox-h"><span class="cardbox-n">'+esc(c.n)+'</span>'+
         '<span class="cardbox-v">'+fmtN(Math.max(0,inv.open))+'</span></div>'+
         '<div class="cardbox-s">Fatura de '+esc(ymLabel(S.ym))+' · '+esc(bits.join(" · "))+'</div>'+
@@ -2120,8 +2123,8 @@ function pagamentoJaLancado(cardId,ym,valor){
   const alvo=Date.parse(venc+"-"+pad(Math.min(c.due||daysIn(venc),daysIn(venc)))+"T12:00:00");
   const perto=t=>Math.abs(Date.parse(t.d+"T12:00:00")-alvo)<=25*86400000;
   const cand=allTx().filter(t=>t.k==="p"&&!(t.card===cardId&&t.ref===ym)&&perto(t))
-    .map(t=>({t,dif:Math.abs(t.v-valor)}))
-    .filter(x=>x.dif<=1||(valor>0&&x.dif<=Math.round(valor*0.02)))
+    .map(t=>({t,dif:Math.abs(t.v-valor),parcial:t.v<valor&&t.v>=Math.round(valor*0.15)}))
+    .filter(x=>x.dif<=1||(valor>0&&x.dif<=Math.round(valor*0.02))||x.parcial)   /* o banco pode ter pago só um pedaço */
     .sort((a,b)=>a.dif-b.dif||Math.abs(Date.parse(a.t.d)-alvo)-Math.abs(Date.parse(b.t.d)-alvo));
   return cand.length?cand[0].t:null; }
 async function ligarPagamento(t,cardId,ym){
@@ -2136,9 +2139,11 @@ function openPay(cardId){
   const ja=pagamentoJaLancado(cardId,S.ym,inv.open);
   sheet("Pagar fatura · "+c.n,
     '<div class="set">'+
-    (ja?'<div class="note"><b>Esse pagamento já parece ter saído da conta</b>'+fmt(ja.v)+' em '+diaMesAno(ja.d)+
+    (ja?'<div class="note"><b>'+(ja.v<inv.open?"Uma parte desta fatura já parece ter saído da conta":"Esse pagamento já parece ter saído da conta")+'</b>'+fmt(ja.v)+' em '+diaMesAno(ja.d)+
       (ja.card&&ja.card!==cardId?' · lançado no '+esc(cardName(ja.card)):'')+(ja.ref&&ja.ref!==S.ym?' · como fatura de '+esc(ymLabel(ja.ref)):'')+
-      ' · sai de '+esc(acctName(ja.acct||acctOf(ja.card)))+'. Se for este, use <b>É este pagamento</b>: a fatura fica paga e o dinheiro não sai de novo da conta.</div>':'')+
+      ' · sai de '+esc(acctName(ja.acct||acctOf(ja.card)))+'. Se for desta fatura, use <b>É este pagamento</b>: '+
+      (ja.v<inv.open?'ela fica com pagamento parcial de '+fmt(ja.v)+', faltando '+fmt(inv.open-ja.v)+', e o dinheiro não sai de novo da conta.'
+        :'ela fica paga e o dinheiro não sai de novo da conta.')+'</div>':'')+
     '<div class="set-f"><label>Valor</label><input id="yV" inputmode="decimal" value="'+fmtN(inv.open)+'"></div>'+
     '<div class="two"><div class="set-f"><label>Sai de qual conta</label><select id="yA">'+optId(A,acctOf(cardId))+'</select></div>'+
     '<div class="set-f"><label>Quando</label><input id="yD" type="date" value="'+todayISO()+'"></div></div>'+
@@ -3411,7 +3416,8 @@ function htmlExtrato(){
     corpo=linhaSaldo("Fatura de "+esc(ymLabel(ym)),inv.total)+
       (L.length?L.map(t=>linhaExt(t,-t.v,null,hoje)).join(""):'<div class="empty" style="padding:14px">Nenhuma compra nesta fatura. A fatura se importa em Lançar.</div>')+
       pg.map(t=>linhaExt(t,t.v,null,hoje)).join("")+
-      linhaSaldo(inv.open>0?"Falta pagar":"Fatura paga",Math.max(0,inv.open),true);
+      linhaSaldo(inv.open>0?(inv.paid>0?"Falta pagar (pago "+fmtN(inv.paid)+" em "+pg.length+(pg.length>1?" pagamentos)":" pagamento)"):"Falta pagar")
+        :inv.paid>0&&pg.length>1?"Fatura paga em "+pg.length+" pagamentos":"Fatura paga",Math.max(0,inv.open),true);
   } else {
     const ant=ymShift(ym,-1), ini=balanceOf(S.ext,ant+"-31"), M=movsConta(S.ext,ym); let s=ini;
     const agendado=M.some(m=>m.t.d>hoje);
@@ -3538,6 +3544,9 @@ function pagamentosRepetidos(){
     if(Math.abs(a.v-b.v)>Math.max(100,Math.round(a.v*0.02))) continue;
     if((a.acct||acctOf(a.card))!==(b.acct||acctOf(b.card))) continue;
     if(Math.abs(dia(a.d)-dia(b.d))>8*86400000) continue;
+    /* o banco às vezes debita a fatura em pedaços: somados, cabem na fatura e não são repetição */
+    if(a.card&&a.card===b.card&&a.ref&&a.ref===b.ref){ const inv=cardInvoice(a.card,a.ref);
+      if(inv.total&&inv.paid<=inv.total+1) continue; }
     if(vistos.indexOf(a.id+"|"+b.id)>=0) continue;
     pares.push([a,b]); usado[a.id]=usado[b.id]=1; }
   return pares; }
@@ -3585,7 +3594,8 @@ function contasDoMes(ym){
     const prevista=!((S.cfg.faturasLidas||{})[c.id+"|"+ym]);
     out.push({tipo:"fatura", id:c.id, nome:"Fatura "+c.n, v:inv.open>0?inv.open:inv.total, d:venc, pago:inv.open<=0, prevista,
       sub:"Fatura de "+ymLabel(ym)+(c.due?" · vence "+venc.slice(8,10)+"/"+venc.slice(5,7):" · sem data de vencimento")+
-        (inv.paid>0&&inv.open>0?" · já pagou "+fmtN(inv.paid):"")+(prevista?" · ainda sem a fatura do banco":"")}); });
+        (inv.paid>0?(inv.open>0?" · pagamento parcial de "+fmtN(inv.paid)+(pagamentosDaFatura(c.id,ym).length>1?" em "+pagamentosDaFatura(c.id,ym).length+" vezes":""):" · paga"):"")+
+        (prevista?" · ainda sem a fatura do banco":"")}); });
   return out.sort((a,b)=>a.d.localeCompare(b.d)||b.v-a.v); }
 
 function linhaConta(x,hoje){
