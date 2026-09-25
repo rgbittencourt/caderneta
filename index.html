@@ -1469,6 +1469,48 @@ function render(){
 
 /* =================== painel =================== */
 function tone(v,limit){ return v>limit?"bad":v>limit*0.85?"warn":""; }
+/* melhor cartão para comprar hoje: o que demora mais para cobrar. A compra de hoje entra na fatura que ainda
+   vai fechar; essa fatura vence no dia do vencimento — no mês seguinte, quando o vencimento vem antes do fechamento. */
+function prazoCartao(c,hoje){
+  if(!c.closing||!c.due) return null;
+  const Y=+hoje.slice(0,4), M=+hoje.slice(5,7), D=+hoje.slice(8,10);
+  let fy=Y, fm=M;
+  if(D>c.closing){ fm++; if(fm>12){ fm=1; fy++; } }
+  const fecha=fy+"-"+pad(fm)+"-"+pad(Math.min(c.closing,new Date(fy,fm,0).getDate()));
+  let py=fy, pm=fm;
+  if(c.due<=c.closing){ pm++; if(pm>12){ pm=1; py++; } }
+  const paga=py+"-"+pad(pm)+"-"+pad(Math.min(c.due,new Date(py,pm,0).getDate()));
+  const dias=Math.round((Date.parse(paga+"T12:00:00")-Date.parse(hoje+"T12:00:00"))/86400000);
+  return {fecha,paga,dias,fat:fy+"-"+pad(fm)}; }
+function melhoresCartoes(){
+  const hoje=todayISO();
+  return creditCards().map(c=>{ const p=prazoCartao(c,hoje), livre=c.limit?Math.max(0,c.limit-cardOwed(c.id)):null;
+    return {c,p,livre}; })
+    .sort((a,b)=>{ const fa=a.livre!==null&&a.livre<=0, fb=b.livre!==null&&b.livre<=0;
+      if(fa!==fb) return fa?1:-1;
+      if(!a.p||!b.p) return a.p?-1:b.p?1:0;
+      return b.p.dias-a.p.dias; }); }
+function htmlMelhorCartao(){
+  const L=melhoresCartoes(); if(!L.length) return "";
+  const comData=L.filter(x=>x.p);
+  const diaMes2=d=>d.slice(8,10)+"/"+d.slice(5,7);
+  const linha=x=>'<div class="linkrow"><div class="m"><div class="t">'+esc(x.c.n)+'</div><div class="s">'+
+    (x.p?"fecha "+diaMes2(x.p.fecha)+" · paga "+diaMes2(x.p.paga)+(x.livre!==null?" · livre "+fmtN(x.livre):"")
+       :"informe o fechamento e o vencimento em Ajustes")+'</div></div>'+
+    '<span class="row-v">'+(x.p?x.p.dias+(x.p.dias===1?" dia":" dias"):"—")+'</span></div>';
+  const top=comData.find(x=>!(x.livre!==null&&x.livre<=0))||comData[0];
+  return '<div class="sec"><div class="card pad">'+
+    '<div class="tile-l">Melhor cartão para comprar hoje</div>'+
+    (top
+      ? '<span class="tile-v" style="font-size:26px">'+esc(top.c.n)+'</span>'+
+        '<div class="tile-s">A compra de hoje entra na fatura de '+esc(ymLabel(top.p.fat))+', que fecha em '+diaMes2(top.p.fecha)+
+        ' e vence em '+diaMes2(top.p.paga)+': são <b>'+top.p.dias+(top.p.dias===1?" dia":" dias")+'</b> até o dinheiro sair da conta.'+
+        (top.livre!==null?" Limite livre de "+fmtN(top.livre)+".":"")+'</div>'
+      : '<span class="tile-v" style="font-size:20px">Falta o fechamento</span>'+
+        '<div class="tile-s">Informe o dia de fechamento e o de vencimento de cada cartão em Ajustes → Formas de pagamento.</div>')+
+    (L.length>1?'<div style="margin-top:10px">'+L.map(linha).join("")+'</div>':'')+
+    '</div></div>'; }
+
 /* logo de cara no Painel: quanto tem no banco, conta por conta, e quanto já foi lançado em cada cartão */
 function htmlBancoCartoes(){
   const hoje=todayISO(), A=S.cfg.accounts||[];
@@ -1502,7 +1544,7 @@ function renderPainel(){
   const availColor=st.avail<0?"var(--bad)":"var(--ink)";
 
   /* o mais básico primeiro: dinheiro no banco e o que já está lançado em cada cartão */
-  let html=htmlBancoCartoes();
+  let html=htmlBancoCartoes()+htmlMelhorCartao();
 
   /* hero + tiles */
   html+='<div class="sec"><div class="grid g23">'+
@@ -1611,6 +1653,7 @@ function renderLancar(){
   const g=list.filter(t=>t.k==="g").reduce((s,t)=>s+t.v,0);
   const e=list.filter(t=>t.k==="e").reduce((s,t)=>s+t.v,0);
   $("#p-lancar").innerHTML=
+    htmlMelhorCartao()+
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Lançar por fala</h2>'+
     '<button class="sec-a" id="exBtn">Ver exemplo</button></div>'+
     '<div class="say-box"><textarea id="say" rows="3" placeholder="Fale ou escreva. Ex.: vinte e três reais, almoço no IFSC, cartão de crédito Visa."></textarea>'+
@@ -2240,6 +2283,10 @@ const AJUDA=[
  /* cartões */
  {g:"Cartões",t:"Quanto já gastei em cada cartão?",
   c:"No Painel, em Lançado nos cartões: a fatura do mês de cada cartão, o total em aberto (com as parcelas futuras) e o limite livre. Em Contas, Ver fatura mostra compra por compra.",a:"painel"},
+ {g:"Cartões",t:"Qual cartão é melhor usar hoje?",
+  c:"O app calcula e mostra no alto do Painel e da aba Lançar: é o cartão cuja compra de hoje demora mais para ser cobrada. Ele diz em que fatura a compra entra, quando essa fatura fecha, quando vence e quantos dias faltam até o dinheiro sair da conta — e lista os outros cartões em ordem.",a:"cartoes"},
+ {g:"Cartões",t:"O app diz \"falta o fechamento\" nos cartões",
+  c:"Informe o dia de fechamento e o de vencimento de cada cartão em Ajustes → Formas de pagamento. Sem eles, o app não tem como calcular o prazo. Ao importar uma fatura, ele aprende o fechamento sozinho.",a:"cartoes"},
  {g:"Cartões",t:"A compra no cartão sai da minha conta?",
   c:"Não. Ela conta como gasto no mês em que foi feita e entra nas análises, mas o dinheiro só sai quando a fatura é paga. Cada linha mostra a marca crédito · não sai da conta.",a:"cartoes"},
  {g:"Cartões",t:"A fatura aparece atrasada, mas eu paguei",
