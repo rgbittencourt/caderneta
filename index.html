@@ -427,6 +427,7 @@ table.dv td.n{text-align:right;font-family:var(--f-m);font-variant-numeric:tabul
   <section class="panel" id="p-meta" role="tabpanel" hidden></section>
   <section class="panel" id="p-analises" role="tabpanel" hidden></section>
   <section class="panel" id="p-ajustes" role="tabpanel" hidden></section>
+  <section class="panel" id="p-ajuda" role="tabpanel" hidden></section>
 </main>
 </div>
 </div>
@@ -1416,6 +1417,7 @@ function bindTips(root){
     box.addEventListener("touchstart",show,{passive:true}); }); }
 /* =================== navegação =================== */
 const IC={
+  ajuda:'<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.7.3-1.1.9-1.1 1.6v.3"/><path d="M12 17h.01"/>',
   painel:'<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>',
   lancar:'<path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><path d="M12 18v4"/>',
   mes:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/><path d="M8 2v4"/><path d="M16 2v4"/>',
@@ -1428,7 +1430,8 @@ const IC={
 };
 const svgIc=k=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+IC[k]+'</svg>';
 const NAV=[{id:"painel",n:"Painel"},{id:"lancar",n:"Lançar"},{id:"mes",n:"Mês"},
-           {id:"contas",n:"Contas"},{id:"futuro",n:"Futuro"},{id:"meta",n:"Meta"},{id:"analises",n:"Análises"},{id:"ajustes",n:"Ajustes"}];
+           {id:"contas",n:"Contas"},{id:"futuro",n:"Futuro"},{id:"meta",n:"Meta"},{id:"analises",n:"Análises"},{id:"ajustes",n:"Ajustes"},
+           {id:"ajuda",n:"Ajuda"}];
 const TABS=["painel","lancar","mes","contas"];
 
 function renderNav(){
@@ -1437,7 +1440,7 @@ function renderNav(){
     '<div class="side-foot" id="sideFoot"></div>';
   $("#tabsIn").innerHTML=TABS.map(id=>{ const x=NAV.find(y=>y.id===id);
     return '<button class="tab" role="tab" data-go="'+id+'" aria-selected="'+(S.view===id)+'">'+svgIc(id)+esc(x.n)+'</button>'; }).join("")+
-    '<button class="tab" role="tab" data-more="1" aria-selected="'+(S.view==="futuro"||S.view==="meta"||S.view==="analises"||S.view==="ajustes")+'">'+svgIc("mais")+'Mais</button>';
+    '<button class="tab" role="tab" data-more="1" aria-selected="'+(["futuro","meta","analises","ajustes","ajuda"].indexOf(S.view)>=0)+'">'+svgIc("mais")+'Mais</button>';
   $$("[data-go]").forEach(b=>b.onclick=()=>setView(b.dataset.go));
   $$("[data-more]").forEach(b=>b.onclick=openMore);
   $("#sideFoot").innerHTML = (S.mode==="nuvem"
@@ -1447,7 +1450,7 @@ function renderNav(){
 function setView(v){ S.view=v; render(); window.scrollTo({top:0,behavior:"smooth"}); }
 function openMore(){
   sheet("Mais", '<div class="card pad">'+
-    [{id:"futuro",n:"Futuro",s:"Parcelas e meses comprometidos"},{id:"analises",n:"Análises",s:"Diagnóstico, parcelas, dívidas e cartões"},{id:"meta",n:"Meta",s:"Meta de poupança e 50-30-20"},{id:"ajustes",n:"Ajustes",s:"Extrato da conta, saldos, cartões, categorias"}]
+    [{id:"futuro",n:"Futuro",s:"Parcelas e meses comprometidos"},{id:"analises",n:"Análises",s:"Diagnóstico, parcelas, dívidas e cartões"},{id:"meta",n:"Meta",s:"Meta de poupança e 50-30-20"},{id:"ajustes",n:"Ajustes",s:"Saldos, cartões, categorias e dados"},{id:"ajuda",n:"Ajuda",s:"Dúvidas comuns, busca e o manual"}]
       .map(x=>'<div class="linkrow"><div class="m"><div class="t">'+x.n+'</div><div class="s">'+x.s+'</div></div><button class="mini" data-goto="'+x.id+'">Abrir</button></div>').join("")+
     '</div>', '<button class="btn ghost" id="moreX">Fechar</button>');
   $("#moreX").onclick=closeSheet;
@@ -1460,7 +1463,7 @@ function render(){
   $("#topTitle").textContent=(NAV.find(x=>x.id===S.view)||{n:""}).n;
   /* só a aba aberta fica montada: o leitor e a conferência existem em Lançar e em Ajustes, com os mesmos ids */
   NAV.forEach(x=>{ const p=$("#p-"+x.id); if(p){ p.hidden = x.id!==S.view; if(p.hidden) p.innerHTML=""; } });
-  const fn={painel:renderPainel,lancar:renderLancar,mes:renderMes,contas:renderContas,futuro:renderFuturo,meta:renderMeta,analises:renderAnalises,ajustes:renderAjustes}[S.view];
+  const fn={painel:renderPainel,lancar:renderLancar,mes:renderMes,contas:renderContas,futuro:renderFuturo,meta:renderMeta,analises:renderAnalises,ajustes:renderAjustes,ajuda:renderAjuda}[S.view];
   if(fn) fn();
 }
 
@@ -2280,25 +2283,33 @@ const AJUDA=[
  {g:"Renda e mês",t:"Como faço backup ou levo para uma planilha?",
   c:"Em conta Google o app já guarda tudo no seu Drive, com uma cópia por mês. Em Ajustes → Dados há Backup completo, Restaurar de um backup e Levar para uma planilha (CSV).",a:"dados"}
 ];
-function openAjuda(){
-  const linha=x=>'<div class="linkrow wrap"><div class="m"><div class="t">'+esc(x.t)+'</div>'+
-    '<div class="s" style="white-space:normal">'+esc(x.c)+'</div></div>'+
-    '<div class="acts"><a class="mini" href="manual.html#'+x.a+'" target="_blank" rel="noopener">No manual</a></div></div>';
-  const listar=L=>{ let h="", g="";
-    L.forEach(x=>{ if(x.g!==g){ g=x.g; h+='<div class="tile-l" style="margin:14px 0 2px">'+esc(g)+'</div>'; } h+=linha(x); });
-    return h; };
-  sheet("Ajuda",
-    '<div class="set"><div class="set-f"><label for="ajQ">Qual é a sua dúvida?</label>'+
-    '<input id="ajQ" placeholder="fatura, saldo, saque, consignado…" autocomplete="off">'+
-    '<span class="hint">Escreva uma palavra — fatura, saldo, saque, consignado, agendar — e a lista filtra sozinha.</span></div>'+
-    '<div id="ajLista">'+listar(AJUDA)+'</div>'+
-    '<div class="note" style="margin-top:12px"><b>Não achou?</b>Toque em <b>Perguntar ao Claude</b>: o app copia a sua pergunta e abre a conversa, onde dá para explicar com calma e até pedir mudanças no app.</div></div>',
-    '<button class="btn ghost" id="ajManual">Abrir o manual</button><button class="btn" id="ajClaude">Perguntar ao Claude</button>');
+const ajudaLinha=x=>'<div class="linkrow wrap"><div class="m"><div class="t">'+esc(x.t)+'</div>'+
+  '<div class="s" style="white-space:normal">'+esc(x.c)+'</div></div>'+
+  '<div class="acts"><a class="mini" href="manual.html#'+x.a+'" target="_blank" rel="noopener">No manual</a></div></div>';
+function ajudaLista(L){ let h="", g="";
+  L.forEach(x=>{ if(x.g!==g){ g=x.g; h+='<div class="tile-l" style="margin:16px 0 2px">'+esc(g)+'</div>'; } h+=ajudaLinha(x); });
+  return h||'<div class="empty" style="padding:18px"><b>Nada encontrado</b>Tente outra palavra, ou pergunte ao Claude.</div>'; }
+
+function renderAjuda(){
+  $("#p-ajuda").innerHTML=
+    '<div class="sec"><div class="grid g2">'+
+    '<div class="card pad"><div class="tile-l">Dúvidas mais comuns</div>'+
+    '<span class="tile-v" style="font-size:30px">'+AJUDA.length+'</span>'+
+    '<div class="tile-s">Escreva uma palavra — fatura, saldo, saque, consignado, agendar — e a lista filtra sozinha.</div>'+
+    '<div class="set-f" style="margin-top:12px"><input id="ajQ" placeholder="Qual é a sua dúvida?" autocomplete="off"></div></div>'+
+    '<div class="card pad"><div class="tile-l">Manual de uso</div>'+
+    '<div class="tile-s" style="margin-bottom:10px">Completo, com telas de cada parte do app. Dá para ler no celular ou imprimir em A4.</div>'+
+    '<div class="cardbox-a"><a class="btn sm" href="manual.html" target="_blank" rel="noopener">Abrir o manual</a>'+
+    '<button class="btn ghost sm" id="ajClaude">Perguntar ao Claude</button></div>'+
+    '<div class="say-hint" style="margin-top:10px">O app não tem inteligência artificial por dentro — é isso que o mantém sem servidor, sem custo e com os seus dados só no seu aparelho e no seu Drive. Para dúvidas mais longas, ou para pedir mudanças, fale com o Claude.</div></div>'+
+    '</div></div>'+
+    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Perguntas e respostas</h2><span class="day-t" id="ajTot"></span></div>'+
+    '<div class="card pad" id="ajLista">'+ajudaLista(AJUDA)+'</div></div>';
   const filtra=()=>{ const q=norm($("#ajQ").value);
-    $("#ajLista").innerHTML=listar(q?AJUDA.filter(x=>norm(x.t+" "+x.c+" "+x.g).indexOf(q)>=0):AJUDA)
-      ||'<div class="empty" style="padding:14px"><b>Nada encontrado</b>Tente outra palavra, ou pergunte ao Claude.</div>'; };
+    const L=q?AJUDA.filter(x=>norm(x.t+" "+x.c+" "+x.g).indexOf(q)>=0):AJUDA;
+    $("#ajLista").innerHTML=ajudaLista(L);
+    $("#ajTot").textContent=q?(L.length+(L.length===1?" resposta":" respostas")):""; };
   $("#ajQ").oninput=filtra;
-  $("#ajManual").onclick=()=>window.open("manual.html","_blank","noopener");
   $("#ajClaude").onclick=async()=>{
     const q=$("#ajQ").value.trim();
     const txt="Dúvida sobre a Caderneta (app em https://rgbittencourt.github.io/caderneta/): "+(q||"…")+
@@ -2381,12 +2392,6 @@ function renderAjustes(){
     '<div class="s">'+kwC+' viram categoria · '+kwK+' viram cartão</div></div>'+
     '<button class="mini" id="kwBtn">Ver e editar</button></div></div></div>'+
 
-    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Ajuda e manual</h2></div><div class="card pad">'+
-    '<div class="linkrow"><div class="m"><div class="t">Ajuda rápida</div><div class="s">As dúvidas mais comuns, com busca</div></div>'+
-    '<button class="mini" id="ajBtn">Abrir</button></div>'+
-    '<div class="linkrow"><div class="m"><div class="t">Manual de uso</div><div class="s">Completo, com telas — dá para imprimir em A4 ou salvar em PDF</div></div>'+
-    '<a class="mini" href="manual.html" target="_blank" rel="noopener">Abrir</a></div></div></div>'+
-
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Dados</h2></div><div class="card pad">'+
     '<div class="linkrow"><div class="m"><div class="t">Onde ficam seus dados</div><div class="s">'+
     esc(storageText())+'</div></div></div>'+
@@ -2434,7 +2439,6 @@ function renderAjustes(){
   $$("[data-scor]").forEach(b=>b.onclick=()=>openCorrigirSaldo(b.dataset.scor));
   $$("[data-cfat]").forEach(b=>b.onclick=()=>openCorrigirFatura(b.dataset.cfat));
   mostrarVersao();
-  $("#ajBtn").onclick=openAjuda;
   $("#verBtn").onclick=async()=>{ toast("Procurando atualização…");
     try{ const r=await navigator.serviceWorker.getRegistration(); if(r) await r.update(); }catch(e){}
     setTimeout(mostrarVersao,1500); };
