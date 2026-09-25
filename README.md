@@ -85,7 +85,7 @@ Teve aumento ou correção? Mude o valor em Ajustes: o app pergunta a partir de 
 
 **Extrato** (aba Contas): é o lugar de ver os movimentos. Toque numa conta ou em *Ver fatura* de um cartão. Na conta, aparece o saldo anterior, cada entrada e saída com o saldo depois dela, e o saldo no fim do mês — só o que sai da conta, sem as compras no crédito. No cartão, a fatura daquele mês, com compras que podem ser do mês anterior. Toque em qualquer linha para corrigir o lançamento. Importar e acertar saldo ficam em Ajustes (extrato) e em Lançar (fatura).
 - **Conferência do saldo:** depois de importar um extrato, quando ele traz o saldo impresso pelo banco, o app compara com o que calculou, mostra a diferença e pergunta se pode acertar.
-- **Repetidos** (no alto do extrato): procura, no mês, dois lançamentos iguais no mesmo lugar. Ele mostra os dois lado a lado e pergunta se é a mesma coisa; só apaga se você mandar. Parcelas de compras parceladas ficam de fora dessa busca.
+- **Repetidos** (no alto do extrato): procura, no mês, dois lançamentos iguais no mesmo lugar. Mostra os dois lado a lado, com a fatura que cada um abate e de onde veio, e você escolhe: são diferentes, apagar o primeiro ou apagar o segundo. Ele mostra os dois lado a lado e pergunta se é a mesma coisa; só apaga se você mandar. Parcelas de compras parceladas ficam de fora dessa busca.
 
 **Fatura prevista:** enquanto você não importa a fatura do banco daquele mês, o app mostra o valor que ele mesmo calculou, marcado como *prevista* — nunca como atrasada. Depois de importar, ela passa a valer como a fatura de verdade.
 

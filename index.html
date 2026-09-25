@@ -3514,13 +3514,19 @@ function openRepetido(pares,i,aoDiferentes){
   if(i>=pares.length){ closeSheet(); render(); toast("Conferência dos repetidos terminada."); return; }
   const par=pares[i], a=par[0], b=par[1];
   const linha=(rot,t)=>'<div class="dup-l"><b>'+rot+':</b> '+esc(t.desc)+' · '+diaMesAno(t.d)+' · '+fmtN(t.v)+' · '+esc(catLabel(t))+
-    (t.card?' · '+esc(cardName(t.card)):'')+(t.n>1?' · parcela '+t.i+'/'+t.n:'')+'</div>';
+    (t.card?' · '+esc(cardName(t.card)):'')+(t.n>1?' · parcela '+t.i+'/'+t.n:'')+
+    (t.k==="p"&&t.ref?' · abate a fatura de '+esc(ymLabel(t.ref)):'')+
+    (t.raw?' · '+esc(t.raw.slice(0,60)):'')+'</div>';
   sheet("Parecem o mesmo lançamento ("+(i+1)+" de "+pares.length+")",
     '<div class="set"><div class="dup">'+linha("Primeiro",a)+linha("Segundo",b)+'</div>'+
     '<div class="set-f"><span class="hint">Se foram duas compras de verdade, no mesmo valor e quase no mesmo dia, escolha <b>São diferentes</b>. Só apague se for a mesma coisa lançada duas vezes.</span></div></div>',
-    '<button class="btn ghost" id="rpN">São diferentes</button><button class="btn danger" id="rpD">Apagar o segundo</button>');
+    '<button class="btn ghost" id="rpN">São diferentes</button>'+
+    '<button class="btn danger" id="rpD1">Apagar o primeiro</button>'+
+    '<button class="btn danger" id="rpD">Apagar o segundo</button>');
   $("#rpN").onclick=()=>{ if(aoDiferentes) aoDiferentes(par); openRepetido(pares,i+1,aoDiferentes); };
-  $("#rpD").onclick=async()=>{ await removeTx(b.ym,b.id,false); toast("Apagado: "+b.desc); openRepetido(pares,i+1,aoDiferentes); }; }
+  const apagar=async t=>{ await removeTx(t.ym,t.id,false); toast("Apagado: "+t.desc+" · "+diaMesAno(t.d)); openRepetido(pares,i+1,aoDiferentes); };
+  $("#rpD1").onclick=()=>apagar(a);
+  $("#rpD").onclick=()=>apagar(b); }
 
 /* dois pagamentos da mesma fatura: um veio do extrato, outro do botão Pagar fatura. Nunca apaga sozinho:
    mostra os dois e pergunta. Um "são diferentes" fica guardado em cfg.pagPares e não volta a perguntar. */
