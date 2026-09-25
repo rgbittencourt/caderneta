@@ -2313,6 +2313,31 @@ const AJUDA=[
   c:"É o valor que o app calculou com as compras e parcelas que conhece, enquanto a fatura do banco não foi importada. Ela nunca aparece como atrasada.",a:"cartoes"},
 
  /* dinheiro */
+ {g:"Cartões",t:"As parcelas vieram com centavos diferentes",
+  c:"É o banco arredondando: a parcela 01/06 sai 232,00 e a 02/06, 231,98. O app reconhece a parcela que já tinha reservado e acerta pelo valor da fatura. Se uma parcela prevista não veio, ele empurra para a fatura seguinte.",a:"fatura"},
+
+ {g:"No dia a dia",t:"Como corrijo ou apago um lançamento?",
+  c:"Toque nele em qualquer lista — no Mês, no extrato, no Painel. Dá para mudar valor, descrição, categoria, forma de pagamento e data, tornar fixo ou excluir. Numa compra parcelada, excluir tira a compra inteira.",a:"mes"},
+ {g:"No dia a dia",t:"Como marco um gasto que se repete todo mês?",
+  c:"Na conferência, marque Fixo todo mês; num lançamento já salvo, toque nele e use Tornar fixo. Os fixos aparecem em Contas a pagar e entram no comprometido do mês. A lista fica em Ajustes → Gastos fixos do mês.",a:"mes"},
+ {g:"No dia a dia",t:"Como registro dinheiro que passei de uma conta para outra?",
+  c:"Aba Lançar → Transferir entre contas. Não conta como gasto: só muda o dinheiro de lugar. Para mandar dinheiro a outra pessoa, lance como gasto com a forma Transferência ou Pix.",a:"contas"},
+ {g:"No dia a dia",t:"Uso em dois aparelhos. Sincroniza?",
+  c:"Sim, pela sua conta Google: o que você lança num aparelho aparece no outro quando os dois abrem com internet. O acesso ao Drive dura cerca de uma hora; depois aparece Sincronizar no alto — um toque e pronto.",a:"dados"},
+ {g:"No dia a dia",t:"Funciona sem internet?",
+  c:"Funciona. Tudo é salvo no aparelho e sobe para o Drive quando a conexão volta. A leitura de PDF e foto também acontece no próprio aparelho.",a:"dados"},
+ {g:"No dia a dia",t:"Minha família pode usar o mesmo app?",
+  c:"Pode: é um app só, e cada pessoa entra com a própria conta Google. Os dados de cada um ficam no Drive dela — ninguém vê os dados do outro.",a:"comecar"},
+
+ {g:"Entender os números",t:"O que a aba Análises mostra?",
+  c:"O diagnóstico do mês (ritmo contra o teto, 50-30-20, renda comprometida, cartões perto do limite, gastos que parecem fixos), as compras parceladas, os gastos por cartão e o acompanhamento das dívidas.",a:"analises"},
+ {g:"Entender os números",t:"Para que serve a aba Futuro?",
+  c:"Mostra quanto dos próximos meses já está comprometido — parcelas, gastos fixos e dívidas — antes de você gastar mais nada.",a:"futuro"},
+ {g:"Entender os números",t:"O que é o método 50-30-20?",
+  c:"Na aba Meta: divide a renda em Necessidades (50%), Desejos (30%) e Futuro (20%). A rosca mostra a meta e para onde a renda foi. Necessidades e Desejos são tetos; Futuro é piso. Os percentuais e o grupo de cada categoria são ajustáveis.",a:"futuro"},
+ {g:"Entender os números",t:"O que é o teto de gastos?",
+  c:"É quanto você decidiu gastar no mês, informado em Ajustes → Meta do mês. O Painel mostra o disponível até o fim do mês descontando o que já foi gasto e o que está comprometido.",a:"painel"},
+
  {g:"Dinheiro",t:"Saque é gasto?",
   c:"Não. O saque tira da conta corrente e põe na Carteira. O gasto conta quando o dinheiro sai da carteira.",a:"carteira"},
  {g:"Dinheiro",t:"Não lanço os gastos em dinheiro. Como zero a carteira?",
