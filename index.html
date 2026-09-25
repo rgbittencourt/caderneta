@@ -2765,7 +2765,9 @@ function htmlLeitorDoc(kind){
       : '<div class="f"><label>O que é</label><select class="docTipo"><option value="fatura">Fatura do cartão</option>'+
         '<option value="cupom">Canhoto ou cupom</option><option value="boleto">Boleto</option></select></div>'+
         '<div class="f" data-doc="fatura"><label>Cartão da fatura</label><select class="docCard">'+optId(cartoes,(cartoes[0]||{}).id)+'</select></div>'+
-        '<div class="f" data-doc="cupom boleto"><label>Pago com</label><select class="docPago"><option value="">Descobrir pelo documento</option>'+optId(S.cfg.cards,S.docPago||"")+'</select></div>')+
+        '<div class="f" data-doc="cupom boleto"><label>Pago com</label><select class="docPago"><option value="">Descobrir pelo documento</option>'+optId(S.cfg.cards,S.docPago||"")+'</select></div>'+
+        '<div class="f" data-doc="boleto"><label>Quando pagar</label><select class="docQuando">'+
+        '<option value="venc">No vencimento (agendar)</option><option value="hoje">Hoje (já paguei)</option></select></div>')+
     '</div>'+
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'+
     '<button class="btn docArqBtn">Escolher arquivo ('+(extrato?'PDF, OFX ou CSV':'PDF ou foto')+')</button>'+
@@ -2784,7 +2786,8 @@ function montarLeitorDoc(){
     const opcoes=()=>({box, tipo:extrato?"extrato":$(".docTipo",box).value,
       conta:extrato?$(".docConta",box).value:"",
       card:extrato?"":(($(".docCard",box)||{}).value||""),
-      pago:extrato?"":(($(".docPago",box)||{}).value||"")});
+      pago:extrato?"":(($(".docPago",box)||{}).value||""),
+      quando:extrato?"":(($(".docQuando",box)||{}).value||"venc")});
     $(".docArqBtn",box).onclick=()=>arq.click();
     $(".docCamBtn",box).onclick=()=>cam.click();
     arq.onchange=cam.onchange=async e=>{ const fs=[...(e.target.files||[])]; e.target.value=""; const mais=!!S.docMais; S.docMais=false;
@@ -2814,7 +2817,7 @@ async function lerDoc(arquivo,op){
       if(r.tipo==="cupom"&&!pdf){ toast(r.erro||"Não achei o valor nessa foto. Tente com mais luz e o papel reto."); return; }
       if(r.tipo==="fatura"&&(r.anulados||r.estornos)){ toast("Nada para lançar: nesta fatura só há "+(r.anulados?"cobrança e desconto que se anulam":"créditos e estornos")+"."); return; }
       diagnosticoDoc(arquivo,r,null,tipo); return; }
-    mostrarLidos(r,{mes,card:op.card,conta:op.conta,pago:op.pago,box},op.anexar);
+    mostrarLidos(r,{mes,card:op.card,conta:op.conta,pago:op.pago,quando:op.quando,box},op.anexar);
   }catch(e){
     st.textContent="";
     if(e&&e.senha){ pedirSenhaPdf(arquivo,!!e.errada,op); return; }
@@ -2944,8 +2947,11 @@ function rascunhosDoc(r,op){
       d.method=d.k==="e"?"pix":"debito"; d.acct=op.conta||acctOf(d.cardId); d.raw="Extrato";
       if(l.aplic) d.aplic=l.aplic;
       classificarLinhaExtrato(d); }
-    else if(r.tipo==="boleto"){ const c=pagoCom||boletoCard||debitoDaConta(); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id; d.method=pagoCom?pagoCom.type:"boleto"; d.date=hoje;
-      d.raw=l.vencimento?"Vence em "+l.vencimento.split("-").reverse().join("/"):"Boleto"; }
+    else if(r.tipo==="boleto"){ const c=pagoCom||boletoCard||debitoDaConta(); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id; d.method=pagoCom?pagoCom.type:"boleto";
+      /* boleto lido para pagar depois: já entra agendado no vencimento */
+      const agendar=op.quando!=="hoje"&&l.vencimento&&l.vencimento>hoje;
+      d.date=agendar?l.vencimento:hoje;
+      d.raw=l.vencimento?(agendar?"Agendado para o vencimento, "+diaMesAno(l.vencimento):"Vence em "+diaMesAno(l.vencimento)):"Boleto"; }
     else { const c=pagoCom||porBandeira(l.bandeira)||S.cfg.cards.find(x=>x.type===(l.metodo||"credito"))||S.cfg.cards[0];
       d.cardId=c.id; d.method=c.type; d.raw="Canhoto"; }
     d.cat=(l.cat&&S.cfg.cats.some(c=>c.id===l.cat))?l.cat:guessCat(d.desc,S.cfg,d.k);
@@ -3026,7 +3032,9 @@ function openLinhaBoleto(erro){
   $("#lbX").onclick=closeSheet;
   $("#lbOk").onclick=()=>{ const r=Leitor.lerBoleto($("#lbT").value);
     if(!r.linhas.length){ toast(r.erro); return; }
-    r.tipo="boleto"; closeSheet(); mostrarLidos(r,{mes:S.ym,pago:S.docPago||""}); }; }
+    const box=$('[data-leitor="gastos"]');
+    r.tipo="boleto"; closeSheet();
+    mostrarLidos(r,{mes:S.ym,pago:S.docPago||"",quando:box?(($(".docQuando",box)||{}).value||"venc"):"venc",box}); }; }
 
 /* =================== análises =================== */
 let ACOES={};

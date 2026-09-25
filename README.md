@@ -61,6 +61,10 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **Lançou e depois importou?** Toda linha do extrato ou da fatura é comparada com o que já está lançado: mesmo valor, data a até três dias e mesmo tipo. O que já existe vem **desmarcado**, mostrando os dois lado a lado para você decidir. No crédito, se você disse o cartão errado, o app ainda reconhece quando a descrição bate. Depois de salvar, *Repetidos* (na aba Contas) procura duplicados que já estejam gravados.
 
+**Agendar falando:** diga quando e o lançamento já fica marcado para o dia certo — "mil e duzentos reais aluguel **dia 10**", "quinhentos reais internet **amanhã**", "trezentos reais escola **dia 5 de outubro**". Ele aparece com a marca *agendado* até chegar o dia. Sem mês, "dia 10" é o próximo dia 10. No **boleto**, a leitura já vem com *Quando pagar*: no vencimento (agendado) ou hoje.
+
+**Carteira:** o saque tira da conta e põe na carteira. Quando não der para lançar cada gasto em dinheiro, use Ajustes → *Corrigir saldo* na Carteira: conte o que sobrou (ou toque em *Não sobrou nada: zerar*) e a diferença entra como **gasto em dinheiro**.
+
 **Fixo todo mês:** marque na conferência — ou em *Tornar fixo*, ao editar um lançamento — o que se repete todo mês: aluguel, escola, assinaturas.
 
 **Salário:** a renda líquida de Ajustes entra sozinha no primeiro dia útil de cada mês (pulando fim de semana e feriado nacional), na conta escolhida ali. Em mês com parcela de consignado, ela entra já descontada. Se você lançar o salário à mão, o app não lança de novo. Dá para desligar em Ajustes.
@@ -75,7 +79,8 @@ Teve aumento ou correção? Mude o valor em Ajustes: o app pergunta a partir de 
 - **Compras parceladas:** quando cada uma termina e quanto sobra por mês depois.
 - **Gastos por cartão e forma de pagamento.**
 - **Dívidas:** o app estima o saldo e os juros que faltam, mostra quando termina e quanto você economiza adiantando um pouco por mês.
-  - **Consignado:** informe o valor do empréstimo, a data, a conta onde caiu, o número de parcelas e o valor da parcela. O empréstimo entra no saldo da conta, sem contar como renda. A partir do salário seguinte, o salário entra já com a parcela descontada, e a parcela aparece em *Dívidas e empréstimos* — uma vez por mês, até a última. Se ele já vinha sendo descontado, diga quantas parcelas saíram antes deste mês. Sem o juro, o app calcula.
+  - **Quitar antes:** escolha em que mês quer terminar de pagar e o app diz quanto pagar por mês até lá, quanto é a mais que a parcela e quanto economiza de juros. Mostra também quanto falta para quitar hoje e mês a mês.
+  - **Consignado:** informe o valor do empréstimo, a data, a conta onde caiu, o número de parcelas, o valor da parcela e **em que mês começou o desconto no salário** (o banco costuma começar meses depois). O empréstimo entra no saldo da conta, sem contar como renda. A partir do salário seguinte, o salário entra já com a parcela descontada, e a parcela aparece em *Dívidas e empréstimos* — uma vez por mês, até a última. Se ele já vinha sendo descontado, diga quantas parcelas saíram antes deste mês. Sem o juro, o app calcula.
   - **Empréstimo ou financiamento pago por boleto ou débito:** diga *Já estou pagando* — "parcela 4 de 12" — ou *Ainda vou começar*, com a data da primeira. A parcela entra sozinha nos gastos fixos até a última.
 
 **Extrato** (aba Contas): é o lugar de ver os movimentos. Toque numa conta ou em *Ver fatura* de um cartão. Na conta, aparece o saldo anterior, cada entrada e saída com o saldo depois dela, e o saldo no fim do mês — só o que sai da conta, sem as compras no crédito. No cartão, a fatura daquele mês, com compras que podem ser do mês anterior. Toque em qualquer linha para corrigir o lançamento. Importar e acertar saldo ficam em Ajustes (extrato) e em Lançar (fatura).
