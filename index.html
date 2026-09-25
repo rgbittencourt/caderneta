@@ -960,6 +960,11 @@ function parseOne(raw,cfg){
     const A=cfg.accounts||[]; d.k="t"; d.n=1; d.method="transferencia"; d.cardId="transf";
     d.acct=(A.find(a=>a.type==="corrente")||A[0]||{}).id||""; d.acct2=(A.find(a=>a.type==="carteira")||{}).id||""; }
 
+  /* quando vai ser: "dia 10", "amanhã", "dia 5 de outubro", "10/10" — é assim que se agenda falando.
+     Vem antes do valor, para o número do dia não virar o valor do lançamento. */
+  const quando=dataDaFala(t,orig,used,take);
+  if(quando){ d.date=quando; d.agendado=quando>todayISO(); }
+
   /* valor */
   let cand=null;
   for(let i=0;i<t.length;i++){
@@ -1018,6 +1023,46 @@ function guessCat(text,cfg,kind){
   Object.keys(dict).forEach(cid=>{ if(!list.some(c=>c.id===cid)) return;
     dict[cid].split(" ").forEach(w=>{ if(w.length>2) consider(cid,w,0); }); });
   return best?best.id:(isE?"outrae":"outros"); }
+/* a data dita na frase. Sem mês, "dia 10" é o próximo dia 10 — mas até três dias para trás continua neste mês,
+   porque quem fala "dia 23" no dia 25 está lançando o que já aconteceu. */
+const MESES_FALA={janeiro:1,fevereiro:2,marco:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12,
+  jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
+function dataDaFala(t,orig,used,take){
+  const h=new Date(), Y=h.getFullYear(), M=h.getMonth()+1, D=h.getDate();
+  const dias=n=>{ const x=new Date(Date.parse(todayISO()+"T12:00:00")+n*86400000); return x.toISOString().slice(0,10); };
+  const monta=(dia,mes,ano)=>{
+    let mo=mes||M, y=ano||Y;
+    if(!mes){ if(dia<D-3) mo=M+1; }
+    else if(!ano&&mo<M) y=Y+1;
+    if(mo>12){ mo-=12; y++; }
+    const dim=new Date(y,mo,0).getDate();
+    return y+"-"+pad(mo)+"-"+pad(Math.min(Math.max(1,dia),dim)); };
+  for(let i=0;i<t.length;i++){
+    if(used[i]) continue;
+    if(t[i]==="hoje"){ take(i,i+1); return todayISO(); }
+    if(t[i]==="amanha"){ take(i,i+1); return dias(1); }
+    if(t[i]==="ontem"){ take(i,i+1); return dias(-1); }
+    if(t[i]==="depois"&&t[i+1]==="de"&&t[i+2]==="amanha"){ take(i,i+3); return dias(2); }
+    /* 10/10 ou 10/10/2026 (o token normalizado perde a barra: vale o original) */
+    const mb=String(orig[i]||"").match(/^(\d{1,2})[\/.](\d{1,2})(?:[\/.](\d{2,4}))?[.,;]?$/);
+    if(mb&&+mb[1]>=1&&+mb[1]<=31&&+mb[2]>=1&&+mb[2]<=12){
+      take(i,i+1); const a=mb[3]?(mb[3].length===2?2000+(+mb[3]):+mb[3]):0;
+      return monta(+mb[1],+mb[2],a); }
+    if(t[i]!=="dia"&&t[i]!=="no") continue;
+    let k=i+1; if(t[i]==="no"){ if(t[k]!=="dia") continue; k++; }
+    let dia=readDigits(t[k]), fim=k+1;
+    if(dia===null){ const w=readWords(t,k); if(w&&w.v>=1&&w.v<=31){ dia=w.v; fim=w.end; } }
+    if(dia===null||dia<1||dia>31) continue;
+    let mes=0, ano=0;
+    let j=fim; if(t[j]==="de"||t[j]==="do") j++;
+    if(MESES_FALA[t[j]]){ mes=MESES_FALA[t[j]]; fim=j+1;
+      let q=fim; if(t[q]==="de") q++;
+      const ay=readDigits(t[q]); if(ay&&ay>2000&&ay<2100){ ano=ay; fim=q+1; } }
+    else if((t[j]==="mes"||t[j]==="do"&&t[j+1]==="mes")&&/que/.test(t[j+1]+t[j+2])){ mes=M+1; fim=j+3; }
+    take(i,fim);
+    return monta(dia,mes,ano); }
+  return ""; }
+
 function splitUtterance(raw){
   return raw.replace(/(\d)[.](\d)/g,"$1$2").split(/[.;\n]+/).map(s=>s.trim())
     .filter(s=>s.length>2&&/\d|\b(um|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|duzentos|trezentos|quatrocentos|quinhentos|seiscentos|setecentos|oitocentos|novecentos|mil)\b/i.test(deacc(s))); }
@@ -1548,6 +1593,7 @@ function rowHTML(t){
     '<span class="dot" style="background:'+catColorOf(t)+'"></span>'+
     '<span class="row-m"><span class="row-d">'+esc(t.desc)+'</span><span class="row-s"><span>'+esc(rot)+
     '</span><span>·</span><span>'+esc(meio)+'</span>'+
+    (t.d>todayISO()?'<span class="chip hoje">agendado</span>':'')+
     (t.k==="g"&&t.method==="credito"?'<span class="chip c">crédito · não sai da conta</span>':'')+
     (t.k==="g"&&t.method==="debito"?'<span class="chip d">débito</span>':'')+
     (t.n>1?'<span class="chip p">'+t.i+"/"+t.n+'</span>':'')+
@@ -1591,6 +1637,7 @@ function renderLancar(){
   $("#trfBtn").onclick=openTransfer; montarLeitorDoc();
   $$("[data-divnova]",$("#p-lancar")).forEach(b=>b.onclick=()=>openDivida(""));
   $$("[data-div]",$("#p-lancar")).forEach(b=>b.onclick=()=>openDivida(b.dataset.div));
+  $$("[data-quit]",$("#p-lancar")).forEach(b=>b.onclick=()=>{ const dv=(S.cfg.dividas||[]).find(x=>x.id===b.dataset.quit); if(dv) openQuitacao(dv); });
   $("#aiBtn").hidden=!S.ai; $("#aiBtn").onclick=aiParse;
   $("#exBtn").onclick=()=>{ $("#say").value="Vinte e três reais, almoço no IFSC, cartão de crédito Visa. Trezentos e oitenta reais na Kit Jolo, em três vezes no crédito Mastercard. Caiu o salário, dezesseis mil reais."; readInput(); };
   setupMic();
@@ -1603,10 +1650,11 @@ function htmlDividasLancar(){
   return '<div class="card pad" style="margin-top:14px"><div class="sec-h" style="margin-bottom:10px">'+
     '<h2 class="sec-t">Dívidas e empréstimos</h2><button class="sec-a" data-divnova>Cadastrar dívida</button></div>'+
     (L.length
-      ? L.map(x=>'<div class="linkrow"><div class="m"><div class="t">'+esc(x.dv.nome||"Dívida")+'</div>'+
+      ? L.map(x=>'<div class="linkrow wrap"><div class="m"><div class="t">'+esc(x.dv.nome||"Dívida")+'</div>'+
           '<div class="s">'+esc((x.dv.folha||x.dv.tipo==="consignado"?"Sai do salário · ":"")+
-            (x.e.n>0?"parcela "+Math.min(x.e.pagas+1,x.e.total)+" de "+x.e.total+" · "+fmtN(x.e.P)+" por mês":"quitada"))+'</div></div>'+
-          '<button class="mini" data-div="'+x.dv.id+'">Editar</button></div>').join("")+
+            (x.e.n>0?"parcela "+Math.min(x.e.pagas+1,x.e.total)+" de "+x.e.total+" · "+fmtN(x.e.P)+" por mês · quitar hoje "+fmtN(x.e.saldo):"quitada"))+'</div></div>'+
+          '<div class="acts">'+(x.e.n?'<button class="mini" data-quit="'+x.dv.id+'">Quitar</button>':'')+
+          '<button class="mini" data-div="'+x.dv.id+'">Editar</button></div></div>').join("")+
         (ativas.length?'<div class="say-hint" style="margin-top:9px">Somando '+fmt(ativas.reduce((s,x)=>s+x.e.P,0))+' por mês. O acompanhamento completo fica na aba Análises.</div>':"")
       : '<div class="say-hint">Consignado, empréstimo ou financiamento: cadastre uma vez, com o valor da parcela e em qual parcela você está. O app lança sozinho todo mês e acompanha o saldo em Análises.</div>')+
     '</div>'; }
@@ -1973,9 +2021,15 @@ function openSaldoInicial(id){
 
 /* acerto de saldo: numa data antes do início da conta, muda o saldo inicial; depois, vira o lançamento "Acerto de saldo"
    naquele dia, entre a conta e "fora do app". Não conta como gasto nem como renda e só mexe no saldo dali em diante. */
-async function acertarSaldo(acctId,dia,valor){
+async function acertarSaldo(acctId,dia,valor,comoGasto){
   const a=(S.cfg.accounts||[]).find(x=>x.id===acctId); if(!a) return 0;
   const delta=valor-balanceOf(acctId,dia); if(!delta) return 0;
+  /* na carteira, o que sumiu foi gasto em dinheiro: entra como gasto, para contar no teto e nas análises */
+  if(comoGasto&&delta<0){
+    const din=(S.cfg.cards.find(c=>c.type==="dinheiro")||{}).id||"";
+    await commit({id:uid(),raw:"",v:-delta,desc:"Gastos em dinheiro",cat:"outros",method:"dinheiro",cardId:din,
+      acct:acctId,n:1,date:dia,time:"23:59",k:"g"});
+    return delta; }
   if(a.openDate&&dia<a.openDate){ a.opening=(a.opening||0)+delta; a.adjust=(a.adjust||[]).concat([{d:dia,delta}]).slice(-20); await saveCfg(); return delta; }
   await commit({id:uid(),raw:"",v:Math.abs(delta),desc:"Acerto de saldo",cat:"outros",method:"transferencia",cardId:"transf",
     acct:delta<0?acctId:"",acct2:delta>0?acctId:"",n:1,date:dia,time:"23:59",k:"t",aj:1});
@@ -2006,7 +2060,8 @@ function openCorrigirSaldo(id){
     '<span class="hint">O saldo é o do último dia do mês (no mês atual, o de hoje). Acertando um mês, o seguinte já começa certo.</span></div>'+
     '<div class="linkrow"><div class="m"><div class="t" id="scRot"></div><div class="s">saldo inicial, mais entradas, menos saídas</div></div><span class="row-v" id="scCalc"></span></div>'+
     '<div class="set-f"><label for="scV" id="scLbl"></label><input id="scV" inputmode="decimal">'+
-    '<span class="hint">'+(carteira?'Conte o dinheiro que está na carteira. ':'No Banco do Brasil, some o saldo da conta com o do BB Rende Fácil. ')+
+    (carteira?'<div style="margin-top:6px"><button class="mini" id="scZero">Não sobrou nada: zerar</button></div>':'')+
+    '<span class="hint">'+(carteira?'Conte o dinheiro que está na carteira. O que faltar entra como <b>gasto em dinheiro</b>, na categoria Outros — depois dá para trocar a categoria tocando no lançamento. ':'No Banco do Brasil, some o saldo da conta com o do BB Rende Fácil. ')+
     'Antes, veja se falta lançar ou importar algo daquele mês: a diferença pode ser só isso. O acerto aparece no extrato como <b>Acerto de saldo</b> e não conta como gasto nem como renda.</span></div>'+
     acertosDe(t=>t.acct===a.id||t.acct2===a.id)+'</div>',
     '<button class="btn ghost" id="scX">Cancelar</button><button class="btn" id="scOk">Corrigir</button>');
@@ -2018,9 +2073,12 @@ function openCorrigirSaldo(id){
     $("#scV").value=fmtN(calc); };
   $("#scM").onchange=atualiza; atualiza();
   $("#scX").onclick=closeSheet;
+  const z=$("#scZero"); if(z) z.onclick=()=>{ $("#scV").value=fmtN(0); };
   $("#scOk").onclick=async()=>{ const ym=mes(), dia=diaDoAcerto(ym);
-    const delta=await acertarSaldo(a.id,dia,toCents($("#scV").value));
-    closeSheet(); render(); toast(delta?"Saldo de "+diaMesAno(dia)+" corrigido em "+(delta>0?"+":"")+fmt(delta):"O saldo já batia"); }; }
+    const delta=await acertarSaldo(a.id,dia,toCents($("#scV").value),carteira);
+    closeSheet(); render();
+    toast(delta?(carteira&&delta<0?"Lançado "+fmt(-delta)+" de gasto em dinheiro em "+diaMesAno(dia)
+      :"Saldo de "+diaMesAno(dia)+" corrigido em "+(delta>0?"+":"")+fmt(delta)):"O saldo já batia"); }; }
 
 /* corrigir a fatura de um cartão: o total do banco para as compras e encargos daquele mês */
 function openCorrigirFatura(cid){
@@ -2983,6 +3041,7 @@ function renderAnalises(){
   bindTips($("#p-analises"));
   $$("[data-divnova]").forEach(b=>b.onclick=()=>openDivida(""));
   $$("[data-div]").forEach(b=>b.onclick=()=>openDivida(b.dataset.div));
+  $$("[data-quit]").forEach(b=>b.onclick=()=>{ const dv=(S.cfg.dividas||[]).find(x=>x.id===b.dataset.quit); if(dv) openQuitacao(dv); });
   $$("[data-acao]").forEach(b=>b.onclick=()=>{ const f=ACOES[b.dataset.acao]; if(f) f(); }); }
 
 function diagHTML(list){
@@ -3154,8 +3213,48 @@ function htmlDividas(){
       '<div class="meter-s"><span>'+situacao+'</span><span>saldo '+fmtN(e.saldo)+'</span></div>'+
       (e.jurosRest?'<div class="meter-s" style="margin-top:2px"><span>juros que faltam '+fmtN(e.jurosRest)+'</span></div>':'')+
       (sim?'<div class="note" style="margin-top:10px;font-size:12.5px"><b>Adiantando '+fmt(sim.E)+' por mês</b>termina '+sim.meses+(sim.meses===1?' mês':' meses')+' antes e economiza '+fmt(sim.economia)+' de juros.</div>':'')+
-      '<div class="cardbox-a"><button class="btn ghost sm" data-div="'+dv.id+'">Editar</button></div></div>'; }).join("")+'</div>';
+      '<div class="cardbox-a">'+(e.n?'<button class="btn sm" data-quit="'+dv.id+'">Quitar antes</button>':'')+
+      '<button class="btn ghost sm" data-div="'+dv.id+'">Editar</button></div></div>'; }).join("")+'</div>';
   return h+'<div style="margin-top:10px"><button class="btn ghost sm" data-divnova>Cadastrar outra dívida</button></div>'; }
+
+/* quitação: quanto falta para acabar com a dívida hoje ou em qualquer mês, e quanto pagar por mês para
+   terminar antes. Tabela Price: saldo S = P·(1−(1+i)^−n)/i; para quitar em m meses, Q = S·i/(1−(1+i)^−m). */
+function mesDaParcela(dv,e,k){
+  if(ehConsSal(dv)) return ymShift(e.start,k);
+  const d=e.prox?vencDivida(dv,e.pagas+1+k):"";
+  return d?ymOf(d):ymShift(ymOf(todayISO()),k); }
+const parcelaParaQuitar=(e,m)=>m<1?0:(e.i>0?Math.round(e.saldo*e.i/(1-Math.pow(1+e.i,-m))):Math.round(e.saldo/m));
+function openQuitacao(dv){
+  const e=estadoDivida(dv);
+  if(!e.n){ toast("Essa dívida já está quitada."); return; }
+  const meses=[]; for(let k=0;k<e.n;k++) meses.push({k, ym:mesDaParcela(dv,e,k), falta:saldoPrice(e.P,e.i,e.n-k)});
+  const semJuros=!(e.i>0);
+  sheet("Quitar · "+dv.nome,
+    '<div class="set">'+
+    '<div class="note"><b>Para quitar hoje: '+fmt(e.saldo)+'</b>Faltam '+e.n+(e.n>1?" parcelas de ":" parcela de ")+fmt(e.P)+
+    (semJuros?'. Sem o juro informado, o saldo é só parcela × parcelas que faltam — informe o juro na ficha da dívida para o cálculo ficar certo.'
+      :', a '+pctBR(e.i)+' ao mês. Pagando em dia, ainda vai pagar '+fmt(e.jurosRest)+' de juros.')+'</div>'+
+    '<div class="set-f"><label for="qtM">Quero terminar de pagar em</label><select id="qtM">'+
+      meses.map(x=>'<option value="'+x.k+'"'+(x.k===Math.min(2,e.n-1)?" selected":"")+'>'+esc(ymLabel(x.ym))+" · parcela "+(e.pagas+x.k+1)+" de "+e.total+'</option>').join("")+
+    '</select></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Pagando por mês</div><div class="s" id="qtSub">—</div></div><span class="row-v" id="qtQ">—</span></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">A mais do que a parcela</div><div class="s">é o quanto adiantar por mês</div></div><span class="row-v" id="qtE">—</span></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Economia de juros</div><div class="s">comparado com pagar até o fim</div></div><span class="row-v" id="qtJ">—</span></div>'+
+    '<div class="set-f"><label>Quanto falta para quitar, mês a mês</label>'+
+    '<div class="hint">Depois de pagar a parcela daquele mês.</div>'+
+    '<div style="margin-top:6px;display:grid;gap:6px;font-size:13px;color:var(--ink-2)">'+
+      meses.slice(0,12).map(x=>'<div style="display:flex;justify-content:space-between;gap:10px"><span>'+esc(ymLabel(x.ym))+'</span>'+
+        '<b style="font-family:var(--f-m);font-weight:600">'+fmtN(Math.max(0,saldoPrice(e.P,e.i,e.n-x.k-1)))+'</b></div>').join("")+
+    '</div></div></div>',
+    '<button class="btn" id="qtX">Fechar</button>');
+  const calc=()=>{ const k=+$("#qtM").value, m=k+1, Q=parcelaParaQuitar(e,m);
+    const totalAtual=e.P*e.n, totalNovo=Q*m;
+    $("#qtQ").textContent=fmtN(Q);
+    $("#qtSub").textContent="durante "+m+(m>1?" meses, até ":" mês, até ")+ymLabel(meses[k].ym);
+    $("#qtE").textContent=fmtN(Math.max(0,Q-e.P));
+    $("#qtJ").textContent=semJuros?"—":fmtN(Math.max(0,totalAtual-totalNovo)); };
+  $("#qtM").onchange=calc; calc();
+  $("#qtX").onclick=closeSheet; }
 
 function openDivida(id){
   const L=S.cfg.dividas||(S.cfg.dividas=[]), cur=ymOf(todayISO()), hoje=todayISO();
@@ -3179,6 +3278,8 @@ function openDivida(id){
       '<div class="set-f"><label>Data do empréstimo</label><input id="dvDt" type="date" value="'+(dv.data||hoje)+'"></div></div>'+
       '<div class="two"><div class="set-f"><label>Número de parcelas</label><input id="dvTotC" inputmode="numeric" value="'+(dv.total||"")+'" placeholder="12"></div>'+
       '<div class="set-f"><label>Já descontadas antes deste mês</label><input id="dvJD" inputmode="numeric" value="'+(+dv.jaDesc||0)+'"></div></div>'+
+      '<div class="set-f"><label for="dvPri">Primeiro desconto no salário de</label><input id="dvPri" type="month" value="'+esc(dv.primeiro||estadoCons(dv).start||"")+'">'+
+      '<span class="hint">O banco costuma começar a descontar meses depois de liberar o empréstimo. A contagem das parcelas começa neste mês.</span></div>'+
       '<div class="set-f"><label>Caiu na conta</label><select id="dvCt">'+optId(contas,dv.conta||cc)+'</select></div>'+
       '<div class="set-f"><label style="display:flex;align-items:center;gap:9px;font-weight:500;color:var(--ink)"><input type="checkbox" id="dvDep" style="width:20px;height:20px"'+((nova&&!(+dv.jaDesc))||temDep?" checked":"")+'>Lançar o depósito do empréstimo nessa conta</label>'+
       '<span class="hint">Entra no saldo da conta, mas não conta como renda. Desmarque se ele já está lançado — por exemplo, se veio no extrato.</span></div>'+
@@ -3214,7 +3315,8 @@ function openDivida(id){
       const jd=Math.max(0,Math.min(tot,parseInt($("#dvJD").value)||0));
       if(!V&&!jd){ toast("Informe o valor do empréstimo."); return; }
       if(dv.fixId){ S.cfg.fixed=F.filter(f=>f.id!==dv.fixId); dv.fixId=""; }
-      Object.assign(dv,{nome,tipo:"consignado",modo:"salario",parcela:P,total:tot,valor:V,data,conta,jaDesc:jd,juros:J,folha:true,criado:dv.criado||hoje});
+      Object.assign(dv,{nome,tipo:"consignado",modo:"salario",parcela:P,total:tot,valor:V,data,conta,jaDesc:jd,juros:J,folha:true,
+        primeiro:$("#dvPri").value||"",criado:dv.criado||hoje});
       ["restantes","desde","inicio","dia"].forEach(k=>delete dv[k]);
       if(nova) L.push(dv);
       /* o depósito do empréstimo: entra na conta, fora da renda */
@@ -3554,9 +3656,11 @@ function estadoCons(dv){
   const total=+dv.total||0, P=+dv.parcela||0, jd=+dv.jaDesc||0;
   const pagas=Math.min(total,jd+deds.length), n=total-pagas;
   const i=consJuros(dv)/100, saldo=saldoPrice(P,i,n);
-  /* primeiro desconto: o salário seguinte ao empréstimo; se já vinha sendo descontado, o salário do mês do cadastro */
+  /* o mês do primeiro desconto: o que o dono informou (o banco costuma começar meses depois do empréstimo) ou,
+     na falta dele, o salário seguinte ao empréstimo; já descontadas antes disso andam a agenda para a frente */
   const base=dv.data||dv.criado||todayISO(), bm=ymOf(base);
-  const primeiro=jd>0?ymOf(dv.criado||todayISO()):(base<primeiroDiaUtil(bm)?bm:ymShift(bm,1));
+  const primeiro=dv.primeiro?ymShift(dv.primeiro,jd)
+    :jd>0?ymOf(dv.criado||todayISO()):(base<primeiroDiaUtil(bm)?bm:ymShift(bm,1));
   const ult=deds.length?deds[deds.length-1].ym:"";
   const start=ult&&ymShift(ult,1)>primeiro?ymShift(ult,1):primeiro;
   const fim=n>0?ymShift(start,n-1):(ult||primeiro);
