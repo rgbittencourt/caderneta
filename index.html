@@ -3541,9 +3541,20 @@ function pagamentosRepetidos(){
     if(vistos.indexOf(a.id+"|"+b.id)>=0) continue;
     pares.push([a,b]); usado[a.id]=usado[b.id]=1; }
   return pares; }
-function conferirPagamentosRepetidos(){
+/* na partida, só o aviso: conferir dá trabalho e pode depender de olhar o extrato ou a fatura */
+function conferirPagamentosRepetidos(aviso){
   const pares=pagamentosRepetidos(); if(!pares.length) return false;
-  openRepetido(pares,0,par=>{ S.cfg.pagPares=(S.cfg.pagPares||[]).concat([par[0].id+"|"+par[1].id]).slice(-40); saveCfg(); });
+  const marcar=par=>{ S.cfg.pagPares=(S.cfg.pagPares||[]).concat([par[0].id+"|"+par[1].id]).slice(-40); saveCfg(); };
+  if(!aviso){ openRepetido(pares,0,marcar); return true; }
+  sheet(pares.length>1?"Pagamentos que parecem repetidos":"Um pagamento que parece repetido",
+    '<div class="set"><div class="note"><b>'+pares.length+(pares.length>1?" pagamentos de fatura parecem repetidos":" pagamento de fatura parece repetido")+'</b>'+
+    'Confira quando puder: pode ser o mesmo pagamento lançado duas vezes, ou uma cobrança que o cartão estornou e cobrou de novo. Nada é apagado sem você mandar.</div>'+
+    '<div class="dup">'+pares.map(p=>'<div class="dup-l">'+esc(p[0].desc)+' · '+diaMesAno(p[0].d)+' · '+fmtN(p[0].v)+
+      (p[0].card?' · '+esc(cardName(p[0].card)):'')+'</div>').join("")+'</div>'+
+    '<div class="set-f"><span class="hint">Para ver depois: aba <b>Contas</b>, escolha a conta e toque em <b>Repetidos</b>, no alto do extrato.</span></div></div>',
+    '<button class="btn ghost" id="prDepois">Depois eu vejo</button><button class="btn" id="prAgora">Conferir agora</button>');
+  $("#prDepois").onclick=()=>{ closeSheet(); toast("Quando quiser: Contas → Repetidos."); };
+  $("#prAgora").onclick=()=>{ closeSheet(); openRepetido(pares,0,marcar); };
   return true; }
 
 /* =================== contas a pagar do mês =================== */
@@ -4002,7 +4013,7 @@ loadLocal();
 render();
 boot();
 /* pagamento de fatura lançado duas vezes (extrato + botão Pagar): pergunta uma vez por sessão */
-setTimeout(()=>{ if($("#scrim").hidden) conferirPagamentosRepetidos(); },1600);
+setTimeout(()=>{ if($("#scrim").hidden) conferirPagamentosRepetidos(true); },1600);
 </script>
 </body>
 </html>
