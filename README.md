@@ -4,6 +4,8 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **Endereço:** https://rgbittencourt.github.io/caderneta/
 
+**[Manual de uso](https://rgbittencourt.github.io/caderneta/manual.html)** — completo, com telas, pronto para imprimir em A4. Dentro do app: Ajustes → *Ajuda e manual*.
+
 ## Usar
 
 **Instalar**

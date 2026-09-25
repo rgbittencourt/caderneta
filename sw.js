@@ -1,6 +1,6 @@
 /* Caderneta — service worker: guarda o app no aparelho para abrir sem internet.
    Mude VERSAO a cada publicação para os aparelhos pegarem a versão nova. */
-const VERSAO = "caderneta-v34";
+const VERSAO = "caderneta-v35";
 const FONTES = "caderneta-fontes";
 const LIBS = "caderneta-libs-2";
 const APP = ["./", "./index.html", "./manifest.webmanifest", "./config.js",
@@ -55,7 +55,12 @@ self.addEventListener("fetch", e => {
   if (url.origin !== self.location.origin) return;
 
   /* a página e a configuração: rede primeiro, para pegar atualizações */
-  if (req.mode === "navigate") { e.respondWith(redePrimeiro(req, "./index.html", "no-cache")); return; }
+  /* a página do app guarda cópia sob "./index.html"; outras páginas (o manual) guardam a si mesmas */
+  if (req.mode === "navigate") {
+    const ehApp = url.pathname.endsWith("/") || url.pathname.endsWith("/index.html");
+    e.respondWith(redePrimeiro(req, ehApp ? "./index.html" : null, "no-cache"));
+    return;
+  }
   if (url.pathname.endsWith("/config.js")) { e.respondWith(redePrimeiro(req, null, "no-store")); return; }
 
   /* ícones e o resto: cópia guardada primeiro */

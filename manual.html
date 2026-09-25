@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caderneta — Manual de uso</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#16202c; --ink-2:#48566a; --ink-3:#77869b; --line:#dde3ec; --line-2:#eef2f7;
+  --paper:#fff; --surface:#f6f8fb; --accent:#2563A8; --accent-soft:#e8f0fa; --accent-line:#bcd3ec;
+  --bad:#b3261e; --good:#1f7a4d; --warn:#9a6a00; --warn-soft:#fdf5e3;
+  --f:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --f-m:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface);color:var(--ink);font:400 15px/1.6 var(--f);-webkit-font-smoothing:antialiased}
+.pagina{max-width:840px;margin:0 auto;background:var(--paper);padding:56px 64px 72px}
+h1,h2,h3{line-height:1.25;margin:0}
+h1{font-size:34px;font-weight:700;letter-spacing:-.02em}
+h2{font-size:23px;font-weight:600;letter-spacing:-.01em;margin:44px 0 6px;padding-top:16px;border-top:2px solid var(--line)}
+h3{font-size:17px;font-weight:600;margin:26px 0 6px}
+p{margin:10px 0}
+ul,ol{margin:10px 0;padding-left:22px}
+li{margin:5px 0}
+b,strong{font-weight:600}
+code,.mono{font-family:var(--f-m);font-size:.92em;background:var(--surface);padding:1px 5px;border-radius:4px}
+a{color:var(--accent)}
+.capa{border-bottom:2px solid var(--line);padding-bottom:26px;margin-bottom:8px}
+.capa .sub{color:var(--ink-2);font-size:17px;margin-top:10px}
+.capa .meta{margin-top:18px;font-size:13px;color:var(--ink-3);font-family:var(--f-m)}
+.sumario{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 22px;margin:26px 0 8px}
+.sumario h2{border:0;margin:0 0 10px;padding:0;font-size:15px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3)}
+.sumario ol{columns:2;column-gap:32px;margin:0;padding-left:20px;font-size:14px}
+.sumario a{text-decoration:none;color:var(--ink)}
+.sumario a:hover{color:var(--accent)}
+figure{margin:18px 0;break-inside:avoid;page-break-inside:avoid}
+figure img{width:100%;display:block;border:1px solid var(--line);border-radius:10px}
+figcaption{font-size:12.5px;color:var(--ink-3);margin-top:7px}
+figure.telefone{max-width:330px}
+figure.ficha{max-width:520px}
+.nota,.aviso,.dica{border-radius:10px;padding:14px 16px;margin:16px 0;font-size:14px;break-inside:avoid}
+.nota{background:var(--accent-soft);border:1px solid var(--accent-line)}
+.aviso{background:#fdecea;border:1px solid #f3c4bf}
+.dica{background:var(--warn-soft);border:1px solid #efdcae}
+.nota b,.aviso b,.dica b{display:block;margin-bottom:3px}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;break-inside:avoid}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);border-bottom:2px solid var(--line)}
+td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
+.fala{background:var(--surface);border-left:3px solid var(--accent);padding:10px 14px;margin:10px 0;font-size:14px}
+.fala b{font-family:var(--f-m);font-weight:500}
+.passos{counter-reset:p;list-style:none;padding:0}
+.passos li{counter-increment:p;position:relative;padding-left:34px;margin:12px 0}
+.passos li::before{content:counter(p);position:absolute;left:0;top:1px;width:23px;height:23px;border-radius:50%;
+  background:var(--accent);color:#fff;font-size:12.5px;font-weight:600;display:grid;place-items:center}
+.barra{position:sticky;top:0;background:rgba(255,255,255,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);
+  padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:center;font-size:13px;color:var(--ink-2);z-index:5}
+.barra button{font:600 13px var(--f);background:var(--accent);color:#fff;border:0;border-radius:8px;padding:7px 14px;cursor:pointer}
+.rodape{margin-top:46px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-3)}
+@media (max-width:720px){ .pagina{padding:28px 20px 48px} .sumario ol{columns:1} h1{font-size:27px} }
+@media print{
+  @page{ size:A4; margin:16mm 15mm 18mm; }
+  body{background:#fff;font-size:10.5pt;line-height:1.5}
+  .barra{display:none}
+  .pagina{max-width:none;margin:0;padding:0}
+  h1{font-size:24pt}
+  h2{font-size:15pt;page-break-before:always;break-before:page;padding-top:0;border-top:0;margin:0 0 6pt}
+  h2#sobre,h2:first-of-type{page-break-before:avoid;break-before:avoid}
+  h3{font-size:12pt;margin:14pt 0 4pt}
+  figure img{border:1px solid #ccc}
+  figure{max-width:none}
+  figure.telefone{max-width:62mm}
+  figure.ficha{max-width:110mm}
+  a{color:#000;text-decoration:none}
+  .sumario{background:#fff;border:1px solid #ccc}
+  .sumario ol{columns:2}
+  .nota,.aviso,.dica{border:1px solid #bbb;background:#fafafa}
+  table{font-size:9.5pt}
+  .rodape{page-break-before:avoid}
+}
+</style>
+</head>
+<body>
+
+<div class="barra">
+  <span>Manual da Caderneta — feito para imprimir em A4</span>
+  <button onclick="window.print()">Imprimir ou salvar em PDF</button>
+</div>
+
+<div class="pagina">
+
+<header class="capa">
+  <h1>Caderneta</h1>
+  <div class="sub">Manual de uso — controle de gastos por fala, extrato e fatura</div>
+  <div class="meta">
+    Endereço do app: https://rgbittencourt.github.io/caderneta/<br>
+    Setembro de 2026 · aplica-se à versão caderneta-v35 em diante
+  </div>
+</header>
+
+<nav class="sumario">
+  <h2>Sumário</h2>
+  <ol>
+    <li><a href="#comecar">Começar</a></li>
+    <li><a href="#abas">As abas</a></li>
+    <li><a href="#painel">Painel</a></li>
+    <li><a href="#fala">Lançar por fala</a></li>
+    <li><a href="#agendar">Agendar pagamentos</a></li>
+    <li><a href="#extrato">Importar o extrato</a></li>
+    <li><a href="#fatura">Importar a fatura</a></li>
+    <li><a href="#boleto">Boleto e canhoto</a></li>
+    <li><a href="#conferencia">A conferência</a></li>
+    <li><a href="#mes">Aba Mês</a></li>
+    <li><a href="#contas">Aba Contas</a></li>
+    <li><a href="#saldos">Saldos e acertos</a></li>
+    <li><a href="#carteira">Carteira e dinheiro</a></li>
+    <li><a href="#cartoes">Cartões de crédito</a></li>
+    <li><a href="#dividas">Dívidas e quitação</a></li>
+    <li><a href="#salario">Salário e renda</a></li>
+    <li><a href="#futuro">Futuro e Meta</a></li>
+    <li><a href="#analises">Análises</a></li>
+    <li><a href="#carregar">Carregar meses anteriores</a></li>
+    <li><a href="#problemas">Quando algo não bate</a></li>
+    <li><a href="#dados">Dados, backup e privacidade</a></li>
+    <li><a href="#ajuda">Ajuda dentro do app</a></li>
+    <li><a href="#glossario">Glossário</a></li>
+  </ol>
+</nav>
+
+<div class="nota">
+  <b>Como este manual foi feito</b>
+  Todas as telas deste manual usam <b>dados inventados</b>, só para ilustrar. Nenhum valor, nome de loja ou saldo real aparece aqui.
+</div>
+
+<h2 id="comecar">1. Começar</h2>
+
+<h3>Instalar</h3>
+<ul>
+  <li><b>iPhone e iPad:</b> abra o endereço no Safari → botão Compartilhar → <i>Adicionar à Tela de Início</i>.</li>
+  <li><b>Android:</b> abra no Chrome → <i>Instalar app</i>.</li>
+  <li><b>Mac e Windows:</b> no Chrome ou Edge, use o ícone de instalar na barra de endereço. No Safari: <i>Arquivo → Adicionar ao Dock</i>.</li>
+</ul>
+
+<h3>Entrar</h3>
+<p>Toque em <b>Entrar com Google</b> e deixe marcada a permissão do Google Drive. Os seus dados ficam em dois lugares: no aparelho e numa pasta chamada <b>Caderneta</b>, no seu Drive. Cada pessoa da família entra com a própria conta e só enxerga os próprios dados.</p>
+<p>Também dá para usar <b>só neste aparelho</b>, sem conta. Nesse caso os dados não vão para o Drive e não passam para outro celular.</p>
+
+<h3>Atualizar</h3>
+<p>Quando há versão nova, o app mostra no alto <b>Nova versão da Caderneta · Atualizar</b>. Para saber qual versão está instalada, vá em <b>Ajustes → Dados → Versão do app</b>. Se ficar atrasada, feche o app por completo e abra de novo, ou use <i>Procurar atualização</i>.</p>
+
+<h2 id="abas">2. As abas</h2>
+
+<figure class="telefone">
+  <img src="manual/celular-abas.png" alt="Barra de abas no celular">
+  <figcaption>No celular, as abas ficam embaixo. <i>Futuro</i>, <i>Meta</i>, <i>Análises</i> e <i>Ajustes</i> estão no botão <b>Mais</b>. No computador, tudo aparece no menu lateral.</figcaption>
+</figure>
+
+<table>
+  <tr><th>Aba</th><th>Para que serve</th></tr>
+  <tr><td><b>Painel</b></td><td>O retrato do momento: dinheiro no banco, cartões, teto do mês e próximos vencimentos.</td></tr>
+  <tr><td><b>Lançar</b></td><td>Tudo o que entra no app: fala, lançamento na mão, importar extrato, importar fatura, cadastrar dívidas.</td></tr>
+  <tr><td><b>Mês</b></td><td>Os lançamentos do mês, dia a dia, e as contas a pagar.</td></tr>
+  <tr><td><b>Contas</b></td><td>Só para ver: saldo de cada conta, cartões e o extrato mês a mês.</td></tr>
+  <tr><td><b>Futuro</b></td><td>O que já está comprometido nos próximos meses.</td></tr>
+  <tr><td><b>Meta</b></td><td>Meta de poupança e o método 50-30-20.</td></tr>
+  <tr><td><b>Análises</b></td><td>Diagnóstico do mês, compras parceladas, gastos por cartão e dívidas.</td></tr>
+  <tr><td><b>Ajustes</b></td><td>Saldos, renda, cartões, categorias, gastos fixos e dados.</td></tr>
+</table>
+
+<h2 id="painel">3. Painel</h2>
+
+<p>O Painel começa pelo mais básico: <b>quanto você tem no banco</b> e <b>quanto já está lançado em cada cartão</b>.</p>
+
+<figure>
+  <img src="manual/painel-banco.png" alt="No banco hoje e lançado nos cartões">
+  <figcaption>À esquerda, o total somando as contas, com uma linha para cada uma. O dinheiro da <b>Carteira</b> aparece na lista, mas fora do total, porque não está no banco. À direita, a fatura do mês de cada cartão, o total em aberto (contando as parcelas futuras) e o limite livre. Tocando em qualquer linha, você vai direto ao extrato daquela conta ou cartão.</figcaption>
+</figure>
+
+<figure>
+  <img src="manual/painel-teto.png" alt="Disponível até o fim do mês">
+  <figcaption><b>Disponível até o fim do mês</b> é o teto menos o que já foi gasto e o que está comprometido (parcelas e fixos ainda por lançar). Ao lado, quatro números do mês: gasto, entrada, saldo de hoje e saldo previsto para o último dia.</figcaption>
+</figure>
+
+<figure>
+  <img src="manual/painel-vencimentos.png" alt="Próximos vencimentos">
+  <figcaption><b>Próximos vencimentos</b> reúne o que vence em até dez dias e o que já passou: gastos fixos, parcelas de dívida e faturas.</figcaption>
+</figure>
+
+<figure>
+  <img src="manual/painel-categorias.png" alt="Onde meu dinheiro está indo">
+  <figcaption><b>Onde meu dinheiro está indo</b>: as categorias do mês em ordem de valor. O traço cinza é o limite que você definiu para a categoria, em Ajustes.</figcaption>
+</figure>
+
+<h2 id="fala">4. Lançar por fala</h2>
+
+<figure>
+  <img src="manual/lancar-fala.png" alt="Lançar por fala">
+  <figcaption>Toque no 🎤 do teclado (ou no botão Microfone) e fale. Separe vários lançamentos com ponto final. Ao lado ficam os botões para lançar na mão: entrada, gasto e transferência entre contas.</figcaption>
+</figure>
+
+<h3>O que ele entende</h3>
+<table>
+  <tr><th>Parte</th><th>Como falar</th></tr>
+  <tr><td>Valor</td><td>"vinte e três reais", "R$ 23", "23"</td></tr>
+  <tr><td>Forma de pagamento</td><td>crédito, débito, Pix, dinheiro, boleto, transferência</td></tr>
+  <tr><td>Cartão</td><td>pelo nome ou apelido: "no crédito Visa", "no Elo"</td></tr>
+  <tr><td>Parcelas</td><td>"em três vezes", "3x"</td></tr>
+  <tr><td>Entrada</td><td>"caiu o salário", "recebi", "estorno", "rendimento"</td></tr>
+  <tr><td>Para quem</td><td>"pra o João" — em Pix e transferência</td></tr>
+  <tr><td>Categoria</td><td>sozinho, pela palavra que aparece primeiro: mercado, farmácia, posto…</td></tr>
+</table>
+
+<div class="fala">
+  <b>"Vinte e três reais, almoço no IFSC, cartão de crédito Visa."</b><br>
+  <b>"Trezentos e oitenta reais na loja de ferramentas, em três vezes no Mastercard."</b><br>
+  <b>"Caiu o salário, nove mil e oitocentos reais."</b><br>
+  <b>"Saquei duzentos reais."</b> — não é gasto: sai da conta e vai para a Carteira.
+</div>
+
+<div class="dica">
+  <b>Confira antes de salvar</b>
+  O que a fala gerou aparece na lista <i>Confira antes de salvar</i>. Ali dá para mudar valor, descrição, categoria, forma de pagamento, data e parcelas — e só então salvar.
+</div>
+
+<h2 id="agendar">5. Agendar pagamentos</h2>
+
+<p>Diga <b>quando</b> e o lançamento já fica marcado para o dia certo. Serve para pagamento, depósito e transferência.</p>
+
+<div class="fala">
+  <b>"Mil e duzentos reais, aluguel, dia 10."</b><br>
+  <b>"Quinhentos reais, internet, amanhã."</b><br>
+  <b>"Trezentos reais, escola, dia 5 de outubro."</b><br>
+  Também vale "10/10", "hoje" e "ontem".
+</div>
+
+<ul>
+  <li>Sem dizer o mês, "dia 10" é o <b>próximo</b> dia 10.</li>
+  <li>Até três dias para trás, ele entende que é deste mês — quem fala "dia 23" no dia 25 está lançando o que já aconteceu.</li>
+  <li>O lançamento aparece com a marca <b>agendado</b> até chegar o dia, e já entra no saldo previsto do mês.</li>
+</ul>
+
+<h2 id="extrato">6. Importar o extrato da conta</h2>
+
+<figure>
+  <img src="manual/lancar-extrato.png" alt="Importar extrato da conta">
+  <figcaption>Aba <b>Lançar → Importar extrato da conta</b>: escolha a conta e o arquivo. O PDF baixado do app do banco é o que lê melhor; foto, OFX e CSV também servem.</figcaption>
+</figure>
+
+<h3>O que o app faz sozinho</h3>
+<ul>
+  <li>Lê cada lançamento com o nome certo e separa entradas de saídas.</li>
+  <li><b>Pagamento de fatura</b> ("Pagto cartão crédito") vira pagamento: sai da conta, mas não conta como gasto — as compras já vieram da fatura.</li>
+  <li><b>Saque</b> vira transferência para a Carteira.</li>
+  <li><b>Aplicação automática do saldo</b> (no Banco do Brasil, o Rende Fácil) vira transferência para uma conta própria, criada na primeira importação. Assim a conta corrente fica igual ao saldo impresso no extrato.</li>
+  <li><b>Rendimento:</b> o extrato não traz essa linha — o dinheiro volta escondido dentro dos resgates. Quando o banco devolve mais do que tirou, o app pergunta se pode lançar a diferença como <i>Rendimentos</i>.</li>
+  <li><b>Conferência do saldo:</b> no fim, ele compara o saldo impresso pelo banco com o que calculou e pergunta se pode acertar.</li>
+</ul>
+
+<div class="aviso">
+  <b>Importe do mês mais antigo para o mais novo</b>
+  O desconto do consignado anda pelos salários já lançados. Fora de ordem, ele não fecha.
+</div>
+
+<h2 id="fatura">7. Importar a fatura do cartão</h2>
+
+<figure>
+  <img src="manual/lancar-fatura.png" alt="Importar fatura do cartão">
+  <figcaption>Aba <b>Lançar → Importar fatura do cartão, canhoto ou boleto</b>: escolha o tipo, o cartão e o arquivo. O mês não se escolhe — vem da própria fatura.</figcaption>
+</figure>
+
+<h3>O que o app faz sozinho</h3>
+<ul>
+  <li><b>O mês da fatura é o do fechamento impresso nela.</b> A fatura que fechou em 06/01 é a fatura de janeiro, mesmo sendo paga em 16/01.</li>
+  <li>Aprende o <b>dia do fechamento</b> do cartão e reconhece o cartão pelo que está escrito na fatura.</li>
+  <li><b>Saldo da fatura anterior</b> e <b>pagamento em débito em conta</b> não são compras: se um anula o outro, a fatura anterior foi paga; o que sobrar entra como <i>Saldo da fatura anterior</i>.</li>
+  <li><b>Parcelas:</b> a parcela 03/10 já reserva as seguintes. Se o banco muda os centavos de uma parcela para outra, o app reconhece e acerta pelo valor da fatura; se uma parcela prevista não veio, ele empurra para a fatura seguinte.</li>
+  <li><b>Juros, IOF e tarifas</b> entram como lançamento daquela fatura.</li>
+</ul>
+
+<div class="nota">
+  <b>A regra de ouro do crédito</b>
+  A compra no cartão conta como gasto <b>no mês em que foi feita</b> e entra nas análises e nos gráficos — mas <b>não</b> sai da conta corrente. O dinheiro só sai quando a fatura é paga.
+</div>
+
+<h2 id="boleto">8. Boleto e canhoto</h2>
+<ul>
+  <li><b>Boleto:</b> fotografe o código de barras ou digite a linha digitável. Em <b>Quando pagar</b>, escolha <i>No vencimento (agendar)</i> — o padrão — ou <i>Hoje (já paguei)</i>.</li>
+  <li><b>Canhoto ou cupom:</b> em <i>Pago com</i>, diga como pagou (débito, Pix, boleto ou um cartão). Essa escolha vale para o documento inteiro e pode ser mudada linha a linha na conferência.</li>
+  <li><b>Foto:</b> uma página por vez, com boa luz e o papel reto. Depois da primeira, aparece o botão <i>Fotografar mais uma página</i>.</li>
+</ul>
+
+<h2 id="conferencia">9. A conferência: nada entra duas vezes</h2>
+
+<figure>
+  <img src="manual/conferencia-status.png" alt="Resumo da leitura">
+  <figcaption>Depois de ler um documento, o app resume o que encontrou: quantos lançamentos, quantos parecem já lançados, o que ficou de fora e o saldo que o banco informa.</figcaption>
+</figure>
+
+<figure>
+  <img src="manual/conferencia.png" alt="Confira antes de salvar">
+  <figcaption>Cada linha pode ser ajustada antes de salvar. O que já está lançado vem <b>desmarcado</b>, com os dois lado a lado e os botões <i>É o mesmo — não lançar</i> e <i>São diferentes — lançar</i>.</figcaption>
+</figure>
+
+<h3>Como ele reconhece o que já foi lançado</h3>
+<ul>
+  <li>Mesmo <b>tipo</b> (gasto, entrada, pagamento de fatura, entre contas).</li>
+  <li>Mesmo <b>valor</b>, com tolerância de um centavo.</li>
+  <li><b>Data</b> com folga de três dias — seis, no pagamento de fatura.</li>
+  <li>No crédito, reconhece mesmo que você tenha dito o <b>cartão errado</b>, quando a descrição bate.</li>
+  <li><b>Parcelas</b> têm regra própria: a parcela 02/06 é reconhecida mesmo com os centavos diferentes.</li>
+</ul>
+
+<p>Depois de salvar, ainda existe o <b>Repetidos</b>, no alto do extrato (aba Contas): ele procura dois lançamentos iguais já gravados, mostra de cada lado qual fatura abate e de onde veio, e deixa você escolher — <i>São diferentes</i>, <i>Apagar o primeiro</i> ou <i>Apagar o segundo</i>.</p>
+
+<h2 id="mes">10. Aba Mês</h2>
+
+<figure>
+  <img src="manual/mes-contas-pagar.png" alt="Contas a pagar do mês">
+  <figcaption><b>Contas a pagar</b> reúne, em ordem de data, os gastos fixos, as parcelas de dívida, o consignado que sai do salário e a fatura de cada cartão. <i>Lançar</i> dá baixa num gasto fixo; <i>Pagar</i> abre o pagamento da fatura.</figcaption>
+</figure>
+
+<p>Abaixo ficam os lançamentos do mês, dia a dia. Cada gasto mostra a forma de pagamento e a marca <b>crédito · não sai da conta</b> ou <b>débito</b>. Tocando em qualquer linha, dá para corrigir ou excluir.</p>
+
+<h2 id="contas">11. Aba Contas</h2>
+
+<figure>
+  <img src="manual/contas-onde.png" alt="Onde o dinheiro está">
+  <figcaption><b>Onde o dinheiro está</b>: o saldo de hoje de cada conta. Toque numa conta para ver o extrato dela.</figcaption>
+</figure>
+
+<figure>
+  <img src="manual/contas-cartoes.png" alt="Cartões de crédito">
+  <figcaption>Cada cartão mostra a fatura do mês, o limite usado contando as parcelas futuras e o que está livre. <i>Pagar fatura</i> lança o pagamento; <i>Ver fatura</i> abre a lista de compras daquela fatura.</figcaption>
+</figure>
+
+<figure>
+  <img src="manual/contas-extrato.png" alt="Extrato da conta">
+  <figcaption>O extrato da conta, como o do banco: saldo anterior, cada movimento com o saldo depois dele e o saldo no fim do mês. As compras no crédito não aparecem aqui — o rodapé lembra quanto foi no crédito naquele mês.</figcaption>
+</figure>
+
+<figure>
+  <img src="manual/contas-fatura.png" alt="Fatura do cartão">
+  <figcaption>No cartão, a fatura daquele mês: cada compra, o pagamento e o que falta pagar. Compras do mês anterior podem aparecer aqui, porque o que manda é o fechamento.</figcaption>
+</figure>
+
+<h2 id="saldos">12. Saldos e acertos</h2>
+
+<figure>
+  <img src="manual/ajustes-saldos.png" alt="Saldo de cada conta e cartão">
+  <figcaption><b>Ajustes → Saldo de cada conta e cartão</b>: cada conta tem <i>Saldo inicial</i>, <i>Corrigir saldo</i> e <i>Editar</i>; cada cartão tem <i>Corrigir fatura</i>.</figcaption>
+</figure>
+
+<figure class="ficha">
+  <img src="manual/ficha-saldo-inicial.png" alt="Saldo inicial">
+  <figcaption><b>Saldo inicial</b>: a data do primeiro extrato que você vai importar e o <i>saldo anterior</i> impresso nele. Lançamentos antes dessa data não contam no saldo.</figcaption>
+</figure>
+
+<figure class="ficha">
+  <img src="manual/ficha-corrigir-saldo.png" alt="Corrigir saldo">
+  <figcaption><b>Corrigir saldo</b>: escolha o mês e digite o saldo que o banco mostrava no último dia dele (no mês atual, o de hoje). A diferença vira um <i>Acerto de saldo</i> naquele dia — assim o mês seguinte já começa certo e os anteriores não mudam. O acerto não conta como gasto nem como renda, aparece no extrato e pode ser apagado.</figcaption>
+</figure>
+
+<figure class="ficha">
+  <img src="manual/ficha-corrigir-fatura.png" alt="Corrigir fatura">
+  <figcaption><b>Corrigir fatura</b>: digite o total que o banco cobrou naquela fatura — compras, tarifas e encargos, sem o saldo anterior e sem pagamentos. A diferença entra como <i>Acerto da fatura</i>. O botão vermelho <b>Apagar esta fatura</b> (dois toques) tira os lançamentos daquela fatura e, de um parcelado, aquela parcela e as seguintes — sem tocar no pagamento. É o caminho para importar de novo uma fatura que entrou errada.</figcaption>
+</figure>
+
+<div class="dica">
+  <b>Banco do Brasil</b>
+  Ao comparar o saldo, some a conta corrente com o <b>BB Rende Fácil</b>: para o banco são dois lugares, mas o dinheiro é o mesmo.
+</div>
+
+<h2 id="carteira">13. Carteira e dinheiro em espécie</h2>
+
+<p>O saque tira da conta corrente e põe na <b>Carteira</b>. O gasto conta quando o dinheiro sai da carteira, e há dois jeitos:</p>
+<ol>
+  <li>Lançando cada gasto: <i>"trinta reais, feira, em dinheiro"</i>.</li>
+  <li>De uma vez: <b>Ajustes → Carteira → Corrigir saldo</b>, contando o que sobrou — ou tocando em <b>Não sobrou nada: zerar</b>. A diferença entra como <b>gasto em dinheiro</b>, na categoria Outros, e depois dá para trocar a categoria tocando no lançamento.</li>
+</ol>
+
+<h2 id="cartoes">14. Cartões de crédito</h2>
+<ul>
+  <li>A compra conta no <b>mês em que foi feita</b>. A fatura em que ela será cobrada depende do dia do fechamento do cartão.</li>
+  <li><b>Pagar fatura:</b> antes de lançar, o app procura um pagamento do mesmo valor que já tenha saído da conta e oferece <b>É este pagamento</b> — assim o dinheiro não sai duas vezes.</li>
+  <li><b>Fatura paga em pedaços:</b> quando o banco debita em partes, o app soma. Enquanto falta, mostra <i>pagamento parcial de X em N vezes</i>; quando fecha, <i>paga em N pagamentos</i>.</li>
+  <li><b>Fatura prevista:</b> enquanto você não importa a fatura daquele mês, o valor é só a previsão pelas compras e parcelas conhecidas — ela aparece como <i>prevista</i>, nunca como atrasada.</li>
+</ul>
+
+<h2 id="dividas">15. Dívidas e quitação</h2>
+
+<figure>
+  <img src="manual/lancar-dividas.png" alt="Dívidas e empréstimos">
+  <figcaption>O cadastro fica no fim da aba <b>Lançar</b>, junto com as importações. Cada dívida mostra a parcela, em qual você está e quanto falta para quitar hoje.</figcaption>
+</figure>
+
+<figure class="ficha">
+  <img src="manual/ficha-divida.png" alt="Ficha da dívida">
+  <figcaption>No <b>consignado</b>, informe o valor do empréstimo, a data em que caiu, a conta, o número de parcelas, o valor da parcela, <b>em que mês começou o desconto no salário</b> e quantas já foram descontadas antes deste mês. O banco costuma começar a descontar meses depois de liberar o dinheiro.</figcaption>
+</figure>
+
+<ul>
+  <li>O empréstimo entra no saldo da conta, mas <b>não</b> conta como renda.</li>
+  <li>A parcela sai do salário: conta como gasto, mas não sai da conta de novo — a renda já veio descontada.</li>
+  <li>Nunca dois descontos no mesmo mês.</li>
+  <li>Para <b>empréstimo ou financiamento pago por boleto ou débito</b>, diga <i>Já estou pagando</i> ("parcela 4 de 12") ou <i>Ainda vou começar</i>, com a data da primeira. A parcela entra nos gastos fixos até a última.</li>
+</ul>
+
+<figure class="ficha">
+  <img src="manual/ficha-quitar.png" alt="Quitar antes">
+  <figcaption><b>Quitar antes</b>: mostra quanto falta para quitar hoje, quanto pagar por mês para terminar num mês escolhido, quanto é a mais que a parcela e quanto você economiza de juros — e ainda o saldo para quitar mês a mês.</figcaption>
+</figure>
+
+<figure>
+  <img src="manual/analises-dividas.png" alt="Dívidas em Análises">
+  <figcaption>Na aba <b>Análises</b>, o acompanhamento: saldo devedor, quanto sai por mês, juros que ainda vai pagar e quando tudo estará quitado.</figcaption>
+</figure>
+
+<h2 id="salario">16. Salário e renda</h2>
+<p>Em <b>Ajustes → Meta do mês</b> você informa a renda líquida, a conta onde o salário cai e o teto de gastos.</p>
+<ul>
+  <li>A renda entra sozinha no <b>primeiro dia útil</b> do mês, pulando fim de semana e feriado nacional.</li>
+  <li>Em mês com parcela de consignado, ela entra <b>já descontada</b>, e a parcela aparece em Dívidas.</li>
+  <li>Se você lançar o salário à mão, ou ele vier no extrato, o app não lança de novo.</li>
+  <li>Teve aumento? Mude o valor e o app pergunta <b>a partir de que mês</b> vale. Meses anteriores e salários já lançados não mudam.</li>
+</ul>
+
+<h2 id="futuro">17. Futuro e Meta</h2>
+
+<figure>
+  <img src="manual/futuro.png" alt="Aba Futuro">
+  <figcaption><b>Futuro</b>: o que já está comprometido nos próximos meses — parcelas, gastos fixos e dívidas — antes de você gastar mais nada.</figcaption>
+</figure>
+
+<figure>
+  <img src="manual/meta-5030.png" alt="Método 50-30-20">
+  <figcaption><b>Meta</b>: a meta de poupança e o método 50-30-20, que divide a renda em Necessidades, Desejos e Futuro. O anel de fora é a meta; o de dentro, para onde a renda foi. Necessidades e Desejos são tetos; Futuro é piso.</figcaption>
+</figure>
+
+<h2 id="analises">18. Análises</h2>
+
+<figure>
+  <img src="manual/analises-diagnostico.png" alt="Diagnóstico do mês">
+  <figcaption>O <b>diagnóstico</b> lê os seus números e aponta o que merece atenção, em ordem de gravidade, com botões de ação quando dá para resolver ali mesmo.</figcaption>
+</figure>
+
+<p>Também estão nessa aba: compras parceladas (quando cada uma termina e quanto sobra por mês depois), gastos por cartão e forma de pagamento, e o acompanhamento das dívidas.</p>
+
+<h2 id="carregar">19. Carregar meses anteriores</h2>
+
+<ol class="passos">
+  <li><b>Comece do zero, se for o caso:</b> Ajustes → <i>Recomeçar os lançamentos</i>. O app guarda um backup no seu Drive antes de apagar e pergunta a data do primeiro extrato e o saldo de cada conta no dia anterior.</li>
+  <li><b>Prepare o cadastro:</b> contas, cartões (dia de fechamento e de vencimento) e dívidas — inclusive os consignados, com o mês em que o desconto começou.</li>
+  <li><b>Importe os extratos da conta</b>, do mês mais antigo para o mais novo.</li>
+  <li><b>Importe as faturas</b> de cada cartão, em qualquer ordem.</li>
+  <li><b>Responda às perguntas:</b> quando ele perguntar se a fatura já foi paga, responda <i>Sim</i>; quando oferecer o rendimento da aplicação, aceite.</li>
+  <li><b>Confira o saldo</b> ao fim de cada extrato: a conferência deve dizer <i>"está batendo"</i>.</li>
+</ol>
+
+<div class="nota">
+  <b>Não desconta duas vezes</b>
+  As compras que vêm da fatura não tiram dinheiro da conta, e o pagamento que vem do extrato não conta como gasto. É por isso que a ordem não estraga nada.
+</div>
+
+<h2 id="problemas">20. Quando algo não bate</h2>
+
+<table>
+  <tr><th>Sintoma</th><th>O que olhar</th></tr>
+  <tr><td>Saldo diferente do banco</td><td>Falta importar algum extrato? No BB, some o Rende Fácil. Se ainda diferir, use <i>Corrigir saldo</i> no mês certo.</td></tr>
+  <tr><td>Fatura aparece atrasada</td><td>Ela foi importada? O pagamento do extrato está ligado a ela? Veja <i>Pagar fatura → É este pagamento</i>.</td></tr>
+  <tr><td>Fatura maior que a do banco</td><td>Alguma parcela reservada a mais. Importe a fatura (o app acerta) ou use <i>Apagar esta fatura</i> e importe de novo.</td></tr>
+  <tr><td>Lançamento repetido</td><td>Aba Contas → <i>Repetidos</i>. Nada é apagado sem você mandar.</td></tr>
+  <tr><td>Pagamento da fatura em pedaços</td><td>É normal: o app soma as partes e mostra <i>pagamento parcial</i> até fechar.</td></tr>
+  <tr><td>Documento não foi lido</td><td>O app mostra uma <b>amostra sem seus dados</b> (números viram 9, nomes viram x). Copie e mande na conversa com o Claude.</td></tr>
+  <tr><td>Não vejo uma opção nova</td><td>Confira a versão em <b>Ajustes → Dados</b>, feche o app e abra de novo.</td></tr>
+</table>
+
+<h2 id="dados">21. Dados, backup e privacidade</h2>
+<ul>
+  <li>Os dados ficam <b>no aparelho</b> e no <b>seu Google Drive</b>, numa pasta chamada Caderneta. Não existe servidor: ninguém mais tem acesso.</li>
+  <li>Os documentos que você lê (PDF, foto) <b>não saem do aparelho</b> — a leitura acontece ali mesmo.</li>
+  <li>Em <b>Ajustes → Dados</b>: <i>Levar para uma planilha</i> (CSV), <i>Backup completo</i> (JSON), <i>Restaurar de um backup</i> (lista os backups do Drive) e <i>Recomeçar os lançamentos</i>.</li>
+  <li>Sem internet funciona normalmente; a sincronização acontece quando a conexão volta.</li>
+  <li>O acesso ao Drive dura cerca de uma hora; depois aparece <i>Sincronizar</i> no alto — um toque e pronto.</li>
+</ul>
+
+<h2 id="ajuda">22. Ajuda dentro do app</h2>
+
+<p>Em <b>Ajustes → Ajuda e manual</b> ficam duas coisas: a <b>Ajuda rápida</b>, com as dúvidas mais comuns e uma busca, e o atalho para este <b>manual</b>.</p>
+
+<figure class="ficha">
+  <img src="manual/ajuda.png" alt="Ajuda dentro do app">
+  <figcaption>Escreva uma palavra — fatura, saldo, saque, consignado, agendar — e a lista filtra sozinha. Cada resposta tem o atalho <i>No manual</i>, que abre a seção correspondente.</figcaption>
+</figure>
+
+<p>O botão <b>Perguntar ao Claude</b> copia a sua pergunta e abre a conversa. O app não tem inteligência artificial embutida: ele funciona sem servidor e sem custo, e é na conversa com o Claude que dúvidas mais longas são respondidas — e é lá também que se pedem mudanças no app.</p>
+
+<h2 id="glossario">23. Glossário</h2>
+<table>
+  <tr><th>Termo</th><th>O que quer dizer na Caderneta</th></tr>
+  <tr><td><b>Fatura de um mês</b></td><td>A fatura que <b>fechou</b> naquele mês, mesmo que seja paga no mês seguinte.</td></tr>
+  <tr><td><b>Em aberto</b> (cartão)</td><td>Tudo o que ainda será cobrado naquele cartão, contando as parcelas futuras.</td></tr>
+  <tr><td><b>Fatura prevista</b></td><td>O valor calculado pelo app enquanto a fatura do banco não foi importada.</td></tr>
+  <tr><td><b>Acerto de saldo</b></td><td>Lançamento que ajusta o saldo de uma conta num dia, sem contar como gasto ou renda.</td></tr>
+  <tr><td><b>Acerto da fatura</b></td><td>Diferença entre a fatura do banco e a soma que o app tinha.</td></tr>
+  <tr><td><b>Agendado</b></td><td>Lançamento com data à frente: já está no previsto, mas ainda não aconteceu.</td></tr>
+  <tr><td><b>Reservado</b> (parcela)</td><td>Parcela futura que o app já separou quando importou a fatura em que a compra começou.</td></tr>
+  <tr><td><b>Desconto em folha</b></td><td>Parcela que sai do salário: conta como gasto, mas não sai da conta.</td></tr>
+  <tr><td><b>Fora do app</b></td><td>O outro lado de uma transferência que você não acompanha por aqui.</td></tr>
+</table>
+
+<div class="rodape">
+  Caderneta — app de uso pessoal e familiar, sem servidor e sem custo.<br>
+  Dúvidas e mudanças: peça ao Claude, em português, numa conversa aberta na pasta do projeto.
+</div>
+
+</div>
+</body>
+</html>

@@ -2180,6 +2180,133 @@ function openTransfer(){
       method:"transferencia",cardId:"transf",acct:a,acct2:b,n:1,date:$("#xD").value||todayISO(),time:nowTime(),k:"t"});
     closeSheet(); render(); toast("Transferido"); }; }
 
+/* =================== ajuda =================== */
+/* o app não tem IA embutida (não há servidor nem chave): a ajuda é busca no próprio conteúdo, e para
+   perguntar ao Claude o app prepara o texto e abre a conversa. */
+const AJUDA=[
+ /* começar */
+ {g:"Começar",t:"Como abro e instalo o app?",
+  c:"O endereço é rgbittencourt.github.io/caderneta. No iPhone: Safari → Compartilhar → Adicionar à Tela de Início. No Android: Chrome → Instalar app. No computador: ícone de instalar na barra de endereço.",a:"comecar"},
+ {g:"Começar",t:"Meus dados ficam onde? Alguém mais vê?",
+  c:"No aparelho e no seu Google Drive, numa pasta chamada Caderneta. Não existe servidor. Cada pessoa da família entra com a própria conta e só enxerga os próprios dados. Os PDFs e fotos que você lê não saem do aparelho.",a:"dados"},
+ {g:"Começar",t:"Não vejo uma opção nova no app",
+  c:"Confira a versão em Ajustes → Dados → Versão do app. Se estiver atrasada, feche o app por completo e abra de novo; se precisar, use Procurar atualização.",a:"comecar"},
+ {g:"Começar",t:"Quero recomeçar do zero",
+  c:"Ajustes → Dados → Recomeçar os lançamentos. O app sincroniza, guarda um backup no seu Drive e só então apaga. Contas, cartões, categorias, renda e metas continuam.",a:"carregar"},
+
+ /* lançar */
+ {g:"Lançar",t:"Como lanço um gasto falando?",
+  c:"Aba Lançar, toque no microfone do teclado e fale: \"vinte e três reais, almoço no IFSC, cartão de crédito Visa\". Separe vários lançamentos com ponto final e confira antes de salvar.",a:"fala"},
+ {g:"Lançar",t:"Como agendo um pagamento para depois?",
+  c:"Diga quando: \"mil e duzentos reais, aluguel, dia 10\", \"internet amanhã\", \"dia 5 de outubro\". Sem dizer o mês, \"dia 10\" é o próximo dia 10. Fica com a marca agendado até chegar o dia.",a:"agendar"},
+ {g:"Lançar",t:"Li um boleto: dá para agendar o pagamento?",
+  c:"Sim. No leitor do boleto há Quando pagar: No vencimento (agendar), que é o padrão, ou Hoje (já paguei).",a:"boleto"},
+ {g:"Lançar",t:"A fala saiu repetida e o valor ficou gigante",
+  c:"Isso era um erro do ditado, corrigido na versão 27: o app somava os pedaços em vez de substituir. Atualize o app e refaça o lançamento.",a:"fala"},
+ {g:"Lançar",t:"O app botou a categoria errada",
+  c:"Troque na conferência ou tocando no lançamento. Ele aprende: da próxima vez, a mesma palavra já vem com a categoria que você escolheu (Ajustes → O que o app aprendeu).",a:"fala"},
+
+ /* importar */
+ {g:"Importar",t:"Onde importo o extrato do banco?",
+  c:"Aba Lançar, em Importar extrato da conta. Escolha a conta e o PDF baixado do app do banco (OFX e CSV também servem). Importe do mês mais antigo para o mais novo.",a:"extrato"},
+ {g:"Importar",t:"Onde importo a fatura do cartão?",
+  c:"Aba Lançar, em Importar fatura do cartão, canhoto ou boleto. O mês não se escolhe: vale o fechamento impresso na fatura.",a:"fatura"},
+ {g:"Importar",t:"Se eu lançar por voz e depois importar, vai duplicar?",
+  c:"Não. Cada linha do documento é comparada com o que já existe: mesmo tipo, valor (até um centavo) e data (até três dias). O que já está lançado vem desmarcado, com os dois lado a lado. Mesmo que você tenha dito o cartão errado, ele reconhece quando a descrição bate.",a:"conferencia"},
+ {g:"Importar",t:"Importo extrato e fatura: o gasto conta duas vezes?",
+  c:"Não. As compras vêm da fatura e não tiram dinheiro da conta; o pagamento da fatura vem do extrato, sai da conta e não conta como gasto. Pode importar todos os extratos primeiro e as faturas depois.",a:"carregar"},
+ {g:"Importar",t:"O PDF do meu banco não foi lido",
+  c:"O app mostra uma amostra sem os seus dados (números viram 9, nomes viram x). Copie e mande na conversa com o Claude para ele ajustar o leitor. Nunca mande o documento original.",a:"problemas"},
+ {g:"Importar",t:"Escolhi o leitor errado (extrato no lugar da fatura)",
+  c:"O app percebe e pergunta se quer ler no lugar certo, sem precisar escolher o arquivo de novo.",a:"extrato"},
+
+ /* conta e saldo */
+ {g:"Conta e saldo",t:"Quanto tenho no banco?",
+  c:"No topo do Painel, em No banco hoje: o total das contas e uma linha para cada uma. O dinheiro da Carteira aparece à parte, porque não está no banco.",a:"painel"},
+ {g:"Conta e saldo",t:"Meu saldo está diferente do banco",
+  c:"Veja se falta importar algum extrato. No Banco do Brasil, some a conta com o BB Rende Fácil. Se ainda diferir, use Ajustes → Saldo de cada conta e cartão → Corrigir saldo, escolhendo o mês.",a:"saldos"},
+ {g:"Conta e saldo",t:"Como informo o saldo inicial de uma conta?",
+  c:"Ajustes → Saldo de cada conta e cartão → Saldo inicial: a data do primeiro extrato e o saldo anterior impresso nele. Lançamentos antes dessa data não contam.",a:"saldos"},
+ {g:"Conta e saldo",t:"Faltou pouco dinheiro e não sei de onde veio",
+  c:"Se a conta tem aplicação automática (o BB Rende Fácil), a diferença costuma ser o rendimento: ele volta escondido dentro dos resgates. Ao importar o extrato, o app pergunta se pode lançar como Rendimentos.",a:"extrato"},
+ {g:"Conta e saldo",t:"O que é a conta BB Rende Fácil que apareceu?",
+  c:"É a aplicação automática do banco. O app criou uma conta para ela: assim a conta corrente fica igual ao saldo impresso no extrato, e o dinheiro aplicado continua sendo seu, só que em outra linha.",a:"extrato"},
+ {g:"Conta e saldo",t:"Minha conta corrente sumiu da lista",
+  c:"Ela pode ter sido excluída sem querer. A partir da versão 17 o app devolve a conta sozinha quando percebe cartões ou lançamentos apontando para ela, e avisa. Excluir conta hoje pede dois toques e leva cartões e lançamentos para outra conta.",a:"saldos"},
+
+ /* cartões */
+ {g:"Cartões",t:"Quanto já gastei em cada cartão?",
+  c:"No Painel, em Lançado nos cartões: a fatura do mês de cada cartão, o total em aberto (com as parcelas futuras) e o limite livre. Em Contas, Ver fatura mostra compra por compra.",a:"painel"},
+ {g:"Cartões",t:"A compra no cartão sai da minha conta?",
+  c:"Não. Ela conta como gasto no mês em que foi feita e entra nas análises, mas o dinheiro só sai quando a fatura é paga. Cada linha mostra a marca crédito · não sai da conta.",a:"cartoes"},
+ {g:"Cartões",t:"A fatura aparece atrasada, mas eu paguei",
+  c:"O pagamento provavelmente não está ligado a ela. Em Contas, toque em Pagar fatura: se o app achar o pagamento que já saiu da conta, ele oferece É este pagamento — e o dinheiro não sai de novo.",a:"cartoes"},
+ {g:"Cartões",t:"O pagamento da fatura saiu duas vezes da conta",
+  c:"Não deve mais acontecer: o app procura o pagamento antes de lançar outro. Se já aconteceu, use Contas → Repetidos: ele mostra os dois e você escolhe qual apagar.",a:"cartoes"},
+ {g:"Cartões",t:"O banco pagou a fatura em pedaços",
+  c:"O app soma as partes: enquanto falta, mostra pagamento parcial de X em N vezes; quando fecha, paga em N pagamentos. Pedaços da mesma fatura não são tratados como repetidos.",a:"cartoes"},
+ {g:"Cartões",t:"A fatura do app está maior que a do banco",
+  c:"Costuma ser parcela reservada a mais. Importe a fatura do banco — o app acerta o valor e empurra a parcela que não veio — ou use Corrigir fatura → Apagar esta fatura e importe de novo.",a:"saldos"},
+ {g:"Cartões",t:"Importei a fatura no mês errado. E agora?",
+  c:"Ajustes → Saldo de cada conta e cartão → Corrigir fatura → escolha o mês → Apagar esta fatura (dois toques). Depois importe o arquivo de novo. O pagamento não é apagado.",a:"saldos"},
+ {g:"Cartões",t:"O que sai quando apago uma fatura?",
+  c:"Os lançamentos daquele mês e, de uma compra parcelada, aquela parcela e as seguintes. As parcelas anteriores, de faturas já conferidas, ficam. Até a versão 25 ele apagava a compra inteira.",a:"saldos"},
+ {g:"Cartões",t:"O que quer dizer fatura prevista?",
+  c:"É o valor que o app calculou com as compras e parcelas que conhece, enquanto a fatura do banco não foi importada. Ela nunca aparece como atrasada.",a:"cartoes"},
+
+ /* dinheiro */
+ {g:"Dinheiro",t:"Saque é gasto?",
+  c:"Não. O saque tira da conta corrente e põe na Carteira. O gasto conta quando o dinheiro sai da carteira.",a:"carteira"},
+ {g:"Dinheiro",t:"Não lanço os gastos em dinheiro. Como zero a carteira?",
+  c:"Ajustes → Carteira → Corrigir saldo: conte o que sobrou, ou toque em Não sobrou nada: zerar. A diferença entra como gasto em dinheiro, na categoria Outros, e depois dá para trocar a categoria.",a:"carteira"},
+
+ /* dívidas */
+ {g:"Dívidas",t:"Onde cadastro um consignado ou financiamento?",
+  c:"Aba Lançar, no fim, em Dívidas e empréstimos. O acompanhamento (saldo, juros, quando termina) fica na aba Análises.",a:"dividas"},
+ {g:"Dívidas",t:"O desconto do consignado começou meses depois. Como informo?",
+  c:"Na ficha da dívida há Primeiro desconto no salário de. A contagem das parcelas passa a valer desse mês. Se algumas já saíram antes deste mês, informe em Já descontadas antes deste mês.",a:"dividas"},
+ {g:"Dívidas",t:"Quanto preciso para quitar hoje?",
+  c:"Na dívida, toque em Quitar. O valor já vem sem os juros que deixam de correr — não é a parcela vezes as parcelas que faltam. Com 10 parcelas de R$ 1.200 a 1,8% ao mês, por exemplo, quitar sai por cerca de R$ 10.893, e não R$ 12.000.",a:"dividas"},
+ {g:"Dívidas",t:"Quero quitar num mês à frente. Quanto pago?",
+  c:"Na ficha Quitar, escolha o mês: ele mostra quanto é para quitar tudo de uma vez naquele mês, quanto seria pagando por mês até lá, quanto é a mais que a parcela e quanto você economiza de juros.",a:"dividas"},
+ {g:"Dívidas",t:"O app não está descontando juros na quitação",
+  c:"Falta informar o juro ao mês na ficha da dívida. Sem ele, o saldo fica sendo parcela × parcelas que faltam. No consignado, informando o valor do empréstimo o app calcula o juro sozinho.",a:"dividas"},
+
+ /* renda e mês */
+ {g:"Renda e mês",t:"O salário entra sozinho?",
+  c:"Sim, no primeiro dia útil do mês, na conta escolhida em Ajustes. Em mês com parcela de consignado, ele entra já descontado. Se você lançar à mão, ou vier no extrato, o app não lança de novo.",a:"salario"},
+ {g:"Renda e mês",t:"Mudei de salário. E os meses passados?",
+  c:"Ao mudar a renda em Ajustes, o app pergunta a partir de que mês vale. Meses anteriores e salários já lançados continuam como estavam.",a:"salario"},
+ {g:"Renda e mês",t:"Como faço backup ou levo para uma planilha?",
+  c:"Em conta Google o app já guarda tudo no seu Drive, com uma cópia por mês. Em Ajustes → Dados há Backup completo, Restaurar de um backup e Levar para uma planilha (CSV).",a:"dados"}
+];
+function openAjuda(){
+  const linha=x=>'<div class="linkrow wrap"><div class="m"><div class="t">'+esc(x.t)+'</div>'+
+    '<div class="s" style="white-space:normal">'+esc(x.c)+'</div></div>'+
+    '<div class="acts"><a class="mini" href="manual.html#'+x.a+'" target="_blank" rel="noopener">No manual</a></div></div>';
+  const listar=L=>{ let h="", g="";
+    L.forEach(x=>{ if(x.g!==g){ g=x.g; h+='<div class="tile-l" style="margin:14px 0 2px">'+esc(g)+'</div>'; } h+=linha(x); });
+    return h; };
+  sheet("Ajuda",
+    '<div class="set"><div class="set-f"><label for="ajQ">Qual é a sua dúvida?</label>'+
+    '<input id="ajQ" placeholder="fatura, saldo, saque, consignado…" autocomplete="off">'+
+    '<span class="hint">Escreva uma palavra — fatura, saldo, saque, consignado, agendar — e a lista filtra sozinha.</span></div>'+
+    '<div id="ajLista">'+listar(AJUDA)+'</div>'+
+    '<div class="note" style="margin-top:12px"><b>Não achou?</b>Toque em <b>Perguntar ao Claude</b>: o app copia a sua pergunta e abre a conversa, onde dá para explicar com calma e até pedir mudanças no app.</div></div>',
+    '<button class="btn ghost" id="ajManual">Abrir o manual</button><button class="btn" id="ajClaude">Perguntar ao Claude</button>');
+  const filtra=()=>{ const q=norm($("#ajQ").value);
+    $("#ajLista").innerHTML=listar(q?AJUDA.filter(x=>norm(x.t+" "+x.c+" "+x.g).indexOf(q)>=0):AJUDA)
+      ||'<div class="empty" style="padding:14px"><b>Nada encontrado</b>Tente outra palavra, ou pergunte ao Claude.</div>'; };
+  $("#ajQ").oninput=filtra;
+  $("#ajManual").onclick=()=>window.open("manual.html","_blank","noopener");
+  $("#ajClaude").onclick=async()=>{
+    const q=$("#ajQ").value.trim();
+    const txt="Dúvida sobre a Caderneta (app em https://rgbittencourt.github.io/caderneta/): "+(q||"…")+
+      "\n\nContexto: "+(S.cfg.accounts||[]).length+" contas, "+creditCards().length+" cartões, mês na tela "+ymLabel(S.ym)+".";
+    try{ await navigator.clipboard.writeText(txt); toast("Pergunta copiada. É só colar na conversa."); }
+    catch(e){ toast("Copie a sua pergunta e cole na conversa."); }
+    window.open("https://claude.ai/new","_blank","noopener"); }; }
+
 /* =================== ajustes =================== */
 /* a versão instalada é o nome do cache que o service worker criou (caderneta-vNN) */
 async function mostrarVersao(){
@@ -2254,6 +2381,12 @@ function renderAjustes(){
     '<div class="s">'+kwC+' viram categoria · '+kwK+' viram cartão</div></div>'+
     '<button class="mini" id="kwBtn">Ver e editar</button></div></div></div>'+
 
+    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Ajuda e manual</h2></div><div class="card pad">'+
+    '<div class="linkrow"><div class="m"><div class="t">Ajuda rápida</div><div class="s">As dúvidas mais comuns, com busca</div></div>'+
+    '<button class="mini" id="ajBtn">Abrir</button></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Manual de uso</div><div class="s">Completo, com telas — dá para imprimir em A4 ou salvar em PDF</div></div>'+
+    '<a class="mini" href="manual.html" target="_blank" rel="noopener">Abrir</a></div></div></div>'+
+
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Dados</h2></div><div class="card pad">'+
     '<div class="linkrow"><div class="m"><div class="t">Onde ficam seus dados</div><div class="s">'+
     esc(storageText())+'</div></div></div>'+
@@ -2301,6 +2434,7 @@ function renderAjustes(){
   $$("[data-scor]").forEach(b=>b.onclick=()=>openCorrigirSaldo(b.dataset.scor));
   $$("[data-cfat]").forEach(b=>b.onclick=()=>openCorrigirFatura(b.dataset.cfat));
   mostrarVersao();
+  $("#ajBtn").onclick=openAjuda;
   $("#verBtn").onclick=async()=>{ toast("Procurando atualização…");
     try{ const r=await navigator.serviceWorker.getRegistration(); if(r) await r.update(); }catch(e){}
     setTimeout(mostrarVersao,1500); };
@@ -3250,11 +3384,12 @@ function openQuitacao(dv){
     '<div class="set-f"><label for="qtM">Quero terminar de pagar em</label><select id="qtM">'+
       meses.map(x=>'<option value="'+x.k+'"'+(x.k===Math.min(2,e.n-1)?" selected":"")+'>'+esc(ymLabel(x.ym))+" · parcela "+(e.pagas+x.k+1)+" de "+e.total+'</option>').join("")+
     '</select></div>'+
-    '<div class="linkrow"><div class="m"><div class="t">Pagando por mês</div><div class="s" id="qtSub">—</div></div><span class="row-v" id="qtQ">—</span></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Quitar tudo de uma vez nesse mês</div><div class="s" id="qtQuitSub">—</div></div><span class="row-v" id="qtQuit">—</span></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Ou pagando por mês</div><div class="s" id="qtSub">—</div></div><span class="row-v" id="qtQ">—</span></div>'+
     '<div class="linkrow"><div class="m"><div class="t">A mais do que a parcela</div><div class="s">é o quanto adiantar por mês</div></div><span class="row-v" id="qtE">—</span></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Economia de juros</div><div class="s">comparado com pagar até o fim</div></div><span class="row-v" id="qtJ">—</span></div>'+
     '<div class="set-f"><label>Quanto falta para quitar, mês a mês</label>'+
-    '<div class="hint">Depois de pagar a parcela daquele mês.</div>'+
+    '<div class="hint">O valor para quitar tudo de uma vez, já sem os juros que deixam de correr, depois de pagar a parcela daquele mês.</div>'+
     '<div style="margin-top:6px;display:grid;gap:6px;font-size:13px;color:var(--ink-2)">'+
       meses.slice(0,12).map(x=>'<div style="display:flex;justify-content:space-between;gap:10px"><span>'+esc(ymLabel(x.ym))+'</span>'+
         '<b style="font-family:var(--f-m);font-weight:600">'+fmtN(Math.max(0,saldoPrice(e.P,e.i,e.n-x.k-1)))+'</b></div>').join("")+
@@ -3262,6 +3397,11 @@ function openQuitacao(dv){
     '<button class="btn" id="qtX">Fechar</button>');
   const calc=()=>{ const k=+$("#qtM").value, m=k+1, Q=parcelaParaQuitar(e,m);
     const totalAtual=e.P*e.n, totalNovo=Q*m;
+    /* quitar de uma vez naquele mês: o saldo antes da parcela dele, já sem os juros que não vão correr */
+    const deUmaVez=Math.max(0,saldoPrice(e.P,e.i,e.n-k));
+    $("#qtQuit").textContent=fmtN(deUmaVez);
+    $("#qtQuitSub").textContent=semJuros?"parcela × parcelas que faltam — informe o juro para descontar"
+      :"em vez da parcela de "+ymLabel(meses[k].ym)+" · economiza "+fmtN(Math.max(0,e.P*(e.n-k)-deUmaVez))+" de juros";
     $("#qtQ").textContent=fmtN(Q);
     $("#qtSub").textContent="durante "+m+(m>1?" meses, até ":" mês, até ")+ymLabel(meses[k].ym);
     $("#qtE").textContent=fmtN(Math.max(0,Q-e.P));
