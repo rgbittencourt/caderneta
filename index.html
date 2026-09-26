@@ -2251,8 +2251,11 @@ function mesesComMovimento(){
 function htmlImportacoes(){
   const ex=S.cfg.extratosLidos||{}, fa=S.cfg.faturasLidas||{}, cur=ymOf(todayISO());
   const temImport=(mapa,id)=>Object.keys(mapa).some(k=>k.indexOf(id+"|")===0);
-  /* extrato existe para conta corrente; outras contas só entram se já tiveram extrato importado */
-  const contas=(S.cfg.accounts||[]).filter(a=>a.type==="corrente"||temImport(ex,a.id));
+  /* toda conta de banco tem extrato: entram corrente e poupança, mais qualquer uma que já teve extrato importado.
+     Ficam de fora só a carteira (dinheiro) e a conta da aplicação automática, que não têm extrato próprio. */
+  const A=S.cfg.accounts||[];
+  let contas=A.filter(a=>a.type==="corrente"||a.type==="poupanca"||temImport(ex,a.id));
+  if(!contas.length) contas=A.filter(a=>a.type!=="carteira"&&a.type!=="invest");
   const cartoes=creditCards();
   if(!contas.length&&!cartoes.length) return "";
   const meses=mesesComMovimento();
@@ -2260,6 +2263,8 @@ function htmlImportacoes(){
   const desdeConta={}, desdeCartao={};
   contas.forEach(a=>{ let d=a.openDate?ymOf(a.openDate):"";
     Object.keys(ex).forEach(k=>{ const [id,m]=k.split("|"); if(id===a.id&&(!d||m<d)) d=m; });
+    /* mês em que a conta já tem movimento vale mesmo antes da data de início */
+    meses.forEach(m=>{ if((!d||m<d)&&movsConta(a.id,m).length) d=m; });
     desdeConta[a.id]=d||meses[meses.length-1]; });
   cartoes.forEach(c=>{ let d="";
     Object.keys(fa).forEach(k=>{ const [id,m]=k.split("|"); if(id===c.id&&(!d||m<d)) d=m; });
