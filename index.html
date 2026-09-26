@@ -2288,7 +2288,8 @@ function htmlImportacoes(){
   let faltam=0;
   const linhas=meses.map(ym=>{ const L=docsDoMes(ym); if(!L.length) return "";
     const chips=L.map(x=>{ if(!x.lido&&x.cobra) faltam++;
-      return '<span class="chip '+(x.lido?"ok":"")+'" title="'+(x.lido?"importado em "+diaMesAno(x.quando):"ainda não importado")+'">'+
+      const quando=x.quando==="auto"?"reconhecido pelos lançamentos que vieram do documento":"importado em "+diaMesAno(x.quando);
+      return '<span class="chip '+(x.lido?"ok":"")+'" title="'+(x.lido?quando:"ainda não importado")+'">'+
         (x.lido?"✓ ":"")+esc(x.nome)+'</span>'; }).join("");
     return '<div class="linkrow wrap"><div class="m"><div class="t">'+esc(ymLabel(ym))+'</div>'+
       '<div class="s" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'+chips+'</div></div></div>'; }).join("");
@@ -2340,7 +2341,7 @@ const AJUDA=[
  {g:"Importar",t:"Importo extrato e fatura: o gasto conta duas vezes?",
   c:"Não. As compras vêm da fatura e não tiram dinheiro da conta; o pagamento da fatura vem do extrato, sai da conta e não conta como gasto. Pode importar todos os extratos primeiro e as faturas depois.",a:"carregar"},
  {g:"Importar",t:"Como sei quais extratos e faturas já importei?",
-  c:"Em Ajustes, no quadro O que já foi importado: cada mês mostra o extrato de cada conta e a fatura de cada cartão — verde é o que já entrou, cinza é o que falta. No alto aparece quantos documentos ainda faltam. A lista é do ano corrente; em janeiro, o ano anterior continua à vista, e de fevereiro em diante fica só o ano novo — o que ficou faltando de anos anteriores aparece resumido no rodapé e pode ser importado a qualquer momento.",a:"carregar"},
+  c:"Em Ajustes, no quadro O que já foi importado: cada mês mostra o extrato de cada conta e a fatura de cada cartão — verde é o que já entrou, cinza é o que falta. No alto aparece quantos documentos ainda faltam. A lista é do ano corrente; em janeiro, o ano anterior continua à vista, e de fevereiro em diante fica só o ano novo — o que ficou faltando de anos anteriores aparece resumido no rodapé e pode ser importado a qualquer momento. O que você importou antes de o quadro existir também aparece: o app reconhece pelos lançamentos que vieram do documento.",a:"carregar"},
  {g:"Importar",t:"O PDF do meu banco não foi lido",
   c:"O app mostra uma amostra sem os seus dados (números viram 9, nomes viram x). Copie e mande na conversa com o Claude para ele ajustar o leitor. Nunca mande o documento original.",a:"problemas"},
  {g:"Importar",t:"Escolhi o leitor errado (extrato no lugar da fatura)",
@@ -2919,6 +2920,17 @@ function repararContas(){
 function migrarCfg(){
   const c=S.cfg; if(!c) return; migrar2(c);
   const volta=repararContas();
+  /* extrato e fatura importados antes de o app registrar isso (v40): reconhece pelos próprios lançamentos */
+  if(!c.m4){ c.m4=true;
+    const ex=c.extratosLidos=c.extratosLidos||{}, fa=c.faturasLidas=c.faturasLidas||{};
+    Object.keys(S.months||{}).forEach(ym=>{
+      const contas={}, cards={};
+      txOf(ym).forEach(t=>{
+        if(/^Extrato/.test(t.raw||"")){ const a=t.acct||t.acct2||acctOf(t.card); if(a) contas[a]=(contas[a]||0)+1; }
+        if(/^Fatura de/.test(t.raw||"")&&t.card) cards[t.card+"|"+(t.fat||t.ym)]=(cards[t.card+"|"+(t.fat||t.ym)]||0)+1; });
+      Object.keys(contas).forEach(a=>{ if(contas[a]>=3&&!ex[a+"|"+ym]) ex[a+"|"+ym]="auto"; });
+      Object.keys(cards).forEach(k=>{ if(!fa[k]) fa[k]="auto"; }); });
+    setTimeout(()=>saveCfg(),0); }
   if(!c.m3){ c.m3=true;
     const car=(c.accounts||[]).find(a=>a.type==="carteira"), meses=new Set(); let n=0;
     Object.keys(S.months||{}).forEach(ym=>{ const tx=(S.months[ym]||{}).tx||{};
