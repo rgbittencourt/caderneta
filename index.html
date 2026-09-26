@@ -334,6 +334,7 @@ table.dv td.n{text-align:right;font-family:var(--f-m);font-variant-numeric:tabul
 .chip.p{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
 .chip.f{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
 .chip.c{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
+.chip.ok{background:var(--good-soft,#e7f4ec);color:var(--good);border-color:#bfe0cd}
 .chip.d{background:var(--surface-2);color:var(--ink-2)}
 
 /* ===== contas e cartões ===== */
@@ -1767,6 +1768,12 @@ async function saveDrafts(){
   /* fatura que veio do documento do banco: o app sabe o valor de verdade e pode cobrar vencimento */
   if(fatDoc.length){ S.cfg.faturasLidas=S.cfg.faturasLidas||{};
     fatDoc.forEach(k=>{ S.cfg.faturasLidas[k]=todayISO(); }); await saveCfg(); }
+  /* extrato: guarda de qual conta e de quais meses veio, para o controle do que já foi importado */
+  const porMes={};
+  ok.filter(d=>d.origem==="extrato"&&d.contaDoc).forEach(d=>{ const k=d.contaDoc+"|"+ymOf(d.date); porMes[k]=(porMes[k]||0)+1; });
+  const exDoc=Object.keys(porMes).filter(k=>porMes[k]>=3);
+  if(exDoc.length){ S.cfg.extratosLidos=S.cfg.extratosLidos||{};
+    exDoc.forEach(k=>{ S.cfg.extratosLidos[k]=todayISO(); }); await saveCfg(); }
   if(!ok.length){ S.drafts=[]; render();
     toast(acertadas?acertadas+(acertadas>1?" parcelas acertadas":" parcela acertada")+" pelo valor da fatura; nada novo para lançar.":"Nada novo para lançar: tudo já estava lançado.");
     return; }
@@ -2230,6 +2237,53 @@ function openTransfer(){
       method:"transferencia",cardId:"transf",acct:a,acct2:b,n:1,date:$("#xD").value||todayISO(),time:nowTime(),k:"t"});
     closeSheet(); render(); toast("Transferido"); }; }
 
+/* o que já foi importado, mês a mês: extrato de cada conta e fatura de cada cartão */
+function mesesComMovimento(){
+  const A=S.cfg.accounts||[], cur=ymOf(todayISO());
+  let ini=cur;
+  A.forEach(a=>{ if(a.openDate&&ymOf(a.openDate)<ini) ini=ymOf(a.openDate); });
+  Object.keys(S.months||{}).forEach(ym=>{ if(txOf(ym).length&&ym<ini) ini=ym; });
+  Object.keys(S.cfg.faturasLidas||{}).concat(Object.keys(S.cfg.extratosLidos||{}))
+    .forEach(k=>{ const m=k.split("|")[1]; if(m&&m<ini) ini=m; });
+  const out=[]; let ym=cur;
+  while(ym>=ini&&out.length<36){ out.push(ym); ym=ymShift(ym,-1); }
+  return out; }
+function htmlImportacoes(){
+  const ex=S.cfg.extratosLidos||{}, fa=S.cfg.faturasLidas||{}, cur=ymOf(todayISO());
+  const temImport=(mapa,id)=>Object.keys(mapa).some(k=>k.indexOf(id+"|")===0);
+  /* extrato existe para conta corrente; outras contas só entram se já tiveram extrato importado */
+  const contas=(S.cfg.accounts||[]).filter(a=>a.type==="corrente"||temImport(ex,a.id));
+  const cartoes=creditCards();
+  if(!contas.length&&!cartoes.length) return "";
+  const meses=mesesComMovimento();
+  /* de quando cobrar cada documento: da abertura da conta, ou do primeiro mês em que o cartão teve movimento */
+  const desdeConta={}, desdeCartao={};
+  contas.forEach(a=>{ let d=a.openDate?ymOf(a.openDate):"";
+    Object.keys(ex).forEach(k=>{ const [id,m]=k.split("|"); if(id===a.id&&(!d||m<d)) d=m; });
+    desdeConta[a.id]=d||meses[meses.length-1]; });
+  cartoes.forEach(c=>{ let d="";
+    Object.keys(fa).forEach(k=>{ const [id,m]=k.split("|"); if(id===c.id&&(!d||m<d)) d=m; });
+    meses.forEach(m=>{ if(cardInvoice(c.id,m).total&&(!d||m<d)) d=m; });
+    desdeCartao[c.id]=d; });
+  let faltam=0;
+  const chip=(lido,nome,quando,cobra)=>{ if(!lido&&cobra) faltam++;
+    return '<span class="chip '+(lido?"ok":"")+'" title="'+(lido?"importado em "+diaMesAno(quando):"ainda não importado")+'">'+
+      (lido?"✓ ":"")+esc(nome)+'</span>'; };
+  const linhas=meses.map(ym=>{
+    const chips=[];
+    contas.forEach(a=>{ if(desdeConta[a.id]&&ym<desdeConta[a.id]) return;
+      chips.push(chip(!!ex[a.id+"|"+ym],a.n,ex[a.id+"|"+ym],ym<=cur)); });
+    cartoes.forEach(c=>{ const d=desdeCartao[c.id]; if(!d||ym<d) return;
+      chips.push(chip(!!fa[c.id+"|"+ym],c.n,fa[c.id+"|"+ym],ym<=cur)); });
+    if(!chips.length) return "";
+    return '<div class="linkrow wrap"><div class="m"><div class="t">'+esc(ymLabel(ym))+'</div>'+
+      '<div class="s" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'+chips.join("")+'</div></div></div>'; }).join("");
+  return '<div class="sec"><div class="sec-h"><h2 class="sec-t">O que já foi importado</h2>'+
+    '<span class="day-t">'+(faltam?faltam+(faltam>1?" documentos faltando":" documento faltando"):"tudo em dia")+'</span></div>'+
+    '<div class="card pad">'+
+    '<div class="say-hint" style="margin-bottom:8px">Verde é o que já entrou; cinza é o que falta. O extrato se importa em Lançar → Importar extrato da conta; a fatura, em Importar fatura do cartão. Um cartão só aparece a partir do mês em que teve movimento.</div>'+
+    linhas+'</div></div>'; }
+
 /* =================== ajuda =================== */
 /* o app não tem IA embutida (não há servidor nem chave): a ajuda é busca no próprio conteúdo, e para
    perguntar ao Claude o app prepara o texto e abre a conversa. */
@@ -2265,6 +2319,8 @@ const AJUDA=[
   c:"Não. Cada linha do documento é comparada com o que já existe: mesmo tipo, valor (até um centavo) e data (até três dias). O que já está lançado vem desmarcado, com os dois lado a lado. Mesmo que você tenha dito o cartão errado, ele reconhece quando a descrição bate.",a:"conferencia"},
  {g:"Importar",t:"Importo extrato e fatura: o gasto conta duas vezes?",
   c:"Não. As compras vêm da fatura e não tiram dinheiro da conta; o pagamento da fatura vem do extrato, sai da conta e não conta como gasto. Pode importar todos os extratos primeiro e as faturas depois.",a:"carregar"},
+ {g:"Importar",t:"Como sei quais extratos e faturas já importei?",
+  c:"Em Ajustes, no quadro O que já foi importado: cada mês mostra o extrato de cada conta e a fatura de cada cartão — verde é o que já entrou, cinza é o que falta. No alto aparece quantos documentos ainda faltam.",a:"carregar"},
  {g:"Importar",t:"O PDF do meu banco não foi lido",
   c:"O app mostra uma amostra sem os seus dados (números viram 9, nomes viram x). Copie e mande na conversa com o Claude para ele ajustar o leitor. Nunca mande o documento original.",a:"problemas"},
  {g:"Importar",t:"Escolhi o leitor errado (extrato no lugar da fatura)",
@@ -2426,6 +2482,7 @@ function renderAjustes(){
       '<div class="acts"><button class="mini" data-cfat="'+k.id+'">Corrigir fatura</button><button class="mini" data-card="'+k.id+'">Editar</button></div></div>').join("")+
     '</div></div>'+
 
+    htmlImportacoes()+
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Meta do mês</h2></div><div class="card pad set">'+
     '<div class="set-f"><label for="sIncome">Renda líquida mensal</label>'+
     '<input id="sIncome" inputmode="decimal" value="'+(rendaDoMes(ymOf(todayISO()))?fmtN(rendaDoMes(ymOf(todayISO()))):"")+'" placeholder="0,00">'+historicoRendaHTML()+'</div>'+
@@ -3176,6 +3233,7 @@ function rascunhosDoc(r,op){
     else if(r.tipo==="extrato"){ const c=debitoDaConta(op.conta); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id;
       d.method=d.k==="e"?"pix":"debito"; d.acct=op.conta||acctOf(d.cardId); d.raw="Extrato";
       if(l.aplic) d.aplic=l.aplic;
+      d.contaDoc=op.conta||d.acct;
       classificarLinhaExtrato(d); }
     else if(r.tipo==="boleto"){ const c=pagoCom||boletoCard||debitoDaConta(); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id; d.method=pagoCom?pagoCom.type:"boleto";
       /* boleto lido para pagar depois: já entra agendado no vencimento */
