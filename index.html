@@ -2237,8 +2237,14 @@ function openTransfer(){
       method:"transferencia",cardId:"transf",acct:a,acct2:b,n:1,date:$("#xD").value||todayISO(),time:nowTime(),k:"t"});
     closeSheet(); render(); toast("Transferido"); }; }
 
-/* o que já foi importado, mês a mês: extrato de cada conta e fatura de cada cartão */
-function mesesComMovimento(){
+/* o que já foi importado, mês a mês. A lista é do ano corrente (pedido do dono, 26/09/2026); em janeiro, o ano
+   anterior continua à vista, para não perder de vista o que ficou faltando; de fevereiro em diante, só o ano novo. */
+function mesesDoQuadro(){
+  const cur=ymOf(todayISO()), ano=+cur.slice(0,4), mes=+cur.slice(5,7), out=[];
+  for(let m=mes;m>=1;m--) out.push(ano+"-"+pad(m));
+  if(mes===1) for(let m=12;m>=1;m--) out.push((ano-1)+"-"+pad(m));
+  return out; }
+function mesesComDados(){
   const A=S.cfg.accounts||[], cur=ymOf(todayISO());
   let ini=cur;
   A.forEach(a=>{ if(a.openDate&&ymOf(a.openDate)<ini) ini=ymOf(a.openDate); });
@@ -2246,7 +2252,7 @@ function mesesComMovimento(){
   Object.keys(S.cfg.faturasLidas||{}).concat(Object.keys(S.cfg.extratosLidos||{}))
     .forEach(k=>{ const m=k.split("|")[1]; if(m&&m<ini) ini=m; });
   const out=[]; let ym=cur;
-  while(ym>=ini&&out.length<36){ out.push(ym); ym=ymShift(ym,-1); }
+  while(ym>=ini&&out.length<60){ out.push(ym); ym=ymShift(ym,-1); }
   return out; }
 function htmlImportacoes(){
   const ex=S.cfg.extratosLidos||{}, fa=S.cfg.faturasLidas||{}, cur=ymOf(todayISO());
@@ -2258,36 +2264,45 @@ function htmlImportacoes(){
   if(!contas.length) contas=A.filter(a=>a.type!=="carteira"&&a.type!=="invest");
   const cartoes=creditCards();
   if(!contas.length&&!cartoes.length) return "";
-  const meses=mesesComMovimento();
-  /* de quando cobrar cada documento: da abertura da conta, ou do primeiro mês em que o cartão teve movimento */
+  const todos=mesesComDados(), meses=mesesDoQuadro();
+  /* de quando cobrar cada documento: da abertura da conta (ou do primeiro mês com movimento) e, no cartão,
+     do primeiro mês em que ele teve fatura */
   const desdeConta={}, desdeCartao={};
   contas.forEach(a=>{ let d=a.openDate?ymOf(a.openDate):"";
     Object.keys(ex).forEach(k=>{ const [id,m]=k.split("|"); if(id===a.id&&(!d||m<d)) d=m; });
-    /* mês em que a conta já tem movimento vale mesmo antes da data de início */
-    meses.forEach(m=>{ if((!d||m<d)&&movsConta(a.id,m).length) d=m; });
-    desdeConta[a.id]=d||meses[meses.length-1]; });
+    todos.forEach(m=>{ if((!d||m<d)&&movsConta(a.id,m).length) d=m; });
+    desdeConta[a.id]=d||todos[todos.length-1]||cur; });
   cartoes.forEach(c=>{ let d="";
     Object.keys(fa).forEach(k=>{ const [id,m]=k.split("|"); if(id===c.id&&(!d||m<d)) d=m; });
-    meses.forEach(m=>{ if(cardInvoice(c.id,m).total&&(!d||m<d)) d=m; });
+    todos.forEach(m=>{ if(cardInvoice(c.id,m).total&&(!d||m<d)) d=m; });
     desdeCartao[c.id]=d; });
-  let faltam=0;
-  const chip=(lido,nome,quando,cobra)=>{ if(!lido&&cobra) faltam++;
-    return '<span class="chip '+(lido?"ok":"")+'" title="'+(lido?"importado em "+diaMesAno(quando):"ainda não importado")+'">'+
-      (lido?"✓ ":"")+esc(nome)+'</span>'; };
-  const linhas=meses.map(ym=>{
-    const chips=[];
+  const docsDoMes=ym=>{ const out=[];
     contas.forEach(a=>{ if(desdeConta[a.id]&&ym<desdeConta[a.id]) return;
-      chips.push(chip(!!ex[a.id+"|"+ym],a.n,ex[a.id+"|"+ym],ym<=cur)); });
+      /* só cobra extrato de conta corrente ou de conta que você já importou alguma vez: poupança fica no quadro,
+         mas não entra na conta do que falta enquanto você não importar a primeira */
+      const cobra=ym<=cur&&(a.type==="corrente"||temImport(ex,a.id));
+      out.push({lido:!!ex[a.id+"|"+ym], nome:a.n, quando:ex[a.id+"|"+ym], cobra}); });
     cartoes.forEach(c=>{ const d=desdeCartao[c.id]; if(!d||ym<d) return;
-      chips.push(chip(!!fa[c.id+"|"+ym],c.n,fa[c.id+"|"+ym],ym<=cur)); });
-    if(!chips.length) return "";
+      out.push({lido:!!fa[c.id+"|"+ym], nome:c.n, quando:fa[c.id+"|"+ym], cobra:ym<=cur}); });
+    return out; };
+  let faltam=0;
+  const linhas=meses.map(ym=>{ const L=docsDoMes(ym); if(!L.length) return "";
+    const chips=L.map(x=>{ if(!x.lido&&x.cobra) faltam++;
+      return '<span class="chip '+(x.lido?"ok":"")+'" title="'+(x.lido?"importado em "+diaMesAno(x.quando):"ainda não importado")+'">'+
+        (x.lido?"✓ ":"")+esc(x.nome)+'</span>'; }).join("");
     return '<div class="linkrow wrap"><div class="m"><div class="t">'+esc(ymLabel(ym))+'</div>'+
-      '<div class="s" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'+chips.join("")+'</div></div></div>'; }).join("");
-  return '<div class="sec"><div class="sec-h"><h2 class="sec-t">O que já foi importado</h2>'+
+      '<div class="s" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'+chips+'</div></div></div>'; }).join("");
+  /* o que ficou faltando em anos que saíram da lista */
+  let antes=0;
+  todos.filter(m=>meses.indexOf(m)<0).forEach(m=>docsDoMes(m).forEach(x=>{ if(!x.lido&&x.cobra) antes++; }));
+  const ano=cur.slice(0,4), janeiro=+cur.slice(5,7)===1;
+  return '<div class="sec"><div class="sec-h"><h2 class="sec-t">O que já foi importado · '+ano+(janeiro?" e "+(+ano-1):"")+'</h2>'+
     '<span class="day-t">'+(faltam?faltam+(faltam>1?" documentos faltando":" documento faltando"):"tudo em dia")+'</span></div>'+
     '<div class="card pad">'+
-    '<div class="say-hint" style="margin-bottom:8px">Verde é o que já entrou; cinza é o que falta. O extrato se importa em Lançar → Importar extrato da conta; a fatura, em Importar fatura do cartão. Um cartão só aparece a partir do mês em que teve movimento.</div>'+
-    linhas+'</div></div>'; }
+    '<div class="say-hint" style="margin-bottom:8px">Verde é o que já entrou; cinza é o que falta. O extrato se importa em Lançar → Importar extrato da conta; a fatura, em Importar fatura do cartão. A lista mostra o ano corrente — em janeiro, o ano anterior continua aqui.</div>'+
+    linhas+
+    (antes?'<div class="say-hint" style="margin-top:10px">Ainda faltam '+antes+(antes>1?" documentos de anos anteriores":" documento de anos anteriores")+'. Eles saíram da lista, mas continuam podendo ser importados: basta escolher o arquivo em Lançar.</div>':"")+
+    '</div></div>'; }
 
 /* =================== ajuda =================== */
 /* o app não tem IA embutida (não há servidor nem chave): a ajuda é busca no próprio conteúdo, e para
@@ -2325,7 +2340,7 @@ const AJUDA=[
  {g:"Importar",t:"Importo extrato e fatura: o gasto conta duas vezes?",
   c:"Não. As compras vêm da fatura e não tiram dinheiro da conta; o pagamento da fatura vem do extrato, sai da conta e não conta como gasto. Pode importar todos os extratos primeiro e as faturas depois.",a:"carregar"},
  {g:"Importar",t:"Como sei quais extratos e faturas já importei?",
-  c:"Em Ajustes, no quadro O que já foi importado: cada mês mostra o extrato de cada conta e a fatura de cada cartão — verde é o que já entrou, cinza é o que falta. No alto aparece quantos documentos ainda faltam.",a:"carregar"},
+  c:"Em Ajustes, no quadro O que já foi importado: cada mês mostra o extrato de cada conta e a fatura de cada cartão — verde é o que já entrou, cinza é o que falta. No alto aparece quantos documentos ainda faltam. A lista é do ano corrente; em janeiro, o ano anterior continua à vista, e de fevereiro em diante fica só o ano novo — o que ficou faltando de anos anteriores aparece resumido no rodapé e pode ser importado a qualquer momento.",a:"carregar"},
  {g:"Importar",t:"O PDF do meu banco não foi lido",
   c:"O app mostra uma amostra sem os seus dados (números viram 9, nomes viram x). Copie e mande na conversa com o Claude para ele ajustar o leitor. Nunca mande o documento original.",a:"problemas"},
  {g:"Importar",t:"Escolhi o leitor errado (extrato no lugar da fatura)",
