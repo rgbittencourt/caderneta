@@ -335,6 +335,8 @@ table.dv td.n{text-align:right;font-family:var(--f-m);font-variant-numeric:tabul
 .chip.f{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
 .chip.c{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
 .chip.ok{background:var(--good-soft,#e7f4ec);color:var(--good);border-color:#bfe0cd}
+button.chip{cursor:pointer;font-family:inherit}
+button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .chip.d{background:var(--surface-2);color:var(--ink-2)}
 
 /* ===== contas e cartões ===== */
@@ -1766,14 +1768,8 @@ async function saveDrafts(){
   const fatDoc=[...new Set(S.drafts.filter(d=>d.origem==="fatura"&&d.cardId&&d.ym).map(d=>d.cardId+"|"+d.ym))];
   for(const chave of fatDoc){ const [cid,ym]=chave.split("|"); empurradas+=await empurrarParcelasNaoCobradas(cid,ym,S.drafts); }
   /* fatura que veio do documento do banco: o app sabe o valor de verdade e pode cobrar vencimento */
-  if(fatDoc.length){ S.cfg.faturasLidas=S.cfg.faturasLidas||{};
-    fatDoc.forEach(k=>{ S.cfg.faturasLidas[k]=todayISO(); }); await saveCfg(); }
-  /* extrato: guarda de qual conta e de quais meses veio, para o controle do que já foi importado */
-  const porMes={};
-  ok.filter(d=>d.origem==="extrato"&&d.contaDoc).forEach(d=>{ const k=d.contaDoc+"|"+ymOf(d.date); porMes[k]=(porMes[k]||0)+1; });
-  const exDoc=Object.keys(porMes).filter(k=>porMes[k]>=3);
-  if(exDoc.length){ S.cfg.extratosLidos=S.cfg.extratosLidos||{};
-    exDoc.forEach(k=>{ S.cfg.extratosLidos[k]=todayISO(); }); await saveCfg(); }
+  registrarDocumentos(S.drafts);
+  registrarDocumentos(S.drafts);
   if(!ok.length){ S.drafts=[]; render();
     toast(acertadas?acertadas+(acertadas>1?" parcelas acertadas":" parcela acertada")+" pelo valor da fatura; nada novo para lançar.":"Nada novo para lançar: tudo já estava lançado.");
     return; }
@@ -2237,6 +2233,18 @@ function openTransfer(){
       method:"transferencia",cardId:"transf",acct:a,acct2:b,n:1,date:$("#xD").value||todayISO(),time:nowTime(),k:"t"});
     closeSheet(); render(); toast("Transferido"); }; }
 
+/* guarda que o documento foi lido — mesmo quando ele não acrescenta nada, porque tudo já estava lançado */
+function registrarDocumentos(drafts){
+  let mudou=false;
+  const fa=S.cfg.faturasLidas=S.cfg.faturasLidas||{}, ex=S.cfg.extratosLidos=S.cfg.extratosLidos||{};
+  [...new Set((drafts||[]).filter(d=>d.origem==="fatura"&&d.cardId&&d.ym).map(d=>d.cardId+"|"+d.ym))]
+    .forEach(k=>{ if(fa[k]!==todayISO()){ fa[k]=todayISO(); mudou=true; } });
+  const porMes={};
+  (drafts||[]).filter(d=>d.origem==="extrato"&&d.contaDoc&&d.date).forEach(d=>{ const k=d.contaDoc+"|"+ymOf(d.date); porMes[k]=(porMes[k]||0)+1; });
+  Object.keys(porMes).forEach(k=>{ if(porMes[k]>=3&&fa[k]!==todayISO()&&ex[k]!==todayISO()){ ex[k]=todayISO(); mudou=true; } });
+  if(mudou) saveCfg();
+  return mudou; }
+
 /* o que já foi importado, mês a mês. A lista é do ano corrente (pedido do dono, 26/09/2026); em janeiro, o ano
    anterior continua à vista, para não perder de vista o que ficou faltando; de fevereiro em diante, só o ano novo. */
 function mesesDoQuadro(){
@@ -2281,16 +2289,17 @@ function htmlImportacoes(){
       /* só cobra extrato de conta corrente ou de conta que você já importou alguma vez: poupança fica no quadro,
          mas não entra na conta do que falta enquanto você não importar a primeira */
       const cobra=ym<=cur&&(a.type==="corrente"||temImport(ex,a.id));
-      out.push({lido:!!ex[a.id+"|"+ym], nome:a.n, quando:ex[a.id+"|"+ym], cobra}); });
+      out.push({lido:!!ex[a.id+"|"+ym], nome:a.n, quando:ex[a.id+"|"+ym], cobra, chave:"e|"+a.id+"|"+ym}); });
     cartoes.forEach(c=>{ const d=desdeCartao[c.id]; if(!d||ym<d) return;
-      out.push({lido:!!fa[c.id+"|"+ym], nome:c.n, quando:fa[c.id+"|"+ym], cobra:ym<=cur}); });
+      out.push({lido:!!fa[c.id+"|"+ym], nome:c.n, quando:fa[c.id+"|"+ym], cobra:ym<=cur, chave:"f|"+c.id+"|"+ym}); });
     return out; };
   let faltam=0;
   const linhas=meses.map(ym=>{ const L=docsDoMes(ym); if(!L.length) return "";
     const chips=L.map(x=>{ if(!x.lido&&x.cobra) faltam++;
-      const quando=x.quando==="auto"?"reconhecido pelos lançamentos que vieram do documento":"importado em "+diaMesAno(x.quando);
-      return '<span class="chip '+(x.lido?"ok":"")+'" title="'+(x.lido?quando:"ainda não importado")+'">'+
-        (x.lido?"✓ ":"")+esc(x.nome)+'</span>'; }).join("");
+      const quando=x.quando==="auto"?"reconhecido pelos lançamentos do documento"
+        :x.quando==="manual"?"marcado por você":"importado em "+diaMesAno(x.quando);
+      return '<button class="chip '+(x.lido?"ok":"")+'" data-marca="'+x.chave+'" title="'+(x.lido?quando+" · toque para desmarcar":"ainda não importado · toque para marcar como já importado")+'">'+
+        (x.lido?"✓ ":"")+esc(x.nome)+'</button>'; }).join("");
     return '<div class="linkrow wrap"><div class="m"><div class="t">'+esc(ymLabel(ym))+'</div>'+
       '<div class="s" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'+chips+'</div></div></div>'; }).join("");
   /* o que ficou faltando em anos que saíram da lista */
@@ -2300,7 +2309,7 @@ function htmlImportacoes(){
   return '<div class="sec"><div class="sec-h"><h2 class="sec-t">O que já foi importado · '+ano+(janeiro?" e "+(+ano-1):"")+'</h2>'+
     '<span class="day-t">'+(faltam?faltam+(faltam>1?" documentos faltando":" documento faltando"):"tudo em dia")+'</span></div>'+
     '<div class="card pad">'+
-    '<div class="say-hint" style="margin-bottom:8px">Verde é o que já entrou; cinza é o que falta. O extrato se importa em Lançar → Importar extrato da conta; a fatura, em Importar fatura do cartão. A lista mostra o ano corrente — em janeiro, o ano anterior continua aqui.</div>'+
+    '<div class="say-hint" style="margin-bottom:8px">Verde é o que já entrou; cinza é o que falta — <b>toque num selo</b> para marcar ou desmarcar à mão. O extrato se importa em Lançar → Importar extrato da conta; a fatura, em Importar fatura do cartão. A lista mostra o ano corrente — em janeiro, o ano anterior continua aqui.</div>'+
     linhas+
     (antes?'<div class="say-hint" style="margin-top:10px">Ainda faltam '+antes+(antes>1?" documentos de anos anteriores":" documento de anos anteriores")+'. Eles saíram da lista, mas continuam podendo ser importados: basta escolher o arquivo em Lançar.</div>':"")+
     '</div></div>'; }
@@ -2341,7 +2350,11 @@ const AJUDA=[
  {g:"Importar",t:"Importo extrato e fatura: o gasto conta duas vezes?",
   c:"Não. As compras vêm da fatura e não tiram dinheiro da conta; o pagamento da fatura vem do extrato, sai da conta e não conta como gasto. Pode importar todos os extratos primeiro e as faturas depois.",a:"carregar"},
  {g:"Importar",t:"Como sei quais extratos e faturas já importei?",
-  c:"Em Ajustes, no quadro O que já foi importado: cada mês mostra o extrato de cada conta e a fatura de cada cartão — verde é o que já entrou, cinza é o que falta. No alto aparece quantos documentos ainda faltam. A lista é do ano corrente; em janeiro, o ano anterior continua à vista, e de fevereiro em diante fica só o ano novo — o que ficou faltando de anos anteriores aparece resumido no rodapé e pode ser importado a qualquer momento. O que você importou antes de o quadro existir também aparece: o app reconhece pelos lançamentos que vieram do documento.",a:"carregar"},
+  c:"Em Ajustes, no quadro O que já foi importado: cada mês mostra o extrato de cada conta e a fatura de cada cartão — verde é o que já entrou, cinza é o que falta. No alto aparece quantos documentos ainda faltam. A lista é do ano corrente; em janeiro, o ano anterior continua à vista, e de fevereiro em diante fica só o ano novo — o que ficou faltando de anos anteriores aparece resumido no rodapé e pode ser importado a qualquer momento. O que você importou antes de o quadro existir também aparece: o app reconhece pelos lançamentos que vieram do documento. E dá para <b>tocar num selo</b> para marcar ou desmarcar à mão, quando você sabe que já leu aquele documento.",a:"carregar"},
+ {g:"Importar",t:"Importei a fatura e o mês continua cinza",
+  c:"Isso acontecia quando a importação não acrescentava nada — tudo já estava lançado, ou a fatura só trazia parcelas que o app já tinha reservado. A partir da versão 44 o documento fica registrado mesmo assim. Nos meses antigos, toque no selo para marcar à mão.",a:"carregar"},
+ {g:"Importar",t:"O quadro conta o que lancei por voz?",
+  c:"Não. Ele marca só o que veio de documento: extrato do banco ou fatura do cartão. Lançamento por fala ou na mão não marca o mês — é justamente para você saber se o documento daquele mês já foi conferido.",a:"carregar"},
  {g:"Importar",t:"O PDF do meu banco não foi lido",
   c:"O app mostra uma amostra sem os seus dados (números viram 9, nomes viram x). Copie e mande na conversa com o Claude para ele ajustar o leitor. Nunca mande o documento original.",a:"problemas"},
  {g:"Importar",t:"Escolhi o leitor errado (extrato no lugar da fatura)",
@@ -2596,6 +2609,13 @@ function renderAjustes(){
   $$("[data-sini]").forEach(b=>b.onclick=()=>openSaldoInicial(b.dataset.sini));
   $$("[data-scor]").forEach(b=>b.onclick=()=>openCorrigirSaldo(b.dataset.scor));
   $$("[data-cfat]").forEach(b=>b.onclick=()=>openCorrigirFatura(b.dataset.cfat));
+  $$("[data-marca]").forEach(b=>b.onclick=()=>{
+    const [tipo,id,ym]=b.dataset.marca.split("|");
+    const mapa=tipo==="e"?(S.cfg.extratosLidos=S.cfg.extratosLidos||{}):(S.cfg.faturasLidas=S.cfg.faturasLidas||{});
+    const k=id+"|"+ym, tinha=!!mapa[k];
+    if(tinha) delete mapa[k]; else mapa[k]="manual";
+    saveCfg(); renderAjustes();
+    toast(tinha?"Desmarcado: "+ymLabel(ym):"Marcado como já importado: "+ymLabel(ym)); });
   mostrarVersao();
   $("#verBtn").onclick=async()=>{ toast("Procurando atualização…");
     try{ const r=await navigator.serviceWorker.getRegistration(); if(r) await r.update(); }catch(e){}
