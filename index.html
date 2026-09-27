@@ -893,6 +893,26 @@ function storageText(){
     ? "No seu Google Drive, pasta Caderneta — e também neste aparelho, para funcionar sem internet. Ninguém mais vê."
     : "Só neste aparelho. Se trocar de celular ou limpar o navegador, some tudo — faça backup."; }
 function syncFootHTML(){ return S.user?esc(S.user.name||"")+"<br>"+(S.user.kind==="google"?"Dados no seu Google Drive":"Dados só neste aparelho"):""; }
+/* fechar o app de verdade. Na janela do app instalado o navegador deixa; numa aba comum, não —
+   e aí o app explica em vez de fingir que fez. */
+function sairDoApp(){
+  closeSheet();
+  const instalado=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone;
+  try{ window.close(); }catch(e){}
+  /* se a janela fechou mesmo, nada abaixo chega a rodar */
+  setTimeout(()=>{
+    sheet("Sair da Caderneta",
+      '<div class="set"><div class="note"><b>'+(instalado?"O sistema não deixou a janela se fechar":"Esta é uma aba do navegador")+'</b>'+
+      (instalado
+        ? "Feche pelo ✕ da janela do app. No celular, deslize para cima para tirar da lista de abertos."
+        : "Uma página não pode se fechar sozinha; quem fecha a aba é você, no ✕ dela. Se quiser a Caderneta como um app de verdade, com janela própria e ícone na tela de início, instale pelo endereço — está no manual, em Começar.")+
+      '</div>'+
+      '<div class="set-f"><span class="hint">Sair do app <b>não desconecta</b> a sua conta: ao abrir de novo, você já entra direto. Para desconectar, use <b>Sair desta conta</b>.</span></div></div>',
+      '<button class="btn ghost" id="fbConta">Sair desta conta</button><button class="btn" id="fbX">Entendi</button>');
+    $("#fbX").onclick=closeSheet;
+    $("#fbConta").onclick=()=>{ closeSheet(); openAccount(); setTimeout(()=>{ const b=$("#acOut"); if(b) b.click(); },120); };
+  },260); }
+
 function openAccount(){
   const u=S.user; if(!u) return;
   sheet(u.name||"Sua conta",
@@ -903,8 +923,8 @@ function openAccount(){
       '<div class="s">'+(S.dirty?"Há lançamentos ainda não enviados ao Drive.":"Tudo enviado.")+(S.sync.err?" "+esc(S.sync.err):"")+'</div></div>'+
       '<button class="mini" id="acSync">Sincronizar agora</button></div>':'')+
     '</div>'+installHTML()+'</div>',
-    '<button class="btn danger" id="acOut">Sair desta conta</button><button class="btn" id="acX">Fechar</button>');
-  $("#acX").onclick=closeSheet;
+    '<button class="btn danger" id="acOut">Sair desta conta</button><button class="btn" id="acFim">Sair da Caderneta</button>');
+  $("#acFim").onclick=sairDoApp;
   $("#acOut").onclick=()=>{
     sheet("Sair da conta",
       '<div class="set"><div class="note"><b>'+esc(S.user&&S.user.kind==="google"?"Seus dados continuam no seu Drive":"Atenção: esta conta é só deste aparelho")+'</b>'+
@@ -2866,8 +2886,8 @@ const AJUDA=[
  /* começar */
   {g:"Conta e saldo",t:"Cliquei em Backup completo e só apareceu \u201ccopiado\u201d. Onde está o arquivo?",
   c:"Em nenhum lugar ainda: Copiar joga o backup na área de transferência, e ele só existe depois que você colar em algum lugar — um e-mail para você mesmo, uma nota. Para ter um arquivo de verdade, use o botão ao lado, Salvar arquivo: ele gera o caderneta-backup-DD-MM-AAAA.json, que no computador cai na pasta de downloads e no celular abre o menu de compartilhar, para você escolher onde guardar. O mesmo vale para Levar para uma planilha.",a:"dados"},
- {g:"Conta e saldo",t:"Como saio da conta ou troco de conta?",
-  c:"Toque na marca no alto do menu — o ícone com o nome Caderneta, no canto superior esquerdo (no celular, no alto da tela). Abre a ficha da sua conta, com a última sincronização e o botão Sair desta conta, que pede confirmação. Entrando de novo com a mesma conta Google, tudo volta do Drive.",a:"dados"},
+ {g:"Conta e saldo",t:"Como saio da conta ou fecho o app?",
+  c:"Toque na marca no alto do menu — o ícone com o nome Caderneta, no canto superior esquerdo (no celular, no alto da tela). Abre a ficha da sua conta, com dois botões: Sair desta conta desconecta (pede confirmação; entrando de novo com a mesma conta Google, tudo volta do Drive), e Sair da Caderneta fecha o app. O fechar só funciona na janela do app instalado — numa aba comum do navegador, a página não pode se fechar sozinha, e o próprio app explica isso. Fechar o app não desconecta: ao abrir de novo, você entra direto.",a:"dados"},
  {g:"Conta e saldo",t:"Reinstalei o app e perdi cartões e configurações. E agora?",
   c:"Os lançamentos e a configuração ficam também no seu Google Drive, então dá para trazer de volta. Entre com o Google e espere sincronizar: num aparelho zerado o app adota o que está no Drive. Se ainda faltar alguma coisa — os dias de fechamento dos cartões, por exemplo —, vá em Ajustes, em Dados, e toque em Restaurar de um backup: a lista mostra as cópias mensais guardadas no seu Drive; escolha a de um mês anterior. Restaurar não apaga lançamento nenhum, porque as listas se juntam.",a:"dados"},
  {g:"Começar",t:"Onde baixo o manual em PDF?",
