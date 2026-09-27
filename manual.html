@@ -97,7 +97,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div class="sub">Manual de uso — controle de gastos por fala, extrato e fatura</div>
   <div class="meta">
     Endereço do app: https://rgbittencourt.github.io/caderneta/<br>
-    Setembro de 2026 · aplica-se à versão caderneta-v39 em diante
+    Setembro de 2026 · aplica-se à versão caderneta-v47 em diante
   </div>
 </header>
 
@@ -123,6 +123,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
     <li><a href="#futuro">Futuro e Meta</a></li>
     <li><a href="#analises">Análises</a></li>
     <li><a href="#consulta">Consulta</a></li>
+    <li><a href="#categorias">Categorias: renomear e dividir</a></li>
     <li><a href="#carregar">Carregar meses anteriores</a></li>
     <li><a href="#problemas">Quando algo não bate</a></li>
     <li><a href="#dados">Dados, backup e privacidade</a></li>
@@ -487,13 +488,23 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 </figure>
 
 <div class="dica">
+  <b>O mês é o da barra de cima.</b>
+  A Consulta usa o mesmo seletor de mês que comanda o Painel e o Mês, e <b>todos</b> os períodos saem dele. Com o mês atual na barra, os botões são os de sempre: <i>Hoje</i>, <i>Esta semana</i>, <i>Este mês</i>, o mês anterior, <i>Últimos 30 dias</i>, <i>Este ano</i>. Quando você volta para um mês passado, o dia de referência passa a ser o último dia daquele mês e os botões mudam de nome para avisar — em fev 2026 eles ficam <i>Dia 28/02</i>, <i>Semana até 28/02</i>, <i>fev 2026</i>, <i>jan 2026</i>, <i>30 dias até 28/02</i> —, e o ano também é o da barra. Uma linha abaixo dos botões repete qual é o dia de referência. Para consultar outro mês, troque ali em cima; para um pedaço de mês ou um período que atravessa meses, use <i>Escolher datas</i>.
+</div>
+
+<figure>
+  <img src="manual/consulta-mes-barra.png" alt="A Consulta com um mês passado na barra">
+  <figcaption>Com <b>fev 2026</b> na barra de cima, os botões passam a <i>Dia 28/02</i>, <i>Semana até 28/02</i> e <i>30 dias até 28/02</i>, e a linha abaixo deles avisa qual é o dia de referência.</figcaption>
+</figure>
+
+<div class="dica">
   <b>Apareceu R$ 0,00?</b>
-  Quer dizer que não há lançamentos naquele período com os filtros marcados — é o que acontece na semana atual enquanto você ainda está carregando meses antigos. O app diz quantos lançamentos existem no ano e no total, e oferece o atalho para <i>Este ano</i> ou <i>Tudo</i>.
+  Não há lançamentos naquele período com os filtros marcados — e o app explica qual dos dois casos é. Se o período tem movimento e são as categorias que não batem, ele lista o que existe ali com o valor de cada categoria: toque numa delas, ou em <i>Ver todos</i>, para ver. Se o período está mesmo vazio (a semana atual enquanto você ainda carrega meses antigos, por exemplo), ele diz quantos lançamentos existem no ano e no total, e oferece o atalho para <i>Este ano</i> ou <i>Tudo</i>.
 </div>
 
 <figure>
   <img src="manual/consulta-resumo.png" alt="Resumo da consulta">
-  <figcaption>O total do período, quantos lançamentos são, o valor de cada categoria e o total por forma de pagamento. <i>Copiar para planilha</i> leva tudo — data, descrição, categoria, forma de pagamento e valor — para colar no Excel ou no Google Planilhas.</figcaption>
+  <figcaption>O total do período, quantos lançamentos são, o valor de cada categoria e o total por forma de pagamento. <i>Copiar para planilha</i> leva tudo — data, descrição, categoria, forma de pagamento e valor — para colar no Excel ou no Google Planilhas; <i>Mudar a categoria</i> troca de uma vez a categoria de todos os lançamentos que estão na lista (veja a seção seguinte).</figcaption>
 </figure>
 
 <figure>
@@ -501,7 +512,54 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <figcaption>Cada linha traz a data, a descrição, a categoria, a forma de pagamento e o valor; as parcelas mostram o número da parcela, e a compra no crédito vem marcada. Tocando na linha, dá para corrigir o lançamento.</figcaption>
 </figure>
 
-<h2 id="carregar">20. Carregar meses anteriores</h2>
+<h2 id="categorias">20. Categorias: renomear, dividir, juntar</h2>
+
+<p>As categorias são suas: Ajustes → <b>Categorias de gasto</b> (e <b>Categorias de entrada</b>). Tocando em uma delas, dá para mudar o <b>nome</b>, o <b>limite por mês</b> e o <b>grupo no 50-30-20</b> (Necessidade, Desejo ou Futuro). O botão <i>Adicionar</i> cria quantas você quiser.</p>
+
+<figure>
+  <img src="manual/cat-lista.png" alt="Categorias de gasto em Ajustes">
+  <figcaption>A lista de categorias em Ajustes. Abaixo do nome, o grupo no 50-30-20 e o limite mensal, quando há um. Tocando na linha, abre a ficha da categoria; <i>Adicionar</i> cria uma nova.</figcaption>
+</figure>
+
+<div class="nota">
+  <b>Mexer nas categorias não desarruma o que já foi lançado.</b>
+  Por dentro, cada lançamento está amarrado à categoria por um <b>código</b>, não pelo nome. Por isso:
+  <ul>
+    <li><b>Renomear é seguro e vale para trás.</b> Tudo o que já estava na categoria passa a aparecer com o nome novo — nos meses fechados, nos gráficos do Painel, no 50-30-20 e na Consulta.</li>
+    <li><b>Criar categoria nova não mexe em nada.</b> Ela nasce vazia; os lançamentos antigos continuam onde estavam até você movê-los.</li>
+    <li><b>Excluir nunca deixa lançamento solto.</b> O app conta quantos lançamentos, gastos fixos e palavras aprendidas estão ali, mostra de que mês a que mês, e pede <b>para onde levar tudo</b>. Só depois a categoria sai da lista.</li>
+    <li><b>Duas categorias não podem ser excluídas, só renomeadas:</b> <i>Dívidas e empréstimos</i> (é nela que o app lança sozinho as parcelas de consignado e de dívidas) e <i>Outros</i> (é a reserva de quando ele não consegue classificar).</li>
+  </ul>
+</div>
+
+<figure>
+  <img src="manual/cat-excluir.png" alt="Excluir uma categoria que tem lançamentos">
+  <figcaption>Ao excluir uma categoria que tem uso, o app mostra o que está nela — lançamentos, gastos fixos, palavras aprendidas — e de que mês a que mês, e pede para onde levar tudo. Nada é apagado.</figcaption>
+</figure>
+
+<p><b>Para dividir uma categoria em duas ou três</b> — por exemplo trocar <i>Saúde e consultas</i> por <i>Farmácia</i> e <i>Consultas</i>:</p>
+
+<ol class="passos">
+  <li><b>Crie as novas</b> em Ajustes → Categorias de gasto → <i>Adicionar</i>, já com o grupo do 50-30-20 e o limite, se quiser.</li>
+  <li><b>Vá na aba Consulta</b>, marque <b>só a categoria antiga</b> e escolha o período — <i>Tudo</i>, se quiser desde o começo.</li>
+  <li><b>Toque em <i>Mudar a categoria</i></b> e escolha o destino. Ele troca de uma vez os lançamentos que estão na lista; valor, data e forma de pagamento ficam exatamente como estavam.</li>
+  <li><b>Repita</b> com outro período ou outro filtro (por forma de pagamento, por exemplo) para a segunda parte. O que for caso a caso, toque na linha e mude ali mesmo.</li>
+  <li><b>Exclua a categoria antiga.</b> Se ainda tiver sobrado algo nela, o app pergunta para onde levar.</li>
+</ol>
+
+<figure>
+  <img src="manual/consulta-mudar.png" alt="Mudar a categoria dos lançamentos filtrados">
+  <figcaption><i>Mudar a categoria</i>, na Consulta, age exatamente sobre os lançamentos que estão na lista — os do período e dos filtros marcados. Só a categoria muda.</figcaption>
+</figure>
+
+<p><b>Para juntar duas em uma</b>, é o caminho inverso: exclua uma delas e mande tudo para a outra.</p>
+
+<div class="dica">
+  <b>Dívida ou gasto do mês?</b>
+  <b>Financiamento de veículo, consignado, empréstimo, crediário longo:</b> a parcela é <b>dívida</b> — cadastre em Lançar → <i>Cadastrar dívidas</i>, com valor da parcela, total de parcelas, taxa e o mês em que começou. Ela entra sozinha todo mês, aparece no Futuro como renda comprometida e permite a simulação de quitação com desconto de juros. <b>Carro e manutenção</b> é o custo de andar com o carro: revisão, pneus, IPVA, seguro, oficina, lavagem — o combustível tem categoria própria. No 50-30-20, a parcela da dívida conta como <b>Futuro</b> (pagar dívida é formar patrimônio) e a manutenção como <b>Necessidade</b>.
+</div>
+
+<h2 id="carregar">21. Carregar meses anteriores</h2>
 
 <ol class="passos">
   <li><b>Comece do zero, se for o caso:</b> Ajustes → <i>Recomeçar os lançamentos</i>. O app guarda um backup no seu Drive antes de apagar e pergunta a data do primeiro extrato e o saldo de cada conta no dia anterior.</li>
@@ -534,7 +592,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   As compras que vêm da fatura não tiram dinheiro da conta, e o pagamento que vem do extrato não conta como gasto. É por isso que a ordem não estraga nada.
 </div>
 
-<h2 id="problemas">21. Quando algo não bate</h2>
+<h2 id="problemas">22. Quando algo não bate</h2>
 
 <table>
   <tr><th>Sintoma</th><th>O que olhar</th></tr>
@@ -547,7 +605,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <tr><td>Não vejo uma opção nova</td><td>Confira a versão em <b>Ajustes → Dados</b>, feche o app e abra de novo.</td></tr>
 </table>
 
-<h2 id="dados">22. Dados, backup e privacidade</h2>
+<h2 id="dados">23. Dados, backup e privacidade</h2>
 <ul>
   <li>Os dados ficam <b>no aparelho</b> e no <b>seu Google Drive</b>, numa pasta chamada Caderneta. Não existe servidor: ninguém mais tem acesso.</li>
   <li>Os documentos que você lê (PDF, foto) <b>não saem do aparelho</b> — a leitura acontece ali mesmo.</li>
@@ -556,7 +614,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <li>O acesso ao Drive dura cerca de uma hora; depois aparece <i>Sincronizar</i> no alto — um toque e pronto.</li>
 </ul>
 
-<h2 id="ajuda">23. Ajuda dentro do app</h2>
+<h2 id="ajuda">24. Ajuda dentro do app</h2>
 
 <p>A <b>Ajuda</b> é a última aba do app (no celular, dentro de <i>Mais</i>). Ali ficam 40 perguntas e respostas, agrupadas por tema, e o atalho para este manual.</p>
 
@@ -572,7 +630,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <p>O botão <b>Perguntar ao Claude</b> copia a sua pergunta e abre a conversa. O app não tem inteligência artificial embutida: ele funciona sem servidor e sem custo, e é na conversa com o Claude que dúvidas mais longas são respondidas — e é lá também que se pedem mudanças no app.</p>
 
-<h2 id="glossario">24. Glossário</h2>
+<h2 id="glossario">25. Glossário</h2>
 <table>
   <tr><th>Termo</th><th>O que quer dizer na Caderneta</th></tr>
   <tr><td><b>Fatura de um mês</b></td><td>A fatura que <b>fechou</b> naquele mês, mesmo que seja paga no mês seguinte.</td></tr>

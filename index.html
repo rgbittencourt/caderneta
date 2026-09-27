@@ -2319,18 +2319,28 @@ function htmlImportacoes(){
 
 /* =================== consulta =================== */
 /* procurar gastos por categoria e período, com data e forma de pagamento em cada linha */
-const PERIODOS=[["hoje","Hoje"],["semana","Esta semana"],["mes","Este mês"],["anterior","Mês passado"],
-  ["30","Últimos 30 dias"],["ano","Este ano"],["tudo","Tudo"],["livre","Escolher datas"]];
+/* "mês" e "mês anterior" seguem o mês que está na barra de cima, como o resto do app */
+/* o dia de referência da Consulta é o mês da barra de cima: hoje, quando o mês é o atual;
+   o último dia do mês, quando é um mês passado; o dia 1º, quando é um mês futuro. */
+const refDia=()=>{ const hoje=todayISO(), atual=ymOf(hoje);
+  if(S.ym===atual) return hoje;
+  return S.ym>atual ? S.ym+"-01" : S.ym+"-"+pad(daysIn(S.ym)); };
+const rotuloPeriodos=()=>{ const hoje=todayISO(), atual=S.ym===ymOf(hoje), ref=diaMes(refDia());
+  return [["hoje",atual?"Hoje":"Dia "+ref],["semana",atual?"Esta semana":"Semana até "+ref],
+    ["mes",atual?"Este mês":ymLabel(S.ym)],["anterior",ymLabel(ymShift(S.ym,-1))],
+    ["30",atual?"Últimos 30 dias":"30 dias até "+ref],
+    ["ano",S.ym.slice(0,4)===hoje.slice(0,4)?"Este ano":S.ym.slice(0,4)],
+    ["tudo","Tudo"],["livre","Escolher datas"]]; };
 function periodoDatas(p){
-  const hoje=todayISO(), Y=+hoje.slice(0,4), M=+hoje.slice(5,7);
-  const dia=n=>new Date(Date.parse(hoje+"T12:00:00")+n*86400000).toISOString().slice(0,10);
-  if(p==="hoje") return [hoje,hoje];
-  if(p==="semana"){ const d=new Date(Date.parse(hoje+"T12:00:00")).getDay(); return [dia(-((d+6)%7)),hoje]; }
-  if(p==="mes") return [ymOf(hoje)+"-01", ymOf(hoje)+"-"+pad(daysIn(ymOf(hoje)))];
-  if(p==="anterior"){ const a=ymShift(ymOf(hoje),-1); return [a+"-01", a+"-"+pad(daysIn(a))]; }
-  if(p==="30") return [dia(-29),hoje];
-  if(p==="ano") return [Y+"-01-01", Y+"-12-31"];
-  if(p==="tudo") return ["2000-01-01", Y+"-12-31"];
+  const hoje=todayISO(), ref=refDia();
+  const dia=n=>new Date(Date.parse(ref+"T12:00:00")+n*86400000).toISOString().slice(0,10);
+  if(p==="hoje") return [ref,ref];
+  if(p==="semana"){ const d=new Date(Date.parse(ref+"T12:00:00")).getDay(); return [dia(-((d+6)%7)),ref]; }
+  if(p==="mes") return [S.ym+"-01", S.ym+"-"+pad(daysIn(S.ym))];
+  if(p==="anterior"){ const a=ymShift(S.ym,-1); return [a+"-01", a+"-"+pad(daysIn(a))]; }
+  if(p==="30") return [dia(-29),ref];
+  if(p==="ano"){ const a=S.ym.slice(0,4); return [a+"-01-01", a+"-12-31"]; }
+  if(p==="tudo") return ["2000-01-01", Math.max(+hoje.slice(0,4),+S.ym.slice(0,4))+"-12-31"];
   return null; }
 function consultaAchados(c){
   c=c||S.consulta;
@@ -2355,6 +2365,16 @@ function renderConsulta(){
   /* nada no período não quer dizer nada no app: diz onde estão os lançamentos que batem com os filtros */
   let dica="";
   if(!L.length){
+    /* o período pode ter movimento e o filtro é que não bate: mostra o que existe ali */
+    const semFiltro=consultaAchados(Object.assign({},c,{cats:[],formas:[]})).linhas;
+    if(semFiltro.length){
+      const cont={}; semFiltro.forEach(t=>{ cont[t.cat]=(cont[t.cat]||0)+t.v; });
+      const quais=Object.keys(cont).sort((a,b)=>cont[b]-cont[a]).slice(0,8)
+        .map(id=>'<button class="mini" data-so="'+id+'" style="margin:2px 4px 2px 0">'+esc(c.tipo==="e"?ecatName(id):catName(id))+' '+fmtN(cont[id])+'</button>').join("");
+      dica='<div class="note" style="margin-top:12px"><b>Nada com os filtros marcados</b>Mas de '+diaMesAno(r.de)+' a '+diaMesAno(r.ate)+
+        ' há '+semFiltro.length+(semFiltro.length>1?" lançamentos":" lançamento")+'. O que existe neste período: '+quais+
+        ' <button class="mini" data-so="" style="margin:2px 0">Ver todos</button></div>'; }
+    else {
     const noAno=consultaAchados(Object.assign({},c,{periodo:"ano"})).linhas.length;
     const emTudo=consultaAchados(Object.assign({},c,{periodo:"tudo"})).linhas.length;
     const quanto=noAno===emTudo
@@ -2365,7 +2385,7 @@ function renderConsulta(){
         '. Veja em outro período: '+
         (noAno?'<button class="mini" data-per="ano" style="margin-right:6px">Este ano</button>':'')+
         '<button class="mini" data-per="tudo">Tudo</button></div>'
-      : '<div class="note" style="margin-top:12px"><b>Nada encontrado</b>Não há lançamentos com esses filtros em nenhum período. Desmarque alguma categoria ou forma de pagamento.</div>'; }
+      : '<div class="note" style="margin-top:12px"><b>Nada encontrado</b>Não há lançamentos com esses filtros em nenhum período. Desmarque alguma categoria ou forma de pagamento.</div>'; } }
   const total=L.reduce((s,t)=>s+(t.k==="e"?-t.v:t.v),0);
   const soma={}, porForma={};
   L.forEach(t=>{ soma[t.cat]=(soma[t.cat]||0)+t.v; const f=t.card||t.method; porForma[f]=(porForma[f]||0)+t.v; });
@@ -2386,7 +2406,11 @@ function renderConsulta(){
   $("#p-consulta").innerHTML=
     '<div class="sec"><div class="card pad">'+
     '<div class="tile-l">Período</div>'+
-    '<div class="segs" style="margin-top:8px">'+PERIODOS.map(p=>selo(c.periodo===p[0],p[1],'data-per="'+p[0]+'"')).join("")+'</div>'+
+    '<div class="segs" style="margin-top:8px">'+rotuloPeriodos().map(p=>selo(c.periodo===p[0],p[1],'data-per="'+p[0]+'"')).join("")+'</div>'+
+    '<div class="say-hint" style="margin-top:6px">'+(S.ym===ymOf(todayISO())
+      ?'Tudo aqui vem do mês da barra de cima: mude ali para consultar outro mês.'
+      :'O mês da barra de cima é '+ymLabel(S.ym)+', então o dia de referência é '+diaMesAno(refDia())+
+       ' — a semana e os 30 dias terminam nele, e o ano é '+S.ym.slice(0,4)+'. Para um período qualquer, use Escolher datas.')+'</div>'+
     (c.periodo==="livre"?'<div class="two" style="margin-top:6px"><div class="set-f"><label for="cqDe">De</label><input id="cqDe" type="date" value="'+c.de+'"></div>'+
       '<div class="set-f"><label for="cqAte">Até</label><input id="cqAte" type="date" value="'+c.ate+'"></div></div>':'')+
     '<div class="tile-l" style="margin-top:14px">O que mostrar</div>'+
@@ -2407,7 +2431,8 @@ function renderConsulta(){
     '<div class="card pad"><div class="tile-l">Por forma de pagamento</div>'+
     (resumoForma?'<div style="margin-top:10px;display:grid;gap:7px;font-size:13px;color:var(--ink-2)">'+resumoForma+'</div>'
       :'<div class="tile-s">Nada no período.</div>')+
-    '<div class="cardbox-a" style="margin-top:14px"><button class="btn ghost sm" id="cqCopiar">Copiar para planilha</button></div>'+
+    '<div class="cardbox-a" style="margin-top:14px"><button class="btn ghost sm" id="cqCopiar">Copiar para planilha</button>'+
+    (L.length&&c.tipo!=="tudo"?'<button class="btn ghost sm" id="cqMover">Mudar a categoria</button>':'')+'</div>'+
     '</div></div></div>'+
 
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Lançamentos</h2><span class="day-t">'+(L.length?fmt(Math.abs(total)):"")+'</span></div>'+
@@ -2419,6 +2444,8 @@ function renderConsulta(){
   $$("[data-cat]").forEach(b=>b.onclick=()=>{ const id=b.dataset.cat;
     if(!id) c.cats=[]; else { const i=c.cats.indexOf(id); if(i>=0) c.cats.splice(i,1); else c.cats.push(id); }
     renderConsulta(); });
+  $$("[data-so]").forEach(b=>b.onclick=()=>{ const id=b.dataset.so;
+    c.formas=[]; c.cats=id?[id]:[]; renderConsulta(); });
   $$("[data-forma]").forEach(b=>b.onclick=()=>{ const id=b.dataset.forma;
     if(!id) c.formas=[]; else { const i=c.formas.indexOf(id); if(i>=0) c.formas.splice(i,1); else c.formas.push(id); }
     renderConsulta(); });
@@ -2428,7 +2455,8 @@ function renderConsulta(){
   $("#cqCopiar").onclick=()=>{
     const linhas=[["Data","Descrição","Categoria","Forma de pagamento","Valor"]].concat(
       L.map(t=>[t.d, t.desc, catLabel(t), cardName(t.card)||METODOS[t.method]||"", (t.k==="e"?"":"-")+(t.v/100).toFixed(2).replace(".",",")]));
-    copyText(linhas.map(l=>l.join(";")).join("\n"), L.length+" lançamentos copiados. Cole numa planilha."); }; }
+    copyText(linhas.map(l=>l.join(";")).join("\n"), L.length+" lançamentos copiados. Cole numa planilha."); };
+  const mv=$("#cqMover"); if(mv) mv.onclick=()=>openMoverLinhas(L,c.tipo); }
 
 /* =================== ajuda =================== */
 /* o app não tem IA embutida (não há servidor nem chave): a ajuda é busca no próprio conteúdo, e para
@@ -2538,7 +2566,15 @@ const AJUDA=[
  {g:"Entender os números",t:"O que a aba Análises mostra?",
   c:"O diagnóstico do mês (ritmo contra o teto, 50-30-20, renda comprometida, cartões perto do limite, gastos que parecem fixos), as compras parceladas, os gastos por cartão e o acompanhamento das dívidas.",a:"analises"},
  {g:"Entender os números",t:"A Consulta mostrou R$ 0,00",
-  c:"É porque não há lançamentos naquele período com os filtros marcados — por exemplo, a semana atual quando você ainda está carregando meses antigos. O próprio app avisa quantos lançamentos existem no ano e no total, e oferece o atalho para ver em Este ano ou Tudo.",a:"consulta"},
+  c:"É porque não há lançamentos naquele período com os filtros marcados. O app explica qual dos dois é o caso: se o período tem movimento e são as categorias que não batem, ele lista o que existe ali (com o valor de cada categoria) e você toca para ver; se o período está mesmo vazio, ele diz quantos lançamentos existem no ano e no total e oferece o atalho para Este ano ou Tudo.",a:"consulta"},
+ {g:"Entender os números",t:"A Consulta é de qual mês?",
+  c:"Do mês que estiver na barra de cima — o mesmo seletor que comanda o Painel e o Mês. Todos os períodos seguem esse mês: quando ele é o mês atual, hoje é hoje mesmo e a semana é a semana corrente; quando você volta para um mês passado, o dia de referência passa a ser o último dia daquele mês (em fev 2026, 28/02), e os botões mudam de nome para dizer isso — Dia 28/02, Semana até 28/02, 30 dias até 28/02. O ano também é o da barra. Para consultar outro mês, troque ali em cima; para um período que não começa nem termina em mês fechado, use Escolher datas.",a:"consulta"},
+ {g:"No dia a dia",t:"Quero reorganizar as categorias. Vou bagunçar o que já lancei?",
+  c:"Não. Por dentro, cada lançamento está amarrado à categoria por um código, não pelo nome — então renomear é seguro e vale para trás: tudo o que já estava ali passa a aparecer com o nome novo, inclusive nos meses fechados, nos gráficos e no 50-30-20. Criar categoria nova também não mexe em nada (ela nasce vazia). E ao excluir, o app não deixa nada solto: ele conta quantos lançamentos, gastos fixos e palavras aprendidas estão naquela categoria e pede para onde levar tudo, antes de tirá-la da lista. Duas não podem ser excluídas, só renomeadas: Dívidas e empréstimos (o app lança nela sozinho, nos consignados) e Outros (é a reserva de quando ele não sabe classificar).",a:"categorias"},
+ {g:"No dia a dia",t:"Como divido uma categoria em duas ou três?",
+  c:"Em Ajustes, em Categorias, crie as novas (por exemplo Farmácia e Consultas no lugar de Saúde). Vá na aba Consulta, marque só a categoria antiga, escolha o período — Tudo, se quiser desde o começo — e toque em Mudar a categoria: ele troca de uma vez os lançamentos que estão na lista, e só a categoria muda (valor, data e forma de pagamento ficam iguais). Repita com outro período ou outro filtro para a segunda parte; o que for caso a caso, toque na linha e mude ali. No fim, exclua a categoria antiga — se ainda tiver sobrado algo nela, o app pergunta para onde levar. Para juntar duas em uma, é o contrário: exclua uma e mande tudo para a outra.",a:"categorias"},
+ {g:"Dívidas",t:"Financiamento do carro é dívida ou gasto com carro?",
+  c:"A parcela do financiamento é dívida: cadastre em Lançar, em Cadastrar dívidas, com o valor da parcela, o total de parcelas, a taxa de juros e o mês em que começou. Assim ela entra sozinha todo mês, aparece em Análises e no Futuro como renda comprometida, e o app calcula a quitação antecipada com desconto de juros. Carro e manutenção é para o custo de andar com ele: revisão, pneus, IPVA, seguro, lavagem, oficina — e o combustível tem categoria própria. No 50-30-20, a parcela da dívida conta como Futuro (pagar dívida é formar patrimônio); a manutenção conta como Necessidade.",a:"dividas"},
  {g:"Entender os números",t:"Como vejo quanto gastei numa categoria?",
   c:"Na aba Consulta: escolha o período (hoje, semana, mês, mês passado, últimos 30 dias, ano, ou duas datas), marque as categorias e, se quiser, as formas de pagamento. Ele mostra o total, o valor por categoria e por forma de pagamento, e a lista com data, descrição e como foi pago. Dá para copiar tudo para uma planilha.",a:"consulta"},
  {g:"Entender os números",t:"Para que serve a aba Futuro?",
@@ -2774,6 +2810,58 @@ function openCard(id){
   const k=$("#cKill");
   if(k) k.onclick=()=>{ S.cfg.cards=S.cfg.cards.filter(x=>x.id!==c.id); saveCfg(); closeSheet(); render(); toast("Excluído"); }; }
 
+/* reorganizar categorias sem perder o que já foi lançado: quem manda é o id, não o nome.
+   Renomear não mexe em nada; excluir e dividir precisam levar os lançamentos para outro lugar. */
+function usosDaCategoria(id){
+  let n=0; const meses=[];
+  Object.keys(S.months||{}).forEach(ym=>{ const q=txOf(ym).filter(t=>t.cat===id).length; if(q){ n+=q; meses.push(ym); } });
+  meses.sort();
+  return {n, meses, fix:(S.cfg.fixed||[]).filter(f=>f.cat===id).length,
+    kw:Object.keys(S.cfg.kwCat||{}).filter(w=>S.cfg.kwCat[w]===id).length}; }
+async function moverLancamentos(L,para){
+  let n=0;
+  L.forEach(t=>{ const m=S.months[t.ym], x=m&&m.tx&&m.tx[t.id];
+    if(x&&x.cat!==para){ x.cat=para; x.u=Date.now(); n++; } });
+  if(n) await saveMonth();
+  return n; }
+async function moverCategoria(de,para){
+  const L=[]; Object.keys(S.months||{}).forEach(ym=>txOf(ym).forEach(t=>{ if(t.cat===de) L.push(t); }));
+  const n=await moverLancamentos(L,para);
+  (S.cfg.fixed||[]).forEach(f=>{ if(f.cat===de) f.cat=para; });
+  Object.keys(S.cfg.kwCat||{}).forEach(w=>{ if(S.cfg.kwCat[w]===de) S.cfg.kwCat[w]=para; });
+  await saveCfg();
+  return n; }
+/* sheet que troca a categoria de uma lista de lançamentos (usada na Consulta) */
+function openMoverLinhas(L,tipo){
+  if(!L.length){ toast("Nada para mudar."); return; }
+  const lista=(tipo==="e"?(S.cfg.ecats||ECATS):S.cfg.cats);
+  const quantos=L.length+(L.length>1?" lançamentos":" lançamento");
+  sheet("Mudar a categoria",
+    '<div class="set"><div class="note"><b>'+quantos+'</b>São os que estão na lista da Consulta agora, de '+diaMesAno(L[L.length-1].d)+' a '+diaMesAno(L[0].d)+
+    '. Só a categoria muda: valor, data e forma de pagamento ficam como estão.</div>'+
+    '<div class="set-f"><label for="mvC">Nova categoria</label><select id="mvC">'+
+    lista.map(x=>'<option value="'+x.id+'">'+esc(x.n)+'</option>').join("")+'</select>'+
+    '<span class="hint">Se a categoria nova ainda não existe, crie em Ajustes, em Categorias, e volte aqui.</span></div></div>',
+    '<button class="btn" id="mvOk">Mudar os '+L.length+'</button>');
+  $("#mvOk").onclick=async()=>{
+    const n=await moverLancamentos(L,$("#mvC").value);
+    closeSheet(); render(); toast(n?n+(n>1?" lançamentos mudaram de categoria.":" lançamento mudou de categoria."):"Já estavam nessa categoria."); }; }
+/* sheet que exclui uma categoria levando embora o que estava nela */
+function openApagarCat(c,u){
+  const destinos=S.cfg.cats.filter(x=>x.id!==c.id);
+  const detalhe=[u.n?u.n+(u.n>1?" lançamentos":" lançamento"):"", u.fix?u.fix+(u.fix>1?" gastos fixos":" gasto fixo"):"",
+    u.kw?u.kw+(u.kw>1?" palavras aprendidas":" palavra aprendida"):""].filter(Boolean).join(" · ");
+  sheet("Excluir "+c.n,
+    '<div class="set"><div class="note"><b>'+detalhe+'</b>'+
+    (u.meses.length?"De "+ymLabel(u.meses[0])+" a "+ymLabel(u.meses[u.meses.length-1])+". ":"")+
+    'Nada é apagado: tudo isso passa para a categoria que você escolher aqui, e só depois a categoria '+esc(c.n)+' sai da lista.</div>'+
+    '<div class="set-f"><label for="kMv">Levar tudo para</label><select id="kMv">'+
+    destinos.map(x=>'<option value="'+x.id+'">'+esc(x.n)+'</option>').join("")+'</select></div></div>',
+    '<button class="btn danger" id="kMvOk">Mover e excluir</button>');
+  $("#kMvOk").onclick=async()=>{
+    const para=$("#kMv").value, n=await moverCategoria(c.id,para);
+    S.cfg.cats=S.cfg.cats.filter(x=>x.id!==c.id); await saveCfg();
+    closeSheet(); render(); toast(n?n+(n>1?" lançamentos foram para ":" lançamento foi para ")+catName(para)+".":"Categoria excluída."); }; }
 function openCat(id){
   const c=S.cfg.cats.find(x=>x.id===id)||{id:"c"+uid(),n:"",limit:0};
   const isNew=!S.cfg.cats.some(x=>x.id===c.id);
@@ -2790,6 +2878,10 @@ function openCat(id){
     saveCfg(); closeSheet(); render(); toast("Salvo"); };
   const k=$("#kKill");
   if(k) k.onclick=()=>{ if(S.cfg.cats.length<=2){ toast("Precisa de pelo menos duas categorias."); return; }
+    if(c.id==="divida"){ toast("Esta é a categoria das dívidas e consignados: o app lança nela sozinho. Dá para renomear, não para excluir."); return; }
+    if(c.id==="outros"){ toast("Outros é a categoria de reserva: cai aqui o que o app não consegue classificar. Dá para renomear, não para excluir."); return; }
+    const u=usosDaCategoria(c.id);
+    if(u.n||u.fix||u.kw){ openApagarCat(c,u); return; }
     S.cfg.cats=S.cfg.cats.filter(x=>x.id!==c.id); saveCfg(); closeSheet(); render(); toast("Excluída"); }; }
 
 function openEcat(id){
