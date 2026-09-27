@@ -2638,6 +2638,8 @@ const AJUDA=[
   c:"A parcela do financiamento é dívida: cadastre em Lançar, em Cadastrar dívidas, com o valor da parcela, o total de parcelas, a taxa de juros e o mês em que começou. Assim ela entra sozinha todo mês, aparece em Análises e no Futuro como renda comprometida, e o app calcula a quitação antecipada com desconto de juros. Carro e manutenção é para o custo de andar com ele: revisão, pneus, IPVA, seguro, lavagem, oficina — e o combustível tem categoria própria. No 50-30-20, a parcela da dívida conta como Futuro (pagar dívida é formar patrimônio); a manutenção conta como Necessidade.",a:"dividas"},
  {g:"Entender os números",t:"Como vejo quanto gastei numa categoria?",
   c:"Na aba Consulta: escolha o período (hoje, semana, mês, mês passado, últimos 30 dias, ano, ou duas datas), marque as categorias e, se quiser, as formas de pagamento. Ele mostra o total, o valor por categoria e por forma de pagamento, e a lista com data, descrição e como foi pago. Dá para copiar tudo para uma planilha.",a:"consulta"},
+ {g:"Entender os números",t:"Como informo que guardei um dinheiro — e tiro da conta?",
+  c:"Na aba Meta, botão Guardei um dinheiro. Diga o valor e a data e deixe marcado Tirar o dinheiro da conta agora: o app faz a transferência da conta do dia a dia para a conta onde o dinheiro vai ficar (Poupança, por exemplo). O saldo do Painel já não conta com ele, então você não gasta sem querer o que separou — e não conta como gasto, porque é o mesmo dinheiro em outro lugar. Desmarque se quiser só anotar, sem mexer nas contas. Corrigiu o valor depois? A transferência acompanha. Excluiu o registro? O dinheiro volta para a conta.",a:"futuro"},
  {g:"Entender os números",t:"Quero juntar um valor até uma data. Como faço?",
   c:"Na aba Meta, em Juntar um montante até uma data, diga quanto quer juntar e escolha a data no calendário. O app olha a sua renda, o que já está comprometido (gastos fixos, parcelas e parcelas de dívida) e os seus gastos soltos dos últimos meses fechados, e responde: quanto guardar por mês, quanto dá para guardar em cada mês e onde cortar. Toque em Guardei um dinheiro toda vez que separar um valor — o plano se refaz sozinho todo dia até a data final, ou até você apagá-lo.",a:"plano"},
  {g:"Entender os números",t:"Por que um mês aguenta mais que o outro no plano?",
@@ -3398,7 +3400,8 @@ function renderMeta(){
     (dep.length?'<div class="card pad">'+dep.map(x=>{ const dt=new Date(x.d+"T12:00:00");
       return '<button class="row" data-dep="'+x.id+'"><span class="dot" style="background:var(--good)"></span>'+
         '<span class="row-m"><span class="row-d">'+esc(x.note||"Depósito")+'</span><span class="row-s"><span>'+
-        pad(dt.getDate())+" "+MES[dt.getMonth()]+" "+dt.getFullYear()+'</span></span></span>'+
+        pad(dt.getDate())+" "+MES[dt.getMonth()]+" "+dt.getFullYear()+'</span>'+
+        (x.para?'<span>·</span><span>saiu de '+esc(acctName(x.de))+', guardado em '+esc(acctName(x.para))+'</span>':'')+'</span></span>'+
         '<span class="row-v plus">'+fmtN(x.v)+'</span></button>'; }).join("")+'</div>'
       :'<div class="empty"><b>Nada guardado ainda</b>Toque em “Guardei um dinheiro” toda vez que separar um valor.</div>')+
     '</div>';
@@ -3419,24 +3422,51 @@ function openGoal(){
   $("#gOk").onclick=()=>{ S.cfg.goalName=$("#gN").value.trim()||"Sua meta";
     S.cfg.goalTarget=toCents($("#gT").value); saveCfg(); closeSheet(); render(); toast("Meta salva"); }; }
 function openDeposit(id){
-  const D=S.cfg.deposits||(S.cfg.deposits=[]);
+  const D=S.cfg.deposits||(S.cfg.deposits=[]), A=S.cfg.accounts||[];
   const x=D.find(y=>y.id===id);
+  /* de onde sai e para onde vai: o padrão é da conta corrente para a poupança,
+     porque separar de verdade é tirar da conta — senão o dinheiro é gasto sem perceber */
+  const padraoDe=(A.find(a=>a.type==="corrente")||A[0]||{}).id||"";
+  const padraoPara=(A.find(a=>a.type==="poupanca")||A.find(a=>a.id!==padraoDe)||{}).id||"";
+  const move=x?!!x.tx:A.length>1;
   sheet(x?"Depósito":"Guardei um dinheiro",
-    '<div class="set"><div class="two"><div class="set-f"><label>Quanto você separou</label>'+
+    '<div class="set"><div class="two"><div class="set-f"><label for="pV">Quanto você separou</label>'+
     '<input id="pV" inputmode="decimal" value="'+(x?fmtN(x.v):"")+'" placeholder="200,00"></div>'+
-    '<div class="set-f"><label>Quando</label><input id="pD" type="date" value="'+(x?x.d:todayISO())+'"></div></div>'+
-    '<div class="set-f"><label>Anotação</label><input id="pN" value="'+esc(x?(x.note||""):"")+'" placeholder="sobra do mês"></div>'+
-    '<div class="note"><b>Isso marca o quanto você já juntou</b>Se o dinheiro saiu de uma conta e foi para outra de verdade, use também <b>Transferir entre contas</b> na aba Lançar.</div></div>',
+    '<div class="set-f"><label for="pD">Quando</label><input id="pD" type="date" value="'+(x?x.d:todayISO())+'"></div></div>'+
+    '<div class="set-f"><label for="pN">Anotação</label><input id="pN" value="'+esc(x?(x.note||""):"")+'" placeholder="sobra do mês"></div>'+
+    (A.length>1?'<div class="set-f"><label style="display:flex;align-items:center;gap:9px;font-weight:500">'+
+      '<input type="checkbox" id="pMove" style="width:20px;height:20px"'+(move?" checked":"")+'>'+
+      'Tirar o dinheiro da conta agora</label>'+
+      '<span class="hint">Marcado, o app faz a transferência: sai da conta do dia a dia e fica guardado na outra. Assim o saldo do Painel já não conta com ele, e você não gasta sem querer o que separou.</span></div>'+
+      '<div class="two" id="pContas"'+(move?'':' hidden')+'><div class="set-f"><label for="pA">Sai de</label><select id="pA">'+
+      optId(A,(x&&x.de)||padraoDe)+'</select></div>'+
+      '<div class="set-f"><label for="pB">Fica em</label><select id="pB">'+optId(A,(x&&x.para)||padraoPara)+'</select></div></div>'
+      :'<div class="note"><b>Isso marca o quanto você já juntou</b>Para o dinheiro sair mesmo da conta, cadastre uma segunda conta (Poupança) em Ajustes.</div>')+
+    '</div>',
     (x?'<button class="btn danger" id="pKill">Excluir</button>':'<button class="btn ghost" id="pX">Cancelar</button>')+
     '<button class="btn good" id="pOk">'+(x?"Salvar":"Guardar")+'</button>');
   const c=$("#pX"); if(c) c.onclick=closeSheet;
-  $("#pOk").onclick=()=>{ const v=toCents($("#pV").value);
+  const mv=$("#pMove"); if(mv) mv.onchange=()=>{ const box=$("#pContas"); if(box) box.hidden=!mv.checked; };
+  /* a transferência acompanha o depósito: se o valor ou a data mudam, ela é refeita */
+  const tiraTx=async y=>{ if(y&&y.tx&&y.ym){ await removeTx(y.ym,y.tx); y.tx=""; y.ym=""; } };
+  $("#pOk").onclick=async()=>{ const v=toCents($("#pV").value);
     if(!v){ toast("Coloque o valor."); return; }
-    if(x){ x.v=v; x.note=$("#pN").value.trim(); x.d=$("#pD").value||x.d; }
-    else D.push({id:uid(),d:$("#pD").value||todayISO(),v,note:$("#pN").value.trim()});
-    saveCfg(); closeSheet(); render(); toast(x?"Salvo":"Guardado. Bom trabalho."); };
+    const d=$("#pD").value||todayISO(), nota=$("#pN").value.trim();
+    const quer=mv?mv.checked:false, de=$("#pA")?$("#pA").value:"", para=$("#pB")?$("#pB").value:"";
+    if(quer&&de===para){ toast("Escolha contas diferentes."); return; }
+    const y=x||{id:uid()};
+    await tiraTx(y);
+    y.d=d; y.v=v; y.note=nota; y.de=quer?de:""; y.para=quer?para:"";
+    if(quer){ const tid=uid();
+      await commit({id:tid,raw:"",v,desc:nota||"Separado para "+(S.cfg.goalName||"a meta"),cat:"outros",
+        method:"transferencia",cardId:"transf",acct:de,acct2:para,n:1,date:d,time:nowTime(),k:"t"});
+      y.tx=tid; y.ym=ymOf(d); }
+    if(!x) D.push(y);
+    await saveCfg(); closeSheet(); render();
+    toast(quer?"Guardado e tirado da conta. Bom trabalho.":(x?"Salvo":"Guardado. Bom trabalho.")); };
   const k=$("#pKill");
-  if(k) k.onclick=()=>{ S.cfg.deposits=D.filter(y=>y.id!==id); saveCfg(); closeSheet(); render(); toast("Excluído"); }; }
+  if(k) k.onclick=async()=>{ await tiraTx(x); S.cfg.deposits=D.filter(y=>y.id!==id); await saveCfg(); closeSheet(); render();
+    toast(x&&x.de?"Excluído; o dinheiro voltou para a conta.":"Excluído"); }; }
 
 /* =================== método 50-30-20 =================== */
 const NOMES_GRUPO={nec:"Necessidades",des:"Desejos",fut:"Futuro"};
