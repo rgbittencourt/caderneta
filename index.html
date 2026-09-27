@@ -209,6 +209,8 @@ main{padding:0 16px calc(76px + env(safe-area-inset-bottom,0px));max-width:680px
   /* a linha de baixo é uma assinatura, não uma legenda: caixa alta, miúda e bem espaçada */
   .side-brand .side-nome>span+span{font-size:9.5px;font-weight:600;color:var(--ink-3);line-height:1.2;
     letter-spacing:.17em;text-transform:uppercase;margin-top:4px}
+  /* nome comprido: aperta o espaçamento em vez de cortar */
+  .side-brand .side-nome>span+span.comprido{font-size:9px;letter-spacing:.075em}
   .side a{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:var(--r-sm);
     color:var(--ink-2);text-decoration:none;font-size:14px;font-weight:500;cursor:pointer;border:0;
     background:none;width:100%;text-align:left}
@@ -676,7 +678,7 @@ function mergeData(a,b){
 /* ---- contas usadas neste aparelho ---- */
 function knownUsers(){ try{ return JSON.parse(lsGet(K.contas)||"[]"); }catch(e){ return []; } }
 function rememberUser(u){ const L=knownUsers().filter(x=>x.id!==u.id);
-  L.unshift({id:u.id,email:u.email,name:u.name,kind:u.kind});
+  L.unshift({id:u.id,email:u.email,name:u.name,full:u.full||"",kind:u.kind});
   lsSet(K.contas,JSON.stringify(L.slice(0,6))); lsSet(K.ativa,u.id); }
 function useUser(u){
   S.user=u; rememberUser(u); S.token=null; S.tokenExp=0; S.folderId=null; S.snap=null;
@@ -745,7 +747,8 @@ function googleSignIn(){
   const err=$("#gErr"); if(err) err.hidden=true;
   getToken(true).then(async()=>{
     const p=await whoAmI(), tk={t:S.token,e:S.tokenExp};
-    useUser({id:"g:"+p.sub,email:p.email||"",name:p.given_name||p.name||p.email||"Você",kind:"google"});
+    useUser({id:"g:"+p.sub,email:p.email||"",name:p.given_name||p.name||p.email||"Você",
+      full:p.name||p.given_name||"",kind:"google"});
     S.token=tk.t; S.tokenExp=tk.e; saveToken(); syncNow();
   }).catch(e=>{ if(err){ err.hidden=false; err.textContent=authMsg(e); } }); }
 function syncTap(){
@@ -828,6 +831,15 @@ function safeRender(){ const s=$("#say"), v=s?s.value:null; render(); if(v!=null
 
 /* a marca da Caderneta, em SVG, para a tela de entrada, a barra lateral e o topo do celular.
    Mesmo desenho do ícone: capa em contorno sobre preto, fita marcadora dourada. */
+/* a assinatura embaixo da marca: primeiro e último nome, descartando os do meio
+   ("Maria Aparecida de Souza Lima" vira "Maria Lima"). Partículas não contam como sobrenome. */
+function nomeAssinatura(u){
+  const n=String((u&&(u.full||u.name))||"").replace(/\s+/g," ").trim();
+  if(!n) return "";
+  const part=/^(de|da|do|das|dos|e|di|du|del|della|van|von|la|le)$/i;
+  const p=n.split(" ").filter(x=>x&&!part.test(x));
+  if(p.length<2) return p[0]||n;
+  return p[0]+" "+p[p.length-1]; }
 const MARCA=t=>'<svg class="marca" width="'+t+'" height="'+t+'" viewBox="0 0 64 64" aria-hidden="true" focusable="false">'+
   '<rect width="64" height="64" rx="14" fill="#101215"/>'+
   '<rect x="13" y="12" width="35" height="41" rx="6" fill="none" stroke="#FBFCFD" stroke-width="3.6"/>'+
@@ -922,7 +934,7 @@ function sairDoApp(){
 
 function openAccount(){
   const u=S.user; if(!u) return;
-  sheet(u.name||"Sua conta",
+  sheet(u.full||u.name||"Sua conta",
     '<div class="set"><div class="card pad">'+
     '<div class="linkrow"><div class="m"><div class="t">'+esc(u.kind==="google"?u.email:"Conta só deste aparelho")+'</div>'+
     '<div class="s">'+esc(storageText())+'</div></div></div>'+
@@ -1801,7 +1813,8 @@ const TABS=["painel","lancar","mes","contas"];
 
 function renderNav(){
   $("#side").innerHTML='<button class="side-brand" id="brandSide" title="Sua conta" aria-label="Sua conta">'+
-    MARCA(46)+'<span class="side-nome"><span>Caderneta</span><span>'+esc(S.user?S.user.name:"")+'</span></span></button>'+
+    MARCA(46)+'<span class="side-nome"><span>Caderneta</span><span'+(nomeAssinatura(S.user).length>16?' class="comprido"':'')+'>'+
+      esc(nomeAssinatura(S.user))+'</span></span></button>'+
     NAV.map(x=>'<a role="button" tabindex="0" data-go="'+x.id+'" aria-current="'+(S.view===x.id)+'">'+svgIc(x.id)+esc(x.n)+'</a>').join("")+
     '<div class="side-foot" id="sideFoot"></div>';
   const bm=$("#brand");
