@@ -389,6 +389,23 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
   padding:12px 13px;font-size:12.5px;line-height:1.5;color:var(--ink)}
 .note b{display:block;font-weight:600;margin-bottom:3px}
 
+/* ===== calendarinho: escolher data tocando, sem digitar ===== */
+.cal{display:grid;gap:10px;justify-items:center}
+.cal-h,.cal-s,.cal-g{width:100%;max-width:352px}
+.cal-h{display:flex;align-items:center;gap:6px}
+.cal-t{flex:1;text-align:center;font-size:15px;font-weight:600;text-transform:capitalize}
+.cal-s,.cal-g{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-s span{text-align:center;font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}
+.cal-d{height:42px;display:flex;align-items:center;justify-content:center;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+  font-family:var(--f);font-size:14.5px;color:var(--ink);cursor:pointer}
+.cal-d:hover{background:var(--surface-2)}
+.cal-d.vazio{border:0;background:transparent;cursor:default}
+.cal-d.hoje{border-color:var(--accent-line);color:var(--accent);font-weight:600}
+.cal-d.on{background:var(--accent);border-color:var(--accent);color:var(--paper);font-weight:600}
+.cal-d.fora{color:var(--ink-3);background:var(--surface-2);cursor:default}
+.cal-r{display:flex;gap:6px;flex-wrap:wrap}
+
 /* ===== ficha ===== */
 .scrim{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;display:flex;align-items:flex-end;
   justify-content:center}
@@ -2359,6 +2376,38 @@ function consultaAchados(c){
     ym=ymShift(ym,1); }
   out.sort((a,b)=>(b.d+(b.t||"")).localeCompare(a.d+(a.t||"")));
   return {de,ate,linhas:out}; }
+/* calendarinho: marca a data tocando no dia, sem digitar nada.
+   (campo type=date obrigava a digitar o ano dígito a dígito e a tela se redesenhava no meio.) */
+function openCalendario(op){
+  const st={ym:ymOf(op.valor||todayISO()), sel:op.valor||""};
+  const dentro=iso=>(!op.min||iso>=op.min)&&(!op.max||iso<=op.max);
+  const desenha=()=>{
+    const [Y,M]=st.ym.split("-").map(Number), hoje=todayISO();
+    const vazias=(new Date(Y,M-1,1).getDay()+6)%7, nd=daysIn(st.ym);
+    let g="";
+    for(let i=0;i<vazias;i++) g+='<span class="cal-d vazio"></span>';
+    for(let d=1;d<=nd;d++){ const iso=st.ym+"-"+pad(d), ok=dentro(iso);
+      g+=ok?'<button class="cal-d'+(iso===st.sel?" on":"")+(iso===hoje?" hoje":"")+'" data-dia="'+iso+'">'+d+'</button>'
+           :'<span class="cal-d fora">'+d+'</span>'; }
+    $("#calTit").textContent=ymLabel(st.ym);
+    $("#calGrade").innerHTML=g;
+    $$("#calGrade [data-dia]").forEach(b=>b.onclick=()=>{ const d=b.dataset.dia; closeSheet(); op.onPick(d); }); };
+  sheet(op.titulo||"Escolher a data",
+    '<div class="cal">'+
+    '<div class="cal-h">'+
+    '<button class="icon-btn" data-mv="-12" aria-label="Ano anterior">«</button>'+
+    '<button class="icon-btn" data-mv="-1" aria-label="Mês anterior">‹</button>'+
+    '<span class="cal-t" id="calTit"></span>'+
+    '<button class="icon-btn" data-mv="1" aria-label="Mês seguinte">›</button>'+
+    '<button class="icon-btn" data-mv="12" aria-label="Ano seguinte">»</button></div>'+
+    '<div class="cal-s"><span>seg</span><span>ter</span><span>qua</span><span>qui</span><span>sex</span><span>sáb</span><span>dom</span></div>'+
+    '<div class="cal-g" id="calGrade"></div>'+
+    (op.dica?'<div class="cardbox-s" style="margin:0">'+esc(op.dica)+'</div>':'')+'</div>',
+    '<button class="btn ghost" id="calHoje">Hoje</button>');
+  $$("[data-mv]").forEach(b=>b.onclick=()=>{ st.ym=ymShift(st.ym,+b.dataset.mv); desenha(); });
+  $("#calHoje").onclick=()=>{ closeSheet(); op.onPick(todayISO()); };
+  desenha(); }
+
 function renderConsulta(){
   const c=S.consulta=S.consulta||{periodo:"mes",de:ymOf(todayISO())+"-01",ate:todayISO(),cats:[],formas:[],tipo:"g"};
   const r=consultaAchados(c), L=r.linhas;
@@ -2411,8 +2460,10 @@ function renderConsulta(){
       ?'Tudo aqui vem do mês da barra de cima: mude ali para consultar outro mês.'
       :'O mês da barra de cima é '+ymLabel(S.ym)+', então o dia de referência é '+diaMesAno(refDia())+
        ' — a semana e os 30 dias terminam nele, e o ano é '+S.ym.slice(0,4)+'. Para um período qualquer, use Escolher datas.')+'</div>'+
-    (c.periodo==="livre"?'<div class="two" style="margin-top:6px"><div class="set-f"><label for="cqDe">De</label><input id="cqDe" type="date" value="'+c.de+'"></div>'+
-      '<div class="set-f"><label for="cqAte">Até</label><input id="cqAte" type="date" value="'+c.ate+'"></div></div>':'')+
+    (c.periodo==="livre"?'<div class="two" style="margin-top:8px">'+
+      '<button class="btn ghost sm" id="cqDe">De '+diaMesAno(c.de)+'</button>'+
+      '<button class="btn ghost sm" id="cqAte">Até '+diaMesAno(c.ate)+'</button></div>'+
+      '<div class="say-hint" style="margin-top:6px">Toque em cada botão e marque o dia no calendário.</div>':'')+
     '<div class="tile-l" style="margin-top:14px">O que mostrar</div>'+
     '<div class="segs" style="margin-top:8px">'+[["g","Gastos"],["e","Entradas"],["tudo","Tudo"]].map(x=>selo(c.tipo===x[0],x[1],'data-tipo="'+x[0]+'"')).join("")+'</div>'+
     '<div class="tile-l" style="margin-top:14px">Categorias <span style="text-transform:none;letter-spacing:0">'+(c.cats.length?"("+c.cats.length+" marcadas)":"(todas)")+'</span></div>'+
@@ -2439,7 +2490,15 @@ function renderConsulta(){
     '<div class="card pad">'+(L.length?L.map(linha).join("")
       :'<div class="empty"><b>Nada encontrado</b>Mude o período ou desmarque alguma categoria.</div>')+'</div></div>';
   bindRows($("#p-consulta"));
-  $$("[data-per]").forEach(b=>b.onclick=()=>{ c.periodo=b.dataset.per; renderConsulta(); });
+  /* escolher datas: primeiro o início, depois o fim — um calendário de cada vez */
+  const escolheAte=()=>openCalendario({titulo:"Data do fim", valor:c.ate, min:c.de,
+    dica:"O período vai de "+diaMesAno(c.de)+" até o dia que você marcar.",
+    onPick:d=>{ c.ate=d; if(c.de>c.ate) c.de=c.ate; renderConsulta(); }});
+  const escolheDe=emSeguida=>openCalendario({titulo:"Data de início", valor:c.de,
+    dica:emSeguida?"Depois o app abre o calendário do dia final.":"",
+    onPick:d=>{ c.de=d; if(c.ate<c.de) c.ate=c.de; renderConsulta(); if(emSeguida) escolheAte(); }});
+  $$("[data-per]").forEach(b=>b.onclick=()=>{ const p=b.dataset.per, era=c.periodo; c.periodo=p; renderConsulta();
+    if(p==="livre"&&era!=="livre") escolheDe(true); });
   $$("[data-tipo]").forEach(b=>b.onclick=()=>{ c.tipo=b.dataset.tipo; c.cats=[]; renderConsulta(); });
   $$("[data-cat]").forEach(b=>b.onclick=()=>{ const id=b.dataset.cat;
     if(!id) c.cats=[]; else { const i=c.cats.indexOf(id); if(i>=0) c.cats.splice(i,1); else c.cats.push(id); }
@@ -2450,8 +2509,8 @@ function renderConsulta(){
     if(!id) c.formas=[]; else { const i=c.formas.indexOf(id); if(i>=0) c.formas.splice(i,1); else c.formas.push(id); }
     renderConsulta(); });
   const de=$("#cqDe"), ate=$("#cqAte");
-  if(de) de.onchange=()=>{ c.de=de.value; renderConsulta(); };
-  if(ate) ate.onchange=()=>{ c.ate=ate.value; renderConsulta(); };
+  if(de) de.onclick=()=>escolheDe(false);
+  if(ate) ate.onclick=()=>escolheAte();
   $("#cqCopiar").onclick=()=>{
     const linhas=[["Data","Descrição","Categoria","Forma de pagamento","Valor"]].concat(
       L.map(t=>[t.d, t.desc, catLabel(t), cardName(t.card)||METODOS[t.method]||"", (t.k==="e"?"":"-")+(t.v/100).toFixed(2).replace(".",",")]));
@@ -2567,6 +2626,8 @@ const AJUDA=[
   c:"O diagnóstico do mês (ritmo contra o teto, 50-30-20, renda comprometida, cartões perto do limite, gastos que parecem fixos), as compras parceladas, os gastos por cartão e o acompanhamento das dívidas.",a:"analises"},
  {g:"Entender os números",t:"A Consulta mostrou R$ 0,00",
   c:"É porque não há lançamentos naquele período com os filtros marcados. O app explica qual dos dois é o caso: se o período tem movimento e são as categorias que não batem, ele lista o que existe ali (com o valor de cada categoria) e você toca para ver; se o período está mesmo vazio, ele diz quantos lançamentos existem no ano e no total e oferece o atalho para Este ano ou Tudo.",a:"consulta"},
+ {g:"Entender os números",t:"Como escolho um período com datas?",
+  c:"Na Consulta, toque em Escolher datas: abre um calendário para marcar o dia de início e, logo depois, outro para o dia do fim — é só tocar no dia, não se digita nada. Depois, os botões De e Até mostram as datas escolhidas e reabrem o calendário daquela ponta quando você toca neles. As setas mudam de mês (‹ ›) e de ano (« »), e o botão Hoje marca a data de hoje. No calendário do fim, os dias anteriores ao início ficam apagados, para o período não sair invertido.",a:"consulta"},
  {g:"Entender os números",t:"A Consulta é de qual mês?",
   c:"Do mês que estiver na barra de cima — o mesmo seletor que comanda o Painel e o Mês. Todos os períodos seguem esse mês: quando ele é o mês atual, hoje é hoje mesmo e a semana é a semana corrente; quando você volta para um mês passado, o dia de referência passa a ser o último dia daquele mês (em fev 2026, 28/02), e os botões mudam de nome para dizer isso — Dia 28/02, Semana até 28/02, 30 dias até 28/02. O ano também é o da barra. Para consultar outro mês, troque ali em cima; para um período que não começa nem termina em mês fechado, use Escolher datas.",a:"consulta"},
  {g:"No dia a dia",t:"Quero reorganizar as categorias. Vou bagunçar o que já lancei?",
