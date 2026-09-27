@@ -6,7 +6,7 @@
 <title>Caderneta — Manual de uso</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Serif:wght@600&display=swap" rel="stylesheet">
 <style>
 :root{
   --ink:#16202c; --ink-2:#48566a; --ink-3:#77869b; --line:#dde3ec; --line-2:#eef2f7;
@@ -14,6 +14,7 @@
   --bad:#b3261e; --good:#1f7a4d; --warn:#9a6a00; --warn-soft:#fdf5e3;
   --f:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
   --f-m:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --f-s:"IBM Plex Serif",Georgia,"Times New Roman",serif;   /* o nome do app */
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--surface);color:var(--ink);font:400 15px/1.6 var(--f);-webkit-font-smoothing:antialiased}
@@ -43,7 +44,7 @@ a{color:var(--accent)}
 .capa>*{position:relative}
 .capa .marca{display:flex;align-items:center;gap:16px}
 .capa .marca img{width:66px;height:66px;border-radius:16px;box-shadow:0 10px 26px -14px rgba(15,23,42,.7)}
-.capa h1{margin:0;font-size:40px;letter-spacing:-.03em;line-height:1}
+.capa h1{margin:0;font-family:var(--f-s);font-size:42px;font-weight:600;letter-spacing:-.025em;line-height:1}
 .capa .tagline{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3);margin-top:7px}
 .capa .titulo{font-size:34px;font-weight:600;letter-spacing:-.025em;line-height:1.15;margin:0}
 .capa .sub{color:var(--ink-2);font-size:16px;margin-top:12px;max-width:46ch;line-height:1.55}
@@ -72,7 +73,7 @@ figure{margin:18px 0;break-inside:avoid;page-break-inside:avoid}
 .colofao{display:flex;gap:16px;align-items:center;margin-top:34px;padding-top:20px;
   border-top:2px solid var(--line);break-inside:avoid;page-break-inside:avoid}
 .colofao img{width:52px;height:52px;border-radius:12px;flex:none}
-.colofao b{display:block;font-size:16px;letter-spacing:-.01em}
+.colofao b{display:block;font-family:var(--f-s);font-size:18px;font-weight:600;letter-spacing:-.015em}
 .colofao span{display:block;font-size:12px;color:var(--ink-2);margin-top:3px}
 .colofao span:last-child{font-family:var(--f-m);font-size:11px;color:var(--ink-3)}
 figure img{width:100%;display:block;border:1px solid var(--line);border-radius:10px}
@@ -133,7 +134,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 <body>
 
 <div class="barra">
-  <span>Manual da Caderneta — feito para imprimir em A4</span>
+  <span>Manual da <b style="font-family:var(--f-s);font-weight:600">Caderneta</b> — feito para imprimir em A4</span>
   <a class="bt-pdf" href="manual.pdf" target="_blank" rel="noopener">Baixar o PDF</a>
   <button onclick="window.print()">Imprimir</button>
 </div>
@@ -148,7 +149,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div>
     <h2 class="titulo">Manual de uso</h2>
     <p class="sub">Controle de gastos por fala, leitura de extratos e faturas em PDF, cartões e faturas, dívidas com quitação, plano para juntar dinheiro e o método 50-30-20.</p>
-    <span class="edicao">Edição de setembro de 2026 · aplica-se à versão caderneta-v60 em diante</span>
+    <span class="edicao">Edição de setembro de 2026 · aplica-se à versão caderneta-v61 em diante</span>
   </div>
 
   <div class="pe">

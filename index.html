@@ -42,7 +42,7 @@ img{max-width:100%}
 .gate-marca{align-self:center;line-height:0;border-radius:16px;
   box-shadow:0 10px 26px -12px rgba(15,23,42,.6)}
 .gate-marca svg{display:block;border-radius:16px}
-.gate-in h1{font-size:29px;font-weight:600;letter-spacing:-.025em;margin:8px 0 0}
+.gate-in h1{font-family:var(--f-s);font-size:30px;font-weight:600;letter-spacing:-.02em;margin:10px 0 0}
 .gate-in p{margin:0;color:var(--ink-2);font-size:14px;line-height:1.55}
 .gate-lead{font-size:14.5px!important;color:var(--ink-2)}
 .gate-pts{list-style:none;margin:6px 0 2px;padding:14px 0 0;border-top:1px solid var(--line);
@@ -122,7 +122,7 @@ details.grp .in{padding:8px 14px 12px}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@600&display=swap">
 <style>
 /* ===== tokens: ardósia e azul-aço. Categórica validada (ΔE adjacente 20.9 protan) ===== */
 :root{
@@ -138,6 +138,7 @@ details.grp .in{padding:8px 14px 12px}
   --r:10px; --r-sm:7px;
   --f:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
   --f-m:"IBM Plex Mono",ui-monospace,"SF Mono",Consolas,monospace;
+  --f-s:"IBM Plex Serif",Georgia,"Times New Roman",serif;   /* só para o nome do app */
   --shadow:0 1px 2px rgba(15,23,42,.05);
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
@@ -178,9 +179,9 @@ main{padding:0 16px calc(76px + env(safe-area-inset-bottom,0px));max-width:680px
 .top{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line);
   padding-top:env(safe-area-inset-top,0px)}
 .top-in{display:flex;align-items:center;gap:10px;height:54px;max-width:680px;margin:0 auto;padding:0 16px}
-.brand{font-size:16px;font-weight:600;letter-spacing:-.01em;flex:1;min-width:0;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:8px}
-.brand .marca{border-radius:6px;flex:none}
+.brand{font-family:var(--f-s);font-size:17px;font-weight:600;letter-spacing:-.012em;flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:9px}
+.brand .marca{border-radius:7px;flex:none}
 .brand[role="button"]{cursor:pointer;border-radius:8px;padding:3px 6px;margin-left:-6px}
 .brand[role="button"]:hover{background:var(--surface-2)}
 .mnav{display:flex;align-items:center;gap:2px}
@@ -196,15 +197,18 @@ main{padding:0 16px calc(76px + env(safe-area-inset-bottom,0px));max-width:680px
     background:var(--surface);border-right:1px solid var(--line);overflow-y:auto}
   /* o canto da marca: as duas linhas com o mesmo peso e o mesmo tamanho — nem o app nem o
      nome de quem usa pedem destaque; quem chama a atenção é o ícone. */
-  .side-brand{padding:9px 10px;margin-bottom:10px;display:flex;align-items:center;gap:12px;width:100%;
+  .side-brand{padding:10px;margin-bottom:12px;display:flex;align-items:center;gap:13px;width:100%;
     background:transparent;border:1px solid transparent;border-radius:11px;font-family:inherit;
     text-align:left;cursor:pointer;transition:background .15s,border-color .15s}
   .side-brand:hover{background:var(--surface-2);border-color:var(--line)}
-  .side-brand .marca{border-radius:9px;flex:none;box-shadow:0 2px 8px -3px rgba(15,23,42,.5)}
+  .side-brand .marca{border-radius:11px;flex:none;box-shadow:0 3px 10px -4px rgba(15,23,42,.55)}
   .side-brand .side-nome{min-width:0;display:grid;gap:1px}
-  .side-brand .side-nome>span{display:block;font-size:13px;font-weight:500;letter-spacing:-.005em;
-    line-height:1.3;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .side-brand .side-nome>span+span{color:var(--ink-3);font-weight:400}
+  .side-brand .side-nome>span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .side-brand .side-nome>span:first-child{font-family:var(--f-s);font-size:19px;font-weight:600;
+    letter-spacing:-.015em;line-height:1.1;color:var(--ink)}
+  /* a linha de baixo é uma assinatura, não uma legenda: caixa alta, miúda e bem espaçada */
+  .side-brand .side-nome>span+span{font-size:9.5px;font-weight:600;color:var(--ink-3);line-height:1.2;
+    letter-spacing:.17em;text-transform:uppercase;margin-top:4px}
   .side a{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:var(--r-sm);
     color:var(--ink-2);text-decoration:none;font-size:14px;font-weight:500;cursor:pointer;border:0;
     background:none;width:100%;text-align:left}
@@ -1797,11 +1801,11 @@ const TABS=["painel","lancar","mes","contas"];
 
 function renderNav(){
   $("#side").innerHTML='<button class="side-brand" id="brandSide" title="Sua conta" aria-label="Sua conta">'+
-    MARCA(38)+'<span class="side-nome"><span>Caderneta</span><span>'+esc(S.user?S.user.name:"")+'</span></span></button>'+
+    MARCA(46)+'<span class="side-nome"><span>Caderneta</span><span>'+esc(S.user?S.user.name:"")+'</span></span></button>'+
     NAV.map(x=>'<a role="button" tabindex="0" data-go="'+x.id+'" aria-current="'+(S.view===x.id)+'">'+svgIc(x.id)+esc(x.n)+'</a>').join("")+
     '<div class="side-foot" id="sideFoot"></div>';
   const bm=$("#brand");
-  if(bm&&!bm.querySelector("svg")){ bm.innerHTML=MARCA(24)+'<span>Caderneta</span>';
+  if(bm&&!bm.querySelector("svg")){ bm.innerHTML=MARCA(30)+'<span>Caderneta</span>';
     bm.setAttribute("role","button"); bm.setAttribute("tabindex","0"); bm.title="Sua conta"; }
   if(bm) bm.onclick=()=>{ if(S.user) openAccount(); };
   const bs=$("#brandSide"); if(bs) bs.onclick=()=>{ if(S.user) openAccount(); };
