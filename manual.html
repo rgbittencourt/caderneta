@@ -40,6 +40,12 @@ a{color:var(--accent)}
 .sumario a{text-decoration:none;color:var(--ink)}
 .sumario a:hover{color:var(--accent)}
 figure{margin:18px 0;break-inside:avoid;page-break-inside:avoid}
+.colofao{display:flex;gap:16px;align-items:center;margin-top:34px;padding-top:20px;
+  border-top:2px solid var(--line);break-inside:avoid;page-break-inside:avoid}
+.colofao img{width:52px;height:52px;border-radius:12px;flex:none}
+.colofao b{display:block;font-size:16px;letter-spacing:-.01em}
+.colofao span{display:block;font-size:12px;color:var(--ink-2);margin-top:3px}
+.colofao span:last-child{font-family:var(--f-m);font-size:11px;color:var(--ink-3)}
 figure img{width:100%;display:block;border:1px solid var(--line);border-radius:10px}
 figcaption{font-size:12.5px;color:var(--ink-3);margin-top:7px}
 figure.telefone{max-width:330px}
@@ -48,7 +54,8 @@ figure.ficha{max-width:520px}
 .nota{background:var(--accent-soft);border:1px solid var(--accent-line)}
 .aviso{background:#fdecea;border:1px solid #f3c4bf}
 .dica{background:var(--warn-soft);border:1px solid #efdcae}
-.nota b,.aviso b,.dica b{display:block;margin-bottom:3px}
+/* só o primeiro negrito é o título do quadro; os outros são ênfase no meio do texto */
+.nota>b:first-child,.aviso>b:first-child,.dica>b:first-child{display:block;margin-bottom:3px}
 table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;break-inside:avoid}
 th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
 th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);border-bottom:2px solid var(--line)}
@@ -62,6 +69,9 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 .barra{position:sticky;top:0;background:rgba(255,255,255,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);
   padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:center;font-size:13px;color:var(--ink-2);z-index:5}
 .barra button{font:600 13px var(--f);background:var(--accent);color:#fff;border:0;border-radius:8px;padding:7px 14px;cursor:pointer}
+.barra .bt-pdf{font:600 13px var(--f);color:var(--ink);background:var(--surface);border:1px solid var(--line-2);
+  border-radius:8px;padding:7px 14px;text-decoration:none}
+.barra .bt-pdf:hover{background:var(--surface-2)}
 .rodape{margin-top:46px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-3)}
 @media (max-width:720px){ .pagina{padding:28px 20px 48px} .sumario ol{columns:1} h1{font-size:27px} }
 @media print{
@@ -90,7 +100,8 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <div class="barra">
   <span>Manual da Caderneta — feito para imprimir em A4</span>
-  <button onclick="window.print()">Imprimir ou salvar em PDF</button>
+  <a class="bt-pdf" href="manual.pdf" target="_blank" rel="noopener">Baixar o PDF</a>
+  <button onclick="window.print()">Imprimir</button>
 </div>
 
 <div class="pagina">
@@ -100,7 +111,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div class="sub">Manual de uso — controle de gastos por fala, extrato e fatura</div>
   <div class="meta">
     Endereço do app: https://rgbittencourt.github.io/caderneta/<br>
-    Setembro de 2026 · aplica-se à versão caderneta-v55 em diante
+    Setembro de 2026 · aplica-se à versão caderneta-v56 em diante
   </div>
 </header>
 
@@ -762,8 +773,16 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <tr><td><b>Fora do app</b></td><td>O outro lado de uma transferência que você não acompanha por aqui.</td></tr>
 </table>
 
+<div class="colofao">
+  <img src="icons/icon-192.png?v=54" alt="">
+  <div>
+    <b>Caderneta</b>
+    <span>App de uso pessoal e familiar, sem servidor e sem custo. Seus lançamentos ficam no aparelho e no seu Google Drive.</span>
+    <span>https://rgbittencourt.github.io/caderneta/ · setembro de 2026</span>
+  </div>
+</div>
+
 <div class="rodape">
-  Caderneta — app de uso pessoal e familiar, sem servidor e sem custo.<br>
   Dúvidas e mudanças: peça ao Claude, em português, numa conversa aberta na pasta do projeto.
 </div>
 

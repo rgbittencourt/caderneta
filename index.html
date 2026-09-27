@@ -791,7 +791,12 @@ async function syncNow(){
     const f=await findFile("caderneta-dados.json",pasta);
     const remoto=f?await readJson(f.id):null;
     if(!S.user||S.user.id!==who) return;
-    const junto=remoto?mergeData({cfg:S.cfg,months:S.months},remoto):{cfg:S.cfg,months:S.months};
+    /* aparelho zerado (reinstalou, limpou os dados, trocou de celular): o que está no Drive é a verdade.
+       Sem isso, a configuração em branco poderia vencer pela data e apagar cartões, categorias e fixos. */
+    const baseVazia=!Object.keys(S.months||{}).length&&!S.cfg.seen&&!(S.cfg.dividas||[]).length;
+    const junto=!remoto?{cfg:S.cfg,months:S.months}
+      :baseVazia?{cfg:remoto.cfg||S.cfg,months:remoto.months||{}}
+      :mergeData({cfg:S.cfg,months:S.months},remoto);
     const pacote={app:"caderneta",v:2,conta:S.user.email,salvoEm:new Date().toISOString(),cfg:junto.cfg,months:junto.months};
     await writeJson("caderneta-dados.json",pasta,pacote,f&&f.id);
     const nome="backup-"+ymOf(todayISO())+".json";           /* uma cópia por mês = histórico */
@@ -799,7 +804,7 @@ async function syncNow(){
     S.snap.id=await writeJson(nome,pasta,pacote,S.snap.id);
     if(!S.user||S.user.id!==who) return;
     const mudouNoMeio=marca()!==antes;                        /* lançou algo enquanto sincronizava */
-    const fim=mergeData({cfg:S.cfg,months:S.months},junto);
+    const fim=baseVazia?junto:mergeData({cfg:S.cfg,months:S.months},junto);
     const chegouNovidade=JSON.stringify(fim.months)!==JSON.stringify(S.months)||(fim.cfg.u||0)!==(S.cfg.u||0);
     S.cfg=Object.assign(DEFAULTS(),fim.cfg); S.months=fim.months; S.sincronizado=true; migrarCfg(); setTimeout(()=>garantirSalario(),0);
     S.sync.last=Date.now(); S.sync.state="ok"; S.sync.err=""; S.dirty=mudouNoMeio; saveLocal();
@@ -2841,7 +2846,11 @@ function renderConsulta(){
    perguntar ao Claude o app prepara o texto e abre a conversa. */
 const AJUDA=[
  /* começar */
-  {g:"Começar",t:"Qual é o ícone do app no celular?",
+  {g:"Conta e saldo",t:"Reinstalei o app e perdi cartões e configurações. E agora?",
+  c:"Os lançamentos e a configuração ficam também no seu Google Drive, então dá para trazer de volta. Entre com o Google e espere sincronizar: num aparelho zerado o app adota o que está no Drive. Se ainda faltar alguma coisa — os dias de fechamento dos cartões, por exemplo —, vá em Ajustes, em Dados, e toque em Restaurar um backup: a lista mostra as cópias mensais guardadas no seu Drive; escolha a de um mês anterior. Restaurar não apaga lançamento nenhum, porque as listas se juntam.",a:"dados"},
+ {g:"Começar",t:"Onde baixo o manual em PDF?",
+  c:"Na aba Ajuda, no cartão do manual, botão Baixar em PDF — ou direto em rgbittencourt.github.io/caderneta/manual.pdf. São 59 páginas em A4, com todas as telas; dá para guardar no celular e ler sem internet, ou mandar para outra pessoa.",a:"ajuda"},
+ {g:"Começar",t:"Qual é o ícone do app no celular?",
   c:"Uma caderneta de capa preta com a fita marcadora dourada, e o nome Caderneta embaixo — é o mesmo desenho da capa do manual. Na aba do navegador ele aparece pequenininho, do lado do título da página, e dentro do app ele fica no alto do menu, antes do nome.",a:"comecar"},
 {g:"Começar",t:"Como abro e instalo o app?",
   c:"O endereço é rgbittencourt.github.io/caderneta. No iPhone: Safari → Compartilhar → Adicionar à Tela de Início. No Android: Chrome → Instalar app. No computador: ícone de instalar na barra de endereço.",a:"comecar"},
@@ -3021,9 +3030,12 @@ function renderAjuda(){
     '<span class="tile-v" style="font-size:30px">'+AJUDA.length+'</span>'+
     '<div class="tile-s">Escreva uma palavra — fatura, saldo, saque, consignado, agendar — e a lista filtra sozinha.</div>'+
     '<div class="set-f" style="margin-top:12px"><input id="ajQ" placeholder="Qual é a sua dúvida?" autocomplete="off"></div></div>'+
-    '<div class="card pad"><div class="tile-l">Manual de uso</div>'+
-    '<div class="tile-s" style="margin-bottom:10px">Completo, com telas de cada parte do app. Dá para ler no celular ou imprimir em A4.</div>'+
+    '<div class="card pad"><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">'+
+    MARCA(42)+'<div><div class="tile-l" style="margin:0">Manual de uso</div>'+
+    '<div class="tile-s">Caderneta · edição de setembro de 2026</div></div></div>'+
+    '<div class="tile-s" style="margin-bottom:10px">Completo, com telas de cada parte do app. Dá para ler no celular, imprimir em A4 ou baixar em PDF.</div>'+
     '<div class="cardbox-a"><a class="btn sm" href="manual.html" target="_blank" rel="noopener">Abrir o manual</a>'+
+    '<a class="btn ghost sm" href="manual.pdf" target="_blank" rel="noopener">Baixar em PDF</a>'+
     '<button class="btn ghost sm" id="ajClaude">Perguntar ao Claude</button></div>'+
     '<div class="say-hint" style="margin-top:10px">O app não tem inteligência artificial por dentro — é isso que o mantém sem servidor, sem custo e com os seus dados só no seu aparelho e no seu Drive. Para dúvidas mais longas, ou para pedir mudanças, fale com o Claude.</div></div>'+
     '</div></div>'+
@@ -3828,7 +3840,9 @@ function migrarCfg(){
   const c=S.cfg; if(!c) return; migrar2(c);
   const volta=repararContas();
   /* extrato e fatura importados antes de o app registrar isso (v40): reconhece pelos próprios lançamentos */
-  if(!c.m4){ c.m4=true;
+  /* base ainda vazia (aparelho novo ou dados limpos): não marca nada e, principalmente, não carimba
+     `cfg.u`, senão a configuração em branco ficaria "mais nova" que a do Drive e venceria na união. */
+  if(!c.m4&&Object.keys(S.months||{}).length){ c.m4=true;
     const ex=c.extratosLidos=c.extratosLidos||{}, fa=c.faturasLidas=c.faturasLidas||{};
     Object.keys(S.months||{}).forEach(ym=>{
       const contas={}, cards={};
