@@ -1,10 +1,11 @@
 /* Caderneta — service worker: guarda o app no aparelho para abrir sem internet.
    Mude VERSAO a cada publicação para os aparelhos pegarem a versão nova. */
-const VERSAO = "caderneta-v52";
+const VERSAO = "caderneta-v53";
 const FONTES = "caderneta-fontes";
 const LIBS = "caderneta-libs-2";
 const APP = ["./", "./index.html", "./manifest.webmanifest", "./config.js",
-  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png", "./leitor.js"];
+  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-512-maskable.png",
+  "./icons/favicon-32.png", "./icons/apple-touch-icon.png", "./leitor.js"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(VERSAO).then(c => c.addAll(APP)));

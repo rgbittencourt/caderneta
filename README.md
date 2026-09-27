@@ -82,6 +82,8 @@ Teve aumento ou correção? Mude o valor em Ajustes: o app pergunta a partir de 
 
 **Categorias:** renomear é seguro e vale para trás (o vínculo é interno, não pelo nome); excluir pergunta para onde levar os lançamentos, os gastos fixos e as palavras aprendidas que estavam ali. Para dividir uma categoria em duas, crie as novas, filtre a antiga na Consulta e use *Mudar a categoria*.
 
+**Ícone:** a caderneta de capa preta com a fita marcadora dourada (`icons/`, incluindo a versão *maskable* do Android e o favicon de 32 px). O nome do app não entra no ícone: o sistema já o escreve embaixo.
+
 **Dicas e leitura dos gráficos:** pare o mouse três segundos sobre um título ou campo (no celular, segure o dedo) e o app explica o que é aquilo. Embaixo de cada gráfico há um parágrafo *O que este gráfico diz*, escrito com os seus números, e tocar numa barra, ponto ou fatia abre a leitura daquele dado.
 
 **Guardei um dinheiro** (aba Meta): registra o que você separou e, se quiser, faz a transferência na hora — sai da conta do dia a dia e fica na poupança, para o saldo do Painel não contar com ele e o dinheiro não ser gasto por engano.

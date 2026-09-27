@@ -7,7 +7,8 @@
 <meta name="theme-color" content="#F7F8FA" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0D1117" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2781,7 +2782,9 @@ function renderConsulta(){
    perguntar ao Claude o app prepara o texto e abre a conversa. */
 const AJUDA=[
  /* começar */
- {g:"Começar",t:"Como abro e instalo o app?",
+  {g:"Começar",t:"Qual é o ícone do app no celular?",
+  c:"Uma caderneta de capa preta com a fita marcadora dourada, e o nome Caderneta embaixo — é o mesmo desenho da capa do manual. Na aba do navegador ele aparece pequenininho, do lado do título da página.",a:"comecar"},
+{g:"Começar",t:"Como abro e instalo o app?",
   c:"O endereço é rgbittencourt.github.io/caderneta. No iPhone: Safari → Compartilhar → Adicionar à Tela de Início. No Android: Chrome → Instalar app. No computador: ícone de instalar na barra de endereço.",a:"comecar"},
  {g:"Começar",t:"Meus dados ficam onde? Alguém mais vê?",
   c:"No aparelho e no seu Google Drive, numa pasta chamada Caderneta. Não existe servidor. Cada pessoa da família entra com a própria conta e só enxerga os próprios dados. Os PDFs e fotos que você lê não saem do aparelho.",a:"dados"},

@@ -29,6 +29,9 @@ b,strong{font-weight:600}
 code,.mono{font-family:var(--f-m);font-size:.92em;background:var(--surface);padding:1px 5px;border-radius:4px}
 a{color:var(--accent)}
 .capa{border-bottom:2px solid var(--line);padding-bottom:26px;margin-bottom:8px}
+.capa .marca{display:flex;align-items:center;gap:14px}
+.capa .marca img{width:54px;height:54px;border-radius:13px}
+.capa h1{margin:0}
 .capa .sub{color:var(--ink-2);font-size:17px;margin-top:10px}
 .capa .meta{margin-top:18px;font-size:13px;color:var(--ink-3);font-family:var(--f-m)}
 .sumario{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 22px;margin:26px 0 8px}
@@ -93,11 +96,11 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 <div class="pagina">
 
 <header class="capa">
-  <h1>Caderneta</h1>
+  <div class="marca"><img src="icons/icon-192.png" alt=""><h1>Caderneta</h1></div>
   <div class="sub">Manual de uso — controle de gastos por fala, extrato e fatura</div>
   <div class="meta">
     Endereço do app: https://rgbittencourt.github.io/caderneta/<br>
-    Setembro de 2026 · aplica-se à versão caderneta-v52 em diante
+    Setembro de 2026 · aplica-se à versão caderneta-v53 em diante
   </div>
 </header>
 
@@ -146,6 +149,11 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <li><b>Android:</b> abra no Chrome → <i>Instalar app</i>.</li>
   <li><b>Mac e Windows:</b> no Chrome ou Edge, use o ícone de instalar na barra de endereço. No Safari: <i>Arquivo → Adicionar ao Dock</i>.</li>
 </ul>
+
+<div class="dica">
+  <b>Como reconhecer o ícone.</b>
+  Depois de instalado, o app aparece como uma <b>caderneta de capa preta com a fita marcadora dourada</b>, com o nome <i>Caderneta</i> embaixo — o mesmo desenho da capa deste manual. É esse quadradinho preto que você procura na tela de início do celular e na aba do navegador.
+</div>
 
 <h3>Entrar</h3>
 <p>Toque em <b>Entrar com Google</b> e deixe marcada a permissão do Google Drive. Os seus dados ficam em dois lugares: no aparelho e numa pasta chamada <b>Caderneta</b>, no seu Drive. Cada pessoa da família entra com a própria conta e só enxerga os próprios dados.</p>
