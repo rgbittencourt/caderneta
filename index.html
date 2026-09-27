@@ -3267,7 +3267,7 @@ function htmlPlano(){
       ' · comprometido '+fmtN(l.comp)+' · gasto do dia a dia '+fmtN(Math.max(0,l.flex-l.corte))+
       (l.corte>0?' (já com o corte de '+fmtN(l.corte)+')':'')+
       ' · dá para guardar até '+fmtN(Math.max(0,l.pode))+
-      (l.guardado?' · você já separou '+fmtN(l.guardado):'')+'</div>'+
+      (l.guardado&&!sobrando?' · você já separou '+fmtN(l.guardado):'')+'</div>'+
       (sobrando?'':'<div class="meter" style="margin-top:6px"><i style="width:'+p2+'%;background:var(--good)"></i></div>')+
       '</div>'; };
 
