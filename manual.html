@@ -111,7 +111,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div class="sub">Manual de uso — controle de gastos por fala, extrato e fatura</div>
   <div class="meta">
     Endereço do app: https://rgbittencourt.github.io/caderneta/<br>
-    Setembro de 2026 · aplica-se à versão caderneta-v56 em diante
+    Setembro de 2026 · aplica-se à versão caderneta-v57 em diante
   </div>
 </header>
 
@@ -733,10 +733,25 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 <ul>
   <li>Os dados ficam <b>no aparelho</b> e no <b>seu Google Drive</b>, numa pasta chamada Caderneta. Não existe servidor: ninguém mais tem acesso.</li>
   <li>Os documentos que você lê (PDF, foto) <b>não saem do aparelho</b> — a leitura acontece ali mesmo.</li>
-  <li>Em <b>Ajustes → Dados</b>: <i>Levar para uma planilha</i> (CSV), <i>Backup completo</i> (JSON), <i>Restaurar de um backup</i> (lista os backups do Drive) e <i>Recomeçar os lançamentos</i>.</li>
+  <li>Em <b>Ajustes → Dados</b>: <i>Levar para uma planilha</i> (CSV), <i>Backup completo</i> (JSON), <i>Restaurar de um backup</i> e <i>Recomeçar os lançamentos</i>.</li>
   <li>Sem internet funciona normalmente; a sincronização acontece quando a conexão volta.</li>
   <li>O acesso ao Drive dura cerca de uma hora; depois aparece <i>Sincronizar</i> no alto — um toque e pronto.</li>
 </ul>
+
+<div class="nota">
+  <b>Backup completo: arquivo ou texto.</b>
+  Os dois botões fazem coisas diferentes. <b>Salvar arquivo</b> gera o arquivo <i>caderneta-backup-DD-MM-AAAA.json</i>: no computador ele cai na pasta de downloads; no celular abre o menu de compartilhar, e você escolhe onde guardar — e-mail para você mesmo, Arquivos, o que preferir. <b>Copiar</b> coloca o mesmo conteúdo na área de transferência, e aí só existe enquanto você colar em algum lugar (um e-mail, uma nota). Se clicou em Copiar e não colou em lugar nenhum, o backup <b>não foi guardado</b>. O mesmo vale para <i>Levar para uma planilha</i>, que também tem os dois botões.
+</div>
+
+<div class="dica">
+  <b>Para voltar de um backup.</b>
+  <i>Ajustes → Dados → Restaurar de um backup</i> aceita três caminhos: escolher o <b>arquivo</b> que você salvou, colar o <b>texto</b> copiado, ou pegar uma das <b>cópias mensais do seu Drive</b>, que o app guarda sozinho. Restaurar <b>não apaga lançamento nenhum</b>: as listas se juntam; o que é substituído são as configurações (contas, cartões, categorias, fixos e dívidas).
+</div>
+
+<div class="nota">
+  <b>Sair da conta.</b>
+  Toque na <b>marca no alto do menu</b> (o ícone e o nome Caderneta, no canto superior esquerdo; no celular, no alto da tela). Ali aparecem a conta em uso, a última sincronização e o botão <b>Sair desta conta</b>, que pede confirmação antes. Entrando de novo com a mesma conta Google, tudo volta do Drive.
+</div>
 
 <h2 id="ajuda">25. Ajuda dentro do app</h2>
 

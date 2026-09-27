@@ -181,6 +181,8 @@ main{padding:0 16px calc(76px + env(safe-area-inset-bottom,0px));max-width:680px
 .brand{font-size:16px;font-weight:600;letter-spacing:-.01em;flex:1;min-width:0;white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:8px}
 .brand .marca{border-radius:6px;flex:none}
+.brand[role="button"]{cursor:pointer;border-radius:8px;padding:3px 6px;margin-left:-6px}
+.brand[role="button"]:hover{background:var(--surface-2)}
 .mnav{display:flex;align-items:center;gap:2px}
 .mnav button,.icon-btn{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
   width:30px;height:30px;display:grid;place-items:center;cursor:pointer;color:var(--ink-2)}
@@ -192,8 +194,10 @@ main{padding:0 16px calc(76px + env(safe-area-inset-bottom,0px));max-width:680px
   .app{display:grid;grid-template-columns:236px minmax(0,1fr);align-items:start}
   .side{display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;padding:18px 12px;
     background:var(--surface);border-right:1px solid var(--line);overflow-y:auto}
-  .side-brand{font-size:15px;font-weight:600;letter-spacing:-.01em;padding:6px 10px 16px;color:var(--ink);
-    display:flex;align-items:center;gap:10px}
+  .side-brand{font-size:15px;font-weight:600;letter-spacing:-.01em;padding:8px 10px;margin-bottom:8px;color:var(--ink);
+    display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:1px solid transparent;
+    border-radius:var(--r-sm);font-family:inherit;text-align:left;cursor:pointer}
+  .side-brand:hover{background:var(--surface-2);border-color:var(--line)}
   .side-brand .marca{border-radius:7px;flex:none}
   .side-brand .side-nome{min-width:0;line-height:1.25}
   .side-brand span{display:block;font-size:11.5px;font-weight:400;color:var(--ink-3);letter-spacing:.02em;
@@ -899,8 +903,17 @@ function openAccount(){
       '<div class="s">'+(S.dirty?"Há lançamentos ainda não enviados ao Drive.":"Tudo enviado.")+(S.sync.err?" "+esc(S.sync.err):"")+'</div></div>'+
       '<button class="mini" id="acSync">Sincronizar agora</button></div>':'')+
     '</div>'+installHTML()+'</div>',
-    '<button class="btn ghost" id="acOut">Trocar de conta</button><button class="btn" id="acX">Fechar</button>');
-  $("#acX").onclick=closeSheet; $("#acOut").onclick=signOut;
+    '<button class="btn danger" id="acOut">Sair desta conta</button><button class="btn" id="acX">Fechar</button>');
+  $("#acX").onclick=closeSheet;
+  $("#acOut").onclick=()=>{
+    sheet("Sair da conta",
+      '<div class="set"><div class="note"><b>'+esc(S.user&&S.user.kind==="google"?"Seus dados continuam no seu Drive":"Atenção: esta conta é só deste aparelho")+'</b>'+
+      (S.user&&S.user.kind==="google"
+        ? "Ao sair, o app volta para a tela de entrada. É só entrar de novo com o Google que tudo volta."
+        : "Sem conta Google, os lançamentos ficam guardados neste aparelho e voltam quando você entrar de novo com o mesmo nome. Se quiser levá-los para outro lugar, faça antes Ajustes → Dados → Backup completo → Salvar arquivo.")+'</div></div>',
+      '<button class="btn ghost" id="soX">Cancelar</button><button class="btn danger" id="soOk">Sair</button>');
+    $("#soX").onclick=closeSheet;
+    $("#soOk").onclick=signOut; };
   const s=$("#acSync"); if(s) s.onclick=()=>{ closeSheet(); syncTap(); };
   bindInstall(); }
 function openWelcome(){
@@ -1760,10 +1773,15 @@ const NAV=[{id:"painel",n:"Painel"},{id:"lancar",n:"Lançar"},{id:"mes",n:"Mês"
 const TABS=["painel","lancar","mes","contas"];
 
 function renderNav(){
-  $("#side").innerHTML='<div class="side-brand">'+MARCA(30)+'<span class="side-nome">Caderneta<span>'+esc(S.user?S.user.name:"")+'</span></span></div>'+
+  $("#side").innerHTML='<button class="side-brand" id="brandSide" title="Sua conta" aria-label="Sua conta">'+
+    MARCA(30)+'<span class="side-nome">Caderneta<span>'+esc(S.user?S.user.name:"")+'</span></span></button>'+
     NAV.map(x=>'<a role="button" tabindex="0" data-go="'+x.id+'" aria-current="'+(S.view===x.id)+'">'+svgIc(x.id)+esc(x.n)+'</a>').join("")+
     '<div class="side-foot" id="sideFoot"></div>';
-  const bm=$("#brand"); if(bm&&!bm.querySelector("svg")) bm.innerHTML=MARCA(24)+'<span>Caderneta</span>';
+  const bm=$("#brand");
+  if(bm&&!bm.querySelector("svg")){ bm.innerHTML=MARCA(24)+'<span>Caderneta</span>';
+    bm.setAttribute("role","button"); bm.setAttribute("tabindex","0"); bm.title="Sua conta"; }
+  if(bm) bm.onclick=()=>{ if(S.user) openAccount(); };
+  const bs=$("#brandSide"); if(bs) bs.onclick=()=>{ if(S.user) openAccount(); };
   $("#tabsIn").innerHTML=TABS.map(id=>{ const x=NAV.find(y=>y.id===id);
     return '<button class="tab" role="tab" data-go="'+id+'" aria-selected="'+(S.view===id)+'">'+svgIc(id)+esc(x.n)+'</button>'; }).join("")+
     '<button class="tab" role="tab" data-more="1" aria-selected="'+(["futuro","meta","analises","consulta","ajustes","ajuda"].indexOf(S.view)>=0)+'">'+svgIc("mais")+'Mais</button>';
@@ -2846,7 +2864,11 @@ function renderConsulta(){
    perguntar ao Claude o app prepara o texto e abre a conversa. */
 const AJUDA=[
  /* começar */
-  {g:"Conta e saldo",t:"Reinstalei o app e perdi cartões e configurações. E agora?",
+  {g:"Conta e saldo",t:"Cliquei em Backup completo e só apareceu \u201ccopiado\u201d. Onde está o arquivo?",
+  c:"Em nenhum lugar ainda: Copiar joga o backup na área de transferência, e ele só existe depois que você colar em algum lugar — um e-mail para você mesmo, uma nota. Para ter um arquivo de verdade, use o botão ao lado, Salvar arquivo: ele gera o caderneta-backup-DD-MM-AAAA.json, que no computador cai na pasta de downloads e no celular abre o menu de compartilhar, para você escolher onde guardar. O mesmo vale para Levar para uma planilha.",a:"dados"},
+ {g:"Conta e saldo",t:"Como saio da conta ou troco de conta?",
+  c:"Toque na marca no alto do menu — o ícone com o nome Caderneta, no canto superior esquerdo (no celular, no alto da tela). Abre a ficha da sua conta, com a última sincronização e o botão Sair desta conta, que pede confirmação. Entrando de novo com a mesma conta Google, tudo volta do Drive.",a:"dados"},
+ {g:"Conta e saldo",t:"Reinstalei o app e perdi cartões e configurações. E agora?",
   c:"Os lançamentos e a configuração ficam também no seu Google Drive, então dá para trazer de volta. Entre com o Google e espere sincronizar: num aparelho zerado o app adota o que está no Drive. Se ainda faltar alguma coisa — os dias de fechamento dos cartões, por exemplo —, vá em Ajustes, em Dados, e toque em Restaurar de um backup: a lista mostra as cópias mensais guardadas no seu Drive; escolha a de um mês anterior. Restaurar não apaga lançamento nenhum, porque as listas se juntam.",a:"dados"},
  {g:"Começar",t:"Onde baixo o manual em PDF?",
   c:"Na aba Ajuda, no cartão do manual, botão Baixar em PDF — ou direto em rgbittencourt.github.io/caderneta/manual.pdf. São 59 páginas em A4, com todas as telas; dá para guardar no celular e ler sem internet, ou mandar para outra pessoa.",a:"ajuda"},
@@ -3134,10 +3156,10 @@ function renderAjustes(){
     esc(storageText())+'</div></div></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Versão do app</div><div class="s" id="verApp">procurando…</div></div>'+
     '<button class="mini" id="verBtn">Procurar atualização</button></div>'+
-    '<div class="linkrow"><div class="m"><div class="t">Levar para uma planilha</div><div class="s">Copia todos os lançamentos em CSV</div></div>'+
-    '<button class="mini" id="expBtn">Copiar</button></div>'+
-    '<div class="linkrow"><div class="m"><div class="t">Backup completo</div><div class="s">Configurações e lançamentos em JSON</div></div>'+
-    '<button class="mini" id="bkBtn">Copiar</button></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Levar para uma planilha</div><div class="s">Todos os lançamentos em CSV, para abrir no Excel ou no Google Planilhas</div></div>'+
+    '<div class="acts"><button class="mini" id="expSalvar">Salvar arquivo</button><button class="mini" id="expBtn">Copiar</button></div></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Backup completo</div><div class="s">Tudo num arquivo: contas, cartões, categorias, dívidas e lançamentos. Guarde num e-mail para você mesmo.</div></div>'+
+    '<div class="acts"><button class="mini" id="bkSalvar">Salvar arquivo</button><button class="mini" id="bkBtn">Copiar</button></div></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Restaurar de um backup</div><div class="s">Traz os dados de um backup, inclusive da versão anterior</div></div>'+
     '<button class="mini del" id="rsBtn">Restaurar</button></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Recomeçar os lançamentos</div><div class="s">Apaga lançamentos, gastos fixos e dívidas para carregar os extratos do zero, com backup antes</div></div>'+
@@ -3186,8 +3208,11 @@ function renderAjustes(){
   $("#verBtn").onclick=async()=>{ toast("Procurando atualização…");
     try{ const r=await navigator.serviceWorker.getRegistration(); if(r) await r.update(); }catch(e){}
     setTimeout(mostrarVersao,1500); };
-  $("#expBtn").onclick=exportCSV;
-  $("#bkBtn").onclick=()=>copyText(JSON.stringify({app:"caderneta",v:1,cfg:S.cfg,months:S.months}),"Backup copiado.");
+  const pacote=()=>JSON.stringify({app:"caderneta",v:1,salvoEm:new Date().toISOString(),cfg:S.cfg,months:S.months});
+  $("#expSalvar").onclick=exportCSV;
+  $("#expBtn").onclick=()=>{ exportCSV.copiar=true; exportCSV(); };
+  $("#bkSalvar").onclick=()=>salvarArquivo("caderneta-backup-"+hojeArquivo()+".json",pacote(),"application/json");
+  $("#bkBtn").onclick=()=>copyText(pacote(),"Backup copiado. Cole num e-mail para você mesmo, ou use Salvar arquivo.");
   $("#rsBtn").onclick=openRestore;
   $("#rcBtn").onclick=openRecomecar;
 }
@@ -3380,6 +3405,21 @@ function parseStatement(text,sign){
 
 function copyText(t,ok){ if(!navigator.clipboard){ toast("Este navegador não permite copiar."); return; }
   navigator.clipboard.writeText(t).then(()=>toast(ok)).catch(()=>toast("Não consegui copiar.")); }
+/* guarda o texto num arquivo de verdade: no celular abre o menu de compartilhar (e-mail, Arquivos,
+   WhatsApp); no computador cai na pasta de downloads. "Copiar" continua existindo, para colar à mão. */
+async function salvarArquivo(nome,texto,tipo){
+  const blob=new Blob([texto],{type:(tipo||"text/plain")+";charset=utf-8"});
+  try{
+    const f=new File([blob],nome,{type:blob.type});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){
+      await navigator.share({files:[f],title:nome});
+      toast("Escolha onde guardar: e-mail, Arquivos, o que preferir."); return; }
+  }catch(e){ if(e&&e.name==="AbortError") return; }
+  const url=URL.createObjectURL(blob), a=document.createElement("a");
+  a.href=url; a.download=nome; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+  toast("Arquivo salvo: "+nome); }
+const hojeArquivo=()=>todayISO().split("-").reverse().join("-");
 function exportCSV(){
   const TIPO={g:"gasto",e:"entrada",p:"pagamento de fatura",t:"entre contas"};
   const rows=[["data","hora","tipo","descricao","categoria","pagamento","para quem","conta","parcela","valor"]];
@@ -3387,7 +3427,9 @@ function exportCSV(){
     rows.push([t.d,t.t||"",TIPO[t.k]||"gasto",t.desc,catLabel(t),cardName(t.card),t.to||"",
       acctName(t.acct||acctOf(t.card))+(t.acct2?" -> "+acctName(t.acct2):""),
       t.n>1?t.i+"/"+t.n:"",fmtN(t.v)])));
-  copyText(rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\n"),"CSV copiado."); }
+  const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(";")).join("\n");
+  if(exportCSV.copiar){ exportCSV.copiar=false; copyText(csv,"CSV copiado. Cole numa planilha."); return; }
+  salvarArquivo("caderneta-lancamentos-"+hojeArquivo()+".csv","\ufeff"+csv,"text/csv"); }
 
 /* =================== IA opcional =================== */
 async function aiParse(){
@@ -5205,10 +5247,17 @@ function openRestore(){
   sheet("Restaurar de um backup",
     '<div class="set">'+
     (google?'<div class="set-f"><label>Backups no seu Google Drive</label><div id="rDrive" class="hint">Procurando…</div></div>':'')+
-    '<div class="set-f"><label for="rT">'+(google?'Ou cole um backup aqui':'Cole o backup aqui')+'</label><textarea id="rT" rows="6"></textarea>'+
+    '<div class="set-f"><label for="rF">Backup salvo em arquivo</label>'+
+    '<input id="rF" type="file" accept=".json,application/json" style="font-size:14px">'+
+    '<span class="hint">O arquivo <b>caderneta-backup-…json</b> que você guardou com <i>Salvar arquivo</i>.</span></div>'+
+    '<div class="set-f"><label for="rT">Ou cole o texto de um backup</label><textarea id="rT" rows="6"></textarea>'+
     '<span class="hint">Os lançamentos do backup se juntam aos que já estão aqui. Contas, cartões e categorias passam a ser as do backup.</span></div></div>',
     '<button class="btn ghost" id="rX">Cancelar</button><button class="btn danger" id="rOk">Restaurar</button>');
   $("#rX").onclick=closeSheet;
+  const rf=$("#rF");
+  if(rf) rf.onchange=async()=>{ const f=rf.files&&rf.files[0]; if(!f) return;
+    try{ const d=JSON.parse(await f.text()); await restaurarPacote(d); }
+    catch(e){ toast("Não consegui ler esse arquivo. Confira se é o backup em JSON."); } };
   $("#rOk").onclick=async()=>{ let d=null; try{ d=JSON.parse($("#rT").value); }catch(e){} await restaurarPacote(d); };
   if(google) listarBackupsDrive(); }
 async function listarBackupsDrive(){
