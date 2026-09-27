@@ -21,15 +21,47 @@ html{-webkit-text-size-adjust:100%}
 body{margin:0}
 [hidden]{display:none!important}
 img{max-width:100%}
+/* ===== tela de entrada ===== */
+/* fundo: a pauta da caderneta, bem apagada, com um brilho do azul do app no alto */
 #gate{position:fixed;inset:0;z-index:80;background:var(--paper);display:flex;
   padding:24px 20px calc(24px + env(safe-area-inset-bottom,0px));overflow-y:auto}
-.gate-in{margin:auto;width:100%;max-width:380px;display:flex;flex-direction:column;gap:11px;text-align:center}
-.gate-in img{align-self:center}
-.gate-in h1{font-size:26px;font-weight:600;letter-spacing:-.02em;margin:6px 0 0}
-.gate-in p{margin:0;color:var(--ink-2);font-size:14px;line-height:1.5}
-.gate-in .btn{justify-content:center;padding:11px 16px;font-size:15px}
+#gate::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    radial-gradient(120% 70% at 50% -10%, var(--accent-soft) 0%, transparent 62%),
+    repeating-linear-gradient(to bottom, transparent 0 27px, var(--grid) 27px 28px);
+  opacity:.75;mask-image:linear-gradient(to bottom, #000 0%, #000 55%, transparent 96%);
+  -webkit-mask-image:linear-gradient(to bottom, #000 0%, #000 55%, transparent 96%)}
+.gate-in{position:relative;margin:auto;width:100%;max-width:404px;display:flex;flex-direction:column;
+  gap:14px;text-align:center}
+.gate-card{background:var(--surface);border:1px solid var(--line);border-radius:20px;
+  padding:30px 26px 26px;display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden;
+  box-shadow:0 18px 44px -24px rgba(15,23,42,.42), 0 2px 6px -2px rgba(15,23,42,.10)}
+/* o fio dourado da fita, no alto do cartão */
+.gate-card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg, transparent, #E8B84B 22%, #E8B84B 78%, transparent)}
+.gate-marca{align-self:center;line-height:0;border-radius:16px;
+  box-shadow:0 10px 26px -12px rgba(15,23,42,.6)}
+.gate-marca svg{display:block;border-radius:16px}
+.gate-in h1{font-size:29px;font-weight:600;letter-spacing:-.025em;margin:8px 0 0}
+.gate-in p{margin:0;color:var(--ink-2);font-size:14px;line-height:1.55}
+.gate-lead{font-size:14.5px!important;color:var(--ink-2)}
+.gate-pts{list-style:none;margin:6px 0 2px;padding:14px 0 0;border-top:1px solid var(--line);
+  display:grid;gap:10px;text-align:left}
+.gate-pts li{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-2);line-height:1.4}
+.gate-pts svg{width:17px;height:17px;flex:none;color:var(--accent)}
+.gate-pts b{font-weight:600;color:var(--ink)}
+.gate-in .btn{justify-content:center;padding:12px 16px;font-size:15px;border-radius:12px}
+/* o botão do Google segue o padrão dele: fundo claro, letra escura, logo colorido */
+.gate-in .btn.gbtn{background:var(--surface);color:var(--ink);border:1px solid var(--line-2);font-weight:600}
+.gate-in .btn.gbtn:hover{background:var(--surface-2)}
 .gate-s{font-size:12.5px!important;color:var(--ink-3)!important}
-.gate-or{font-size:12px;color:var(--ink-3);margin:2px 0}
+.gate-or{display:flex;align-items:center;gap:12px;font-size:11.5px;color:var(--ink-3);
+  text-transform:uppercase;letter-spacing:.1em;margin:2px 0}
+.gate-or::before,.gate-or::after{content:"";flex:1;height:1px;background:var(--line)}
+.gate-pe{font-size:12px;color:var(--ink-3)}
+.gate-pe a{color:var(--ink-3);text-decoration:none;border-bottom:1px solid var(--line)}
+.gate-pe a:hover{color:var(--ink-2)}
+@media(max-width:420px){ .gate-card{padding:26px 20px 22px} .gate-in h1{font-size:26px} }
 .gbtn{background:var(--surface);color:var(--ink);border:1px solid var(--line-2)}
 .gbtn:hover{background:var(--surface-2);filter:none}
 .gbtn svg{width:18px;height:18px;flex:none}
@@ -778,24 +810,45 @@ async function syncNow(){
   }finally{ syncing=false; if(syncAgain){ syncAgain=false; scheduleSync(); } } }
 function safeRender(){ const s=$("#say"), v=s?s.value:null; render(); if(v!=null&&$("#say")) $("#say").value=v; }
 
+/* a marca da Caderneta, em SVG, para a tela de entrada, a barra lateral e o topo do celular.
+   Mesmo desenho do ícone: capa em contorno sobre preto, fita marcadora dourada. */
+const MARCA=t=>'<svg class="marca" width="'+t+'" height="'+t+'" viewBox="0 0 64 64" aria-hidden="true" focusable="false">'+
+  '<rect width="64" height="64" rx="14" fill="#101215"/>'+
+  '<rect x="13" y="12" width="35" height="41" rx="6" fill="none" stroke="#FBFCFD" stroke-width="3.6"/>'+
+  '<path d="M38 12h9v26l-4.5-5-4.5 5z" fill="#E8B84B"/></svg>';
+
 /* ---- porta de entrada ---- */
 const GICON='<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 7l7.4 5.7c4.3-4 6.9-9.9 6.9-17.2z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.2 0-11.5-4.1-13.4-9.8l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
 function showGate(){
   let g=$("#gate"); if(!g){ g=document.createElement("div"); g.id="gate"; document.body.appendChild(g); }
   const locais=knownUsers().filter(u=>u.kind==="local");
-  g.innerHTML='<div class="gate-in"><img src="icons/icon-192.png?v=54" alt="" width="64" height="64" style="border-radius:15px">'+
-    '<h1>Caderneta</h1><p>Controle de gastos por fala. Cada pessoa entra com a própria conta e só enxerga os próprios dados.</p>'+
+  const ico={
+    fala:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><path d="M12 18v4"/></svg>',
+    doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>',
+    drive:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>'};
+  g.innerHTML='<div class="gate-in"><div class="gate-card">'+
+    '<div class="gate-marca">'+MARCA(66)+'</div>'+
+    '<h1>Caderneta</h1>'+
+    '<p class="gate-lead">Suas contas do mês, do jeito que você conta.</p>'+
+    '<ul class="gate-pts">'+
+    '<li>'+ico.fala+'<span><b>Fale o gasto</b> e ele lança, com categoria e forma de pagamento.</span></li>'+
+    '<li>'+ico.doc+'<span><b>Leia o extrato e a fatura</b> em PDF, sem digitar nada duas vezes.</span></li>'+
+    '<li>'+ico.drive+'<span><b>Seus dados no seu Drive</b>, só seus, e funciona sem internet.</span></li>'+
+    '</ul>'+
     (CFG.googleClientId
       ? '<button class="btn gbtn" id="gIn" disabled>'+GICON+'<span>Entrar com Google</span></button>'+
-        '<p class="gate-s">Seus dados ficam no <b>seu</b> Google Drive, numa pasta chamada Caderneta. Funciona sem internet e sincroniza quando a conexão voltar.</p>'
+        '<p class="gate-s">Na primeira vez, o Google pergunta se pode guardar os dados numa pasta chamada Caderneta, no seu Drive.</p>'
       : '<div class="note" style="text-align:left"><b>Login com Google ainda não configurado</b>Enquanto isso, dá para usar só neste aparelho.</div>')+
     '<div id="gErr" class="draft-msg" hidden></div><div class="gate-or">ou</div>'+
     locais.map(u=>'<button class="btn ghost" data-local="'+esc(u.id)+'">Continuar como '+esc(u.name)+'</button>').join("")+
-    '<button class="btn ghost" id="lIn">Usar só neste aparelho, sem conta</button>'+
+    '<button class="btn ghost" id="lIn">Usar só neste aparelho</button>'+
     '<div id="lBox" hidden style="display:flex;gap:8px"><input id="lName" placeholder="Seu nome" autocomplete="given-name" '+
-    'style="flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;font-size:16px">'+
+    'style="flex:1;min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:16px">'+
     '<button class="btn" id="lGo">Entrar</button></div>'+
-    '<p class="gate-s">Sem conta, os dados ficam só neste aparelho: se trocar de celular, somem.</p><p class="gate-s"><a href="privacidade.html" style="color:var(--ink-2)">Privacidade</a> · <a href="termos.html" style="color:var(--ink-2)">Termos de uso</a></p></div>';
+    '<p class="gate-s">Sem conta, os lançamentos ficam só neste aparelho: trocando de celular, somem.</p>'+
+    '</div>'+
+    '<div class="gate-pe"><a href="privacidade.html">Privacidade</a> · <a href="termos.html">Termos de uso</a></div>'+
+    '</div>';
   g.hidden=false;
   const gi=$("#gIn");
   if(gi){ gi.onclick=googleSignIn;
@@ -1700,13 +1753,6 @@ const NAV=[{id:"painel",n:"Painel"},{id:"lancar",n:"Lançar"},{id:"mes",n:"Mês"
            {id:"contas",n:"Contas"},{id:"futuro",n:"Futuro"},{id:"meta",n:"Meta"},{id:"analises",n:"Análises"},{id:"consulta",n:"Consulta"},{id:"ajustes",n:"Ajustes"},
            {id:"ajuda",n:"Ajuda"}];
 const TABS=["painel","lancar","mes","contas"];
-
-/* a marca da Caderneta, em SVG, para a barra lateral e o topo do celular.
-   Mesmo desenho do ícone: capa em contorno sobre preto, fita marcadora dourada. */
-const MARCA=t=>'<svg class="marca" width="'+t+'" height="'+t+'" viewBox="0 0 64 64" aria-hidden="true" focusable="false">'+
-  '<rect width="64" height="64" rx="14" fill="#101215"/>'+
-  '<rect x="13" y="12" width="35" height="41" rx="6" fill="none" stroke="#FBFCFD" stroke-width="3.6"/>'+
-  '<path d="M38 12h9v26l-4.5-5-4.5 5z" fill="#E8B84B"/></svg>';
 
 function renderNav(){
   $("#side").innerHTML='<div class="side-brand">'+MARCA(30)+'<span class="side-nome">Caderneta<span>'+esc(S.user?S.user.name:"")+'</span></span></div>'+
