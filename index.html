@@ -570,7 +570,7 @@ const DEFAULTS = () => ({
   income:0, cap:0, mode:"teto", balanceGoal:0,
   cats: CATS.map(c=>({...c, limit:0})), ecats: ECATS.map(c=>({...c})),
   accounts: ACCTS.map(a=>({...a})), cards: CARDS.map(c=>({...c})), fixed:[],
-  kwCat:{}, kwCard:{}, seen:false, goalName:"Reserva de emergência", goalTarget:0, deposits:[], metodo:{nec:50,des:30,fut:20}, dividas:[]
+  kwCat:{}, kwCard:{}, seen:false, goalName:"Reserva de emergência", goalTarget:0, deposits:[], metodo:{nec:50,des:30,fut:20}, dividas:[], plano:null
 });
 /* =================== conta, armazenamento e sincronização =================== */
 /* Um app só. Cada pessoa entra com a própria conta Google; os dados dela ficam num
@@ -2638,6 +2638,14 @@ const AJUDA=[
   c:"A parcela do financiamento é dívida: cadastre em Lançar, em Cadastrar dívidas, com o valor da parcela, o total de parcelas, a taxa de juros e o mês em que começou. Assim ela entra sozinha todo mês, aparece em Análises e no Futuro como renda comprometida, e o app calcula a quitação antecipada com desconto de juros. Carro e manutenção é para o custo de andar com ele: revisão, pneus, IPVA, seguro, lavagem, oficina — e o combustível tem categoria própria. No 50-30-20, a parcela da dívida conta como Futuro (pagar dívida é formar patrimônio); a manutenção conta como Necessidade.",a:"dividas"},
  {g:"Entender os números",t:"Como vejo quanto gastei numa categoria?",
   c:"Na aba Consulta: escolha o período (hoje, semana, mês, mês passado, últimos 30 dias, ano, ou duas datas), marque as categorias e, se quiser, as formas de pagamento. Ele mostra o total, o valor por categoria e por forma de pagamento, e a lista com data, descrição e como foi pago. Dá para copiar tudo para uma planilha.",a:"consulta"},
+ {g:"Entender os números",t:"Quero juntar um valor até uma data. Como faço?",
+  c:"Na aba Meta, em Juntar um montante até uma data, diga quanto quer juntar e escolha a data no calendário. O app olha a sua renda, o que já está comprometido (gastos fixos, parcelas e parcelas de dívida) e os seus gastos soltos dos últimos meses fechados, e responde: quanto guardar por mês, quanto dá para guardar em cada mês e onde cortar. Toque em Guardei um dinheiro toda vez que separar um valor — o plano se refaz sozinho todo dia até a data final, ou até você apagá-lo.",a:"plano"},
+ {g:"Entender os números",t:"Por que um mês aguenta mais que o outro no plano?",
+  c:"Porque cada mês é calculado separado, com o que entra e o que já está marcado para sair naquele mês. Um mês com três parcelas e o seguro do carro sobra pouco; quando a última parcela cai, o mês seguinte já aparece com a folga maior. O mês corrente conta só do dia de hoje em diante — o que já saiu, saiu.",a:"plano"},
+ {g:"Entender os números",t:"O plano manda cortar de onde? Isso é chute?",
+  c:"Não é chute: cada sugestão mostra a média da categoria e o seu melhor mês, e o corte nunca desce abaixo desse melhor mês — é a prova de que você já conseguiu gastar aquilo. Além disso há um limite por grupo do 50-30-20: mais folgado nos Desejos (lazer, alimentação fora, assinaturas), apertado nas Necessidades (mercado, combustível, saúde) e zero no que é gasto fixo, parcela em andamento ou parcela de dívida, porque já está contratado.",a:"plano"},
+ {g:"Entender os números",t:"O plano disse que não dá para juntar tudo. E agora?",
+  c:"Ele mostra o máximo possível até a data, quanto isso representa do alvo, por volta de que data o valor cheio sairia no ritmo máximo, e quanto de renda a mais por mês resolveria. Daí é escolher: esticar o prazo, baixar o alvo, aumentar a renda ou atacar o que está comprometido — quitar uma dívida antecipada, por exemplo, libera a parcela dos meses seguintes.",a:"plano"},
  {g:"Entender os números",t:"Para que serve a aba Futuro?",
   c:"Mostra quanto dos próximos meses já está comprometido — parcelas, gastos fixos e dívidas — antes de você gastar mais nada.",a:"futuro"},
  {g:"Entender os números",t:"O que é o método 50-30-20?",
@@ -3109,6 +3117,249 @@ function setupMic(){
 
 /* =================== meta de poupança =================== */
 const savedTotal=()=>(S.cfg.deposits||[]).reduce((s,x)=>s+x.v,0);
+
+/* =================== plano para juntar um montante até uma data ===================
+   Pedido do dono (27/09/2026): "digo quanto quero juntar e até quando, e você analisa
+   meus gastos não fixos e os ganhos e diz onde economizar — e se eu realmente consigo
+   cortar aquilo, olhando o que já gastei". Depois: "levar em consideração as dívidas
+   (pagamentos) e as contas parceladas". Por isso o cálculo é mês a mês: parcela que
+   termina no meio do caminho libera dinheiro nos meses seguintes. */
+
+/* meses do plano, com a fração de cada um (o mês atual começa hoje; o último termina na data) */
+function mesesPlano(ate){
+  const hoje=todayISO(), out=[]; if(!ate||ate<=hoje) return out;
+  const fimYm=ymOf(ate); let ym=ymOf(hoje);
+  while(ym<=fimYm&&out.length<120){ const dim=daysIn(ym);
+    const ini=ym===ymOf(hoje)?+hoje.slice(8,10):0, fim=ym===fimYm?+ate.slice(8,10):dim;
+    const f=Math.max(0,fim-ini)/dim; if(f>0) out.push({ym,frac:f});
+    ym=ymShift(ym,1); }
+  return out; }
+
+/* o que ainda está marcado para sair da conta naquele mês: parcelas e dívidas lançadas,
+   agendados e gastos fixos (o consignado não entra: sai da folha, não da conta).
+   `de` corta o que já saiu (mês corrente) e `ate` corta o que cai depois da data do plano. */
+function comprometidoDoMes(ym,de,ate){
+  let lanc=0;
+  txOf(ym).forEach(t=>{ if(t.cons) return; if((t.k||"g")!=="g") return;
+    if(de&&t.d<de) return; if(ate&&t.d>ate) return;
+    if(t.fix||t.n>1||t.cat==="divida") lanc+=t.v; });
+  return lanc+fixedFor(ym).filter(f=>!f.cons&&(!ate||ym+"-"+pad(Math.min(f.day||1,daysIn(ym)))<=ate))
+    .reduce((s,f)=>s+f.amount,0); }
+
+/* histórico dos meses fechados: quanto entrou, quanto saiu e quanto de cada categoria
+   é gasto solto (sem fixo, sem parcela, sem dívida) — é só isso que dá para cortar */
+function historicoPlano(){
+  const cur=ymOf(todayISO());
+  const meses=Object.keys(S.months||{}).filter(ym=>ym<cur&&txOf(ym).some(t=>(t.k||"g")==="g")).sort().slice(-6);
+  const cats={}, gasto={}, renda={};
+  meses.forEach(ym=>{ gasto[ym]=0; renda[ym]=0;
+    txOf(ym).forEach(t=>{ if(t.cons) return; const k=t.k||"g";
+      if(k==="e"){ if(t.cat!=="emprest") renda[ym]+=t.v; return; }
+      if(k!=="g") return;
+      gasto[ym]+=t.v;
+      const preso=!!(t.fix||t.n>1)||t.cat==="divida";
+      const c=cats[t.cat]||(cats[t.cat]={flex:{}});
+      if(!preso) c.flex[ym]=(c.flex[ym]||0)+t.v; }); });
+  const media=o=>meses.length?meses.reduce((s,ym)=>s+(o[ym]||0),0)/meses.length:0;
+  const lista=Object.keys(cats).map(id=>{
+    const f=cats[id].flex, vals=meses.map(ym=>f[ym]||0);
+    const med=media(f), min=Math.min.apply(null,vals), pior=Math.max.apply(null,vals);
+    const mesMin=meses[vals.indexOf(min)];
+    return {id, media:med, melhor:min, pior, mesMelhor:mesMin, vals, grupo:grupoDe(id)}; })
+    .filter(x=>x.media>0);
+  return {meses, n:meses.length, gastoMedio:media(gasto), rendaMedia:media(renda), cats:lista}; }
+
+/* quanto dá para cortar de uma categoria por mês, com prova no próprio histórico:
+   nunca abaixo do melhor mês dele, e dentro de um limite por grupo do 50-30-20 */
+const CORTE={des:{piso:.25,teto:.60}, nec:{piso:.05,teto:.20}, fut:{piso:0,teto:0}};
+function corteDaCategoria(c,nMeses){
+  const lim=CORTE[c.grupo]||CORTE.des;
+  if(!lim.teto||c.media<4000) return 0;                      /* menos de R$ 40 por mês: não vale mexer */
+  const porHistorico=nMeses>=2?Math.max(0,c.media-c.melhor):0;
+  const piso=c.media*lim.piso, teto=c.media*lim.teto;
+  return Math.round(Math.min(teto,Math.max(piso,porHistorico))); }
+
+function calcularPlano(){
+  const p=S.cfg.plano; if(!p||!p.v||!p.ate) return null;
+  const hoje=todayISO(), criado=p.criado||hoje;
+  /* o que ele já separou depois de montar o plano — é isso que faz a projeção andar sozinha */
+  const porMesGuardado={}; let guardado=0;
+  (S.cfg.deposits||[]).forEach(x=>{ if(x.d>=criado){ guardado+=x.v; porMesGuardado[ymOf(x.d)]=(porMesGuardado[ymOf(x.d)]||0)+x.v; } });
+  const base=p.usaGuardado?Math.max(0,savedTotal()-guardado):0;
+  const jaTem=base+guardado, falta=Math.max(0,p.v-jaTem);
+  const MS=mesesPlano(p.ate), eq=MS.reduce((s,m)=>s+m.frac,0);
+  const passados=[]; let ym=ymOf(criado);
+  while(ym<ymOf(hoje)&&passados.length<60){ passados.push({ym, guardado:porMesGuardado[ym]||0}); ym=ymShift(ym,1); }
+  if(!MS.length) return {vencido:true, alvo:p.v, ate:p.ate, jaTem, guardado, falta, passados};
+  const h=historicoPlano();
+  const flexMedio=h.cats.reduce((s,c)=>s+c.media,0);
+  /* cada mês tem a sua folga: parcela que termina no caminho libera dinheiro nos meses seguintes */
+  const fimYm=ymOf(p.ate), curYm=ymOf(hoje);
+  const linhas=MS.map(m=>{
+    /* o comprometido não se divide por fração: o que ainda vai sair, sai inteiro.
+       No mês corrente conta só o que falta sair; no último, só o que cai até a data. */
+    const comp=comprometidoDoMes(m.ym, m.ym===curYm?hoje:"", m.ym===fimYm?p.ate:"");
+    const renda=rendaPrevista(m.ym)*m.frac, flex=flexMedio*m.frac;
+    return {ym:m.ym, frac:m.frac, renda, comp, flex, sem:renda-comp-flex, guardado:porMesGuardado[m.ym]||0}; });
+  const renda=linhas.reduce((s,l)=>s+l.renda,0), comp=linhas.reduce((s,l)=>s+l.comp,0), flex=linhas.reduce((s,l)=>s+l.flex,0);
+  const sobra=renda-comp-flex, precisa=falta-sobra;
+  const cortes=h.cats.map(c=>Object.assign({},c,{corte:corteDaCategoria(c,h.n)}))
+    .filter(c=>c.corte>0).sort((a,b)=>b.corte-a.corte);
+  const maxMes=cortes.reduce((s,c)=>s+c.corte,0), maxPeriodo=maxMes*eq;
+  const usadas=[]; let resta=Math.max(0,precisa);
+  for(const c of cortes){ if(resta<=0) break;
+    const noPeriodo=c.corte*eq, usa=Math.min(noPeriodo,resta);
+    usadas.push(Object.assign({},c,{usaMes:usa/eq, usaPeriodo:usa})); resta-=usa; }
+  const corteMes=usadas.reduce((s,c)=>s+c.usaMes,0);
+  linhas.forEach(l=>{ l.corte=corteMes*l.frac; l.pode=Math.max(0,l.sem+l.corte); });
+  const somaPode=linhas.reduce((s,l)=>s+l.pode,0);
+  /* o alvo de cada mês acompanha a folga daquele mês: mês apertado pede menos, mês folgado pede mais */
+  linhas.forEach(l=>{ l.alvo=somaPode>0?Math.min(l.pode,falta*(l.pode/somaPode)):0; });
+  const total=jaTem+Math.min(falta,somaPode);
+  const porMes=eq>0?falta/eq:falta, ritmoMax=eq>0?somaPode/eq:0;
+  let quando="";
+  if(ritmoMax>0&&total<p.v){ const d=new Date(Date.parse(hoje+"T12:00:00")+Math.ceil(falta/ritmoMax*30.44)*86400000);
+    quando=d.toISOString().slice(0,10); }
+  return {alvo:p.v, ate:p.ate, criado, jaTem, base, guardado, falta, eq, porMes, renda, comp, flex, sobra, precisa,
+    cortes, usadas, corteMes, maxMes, maxPeriodo, somaPode, total, ritmoMax, quando, h, linhas, passados,
+    veredito: sobra>=falta ? "folgado" : (somaPode>=falta ? "comCortes" : (somaPode>0 ? "parcial" : "travado")) }; }
+
+/* o plano na tela: veredito, mês a mês, e onde cortar (com a prova no histórico) */
+function htmlPlano(){
+  const r=calcularPlano();
+  const cab=botao=>'<div class="sec-h"><h2 class="sec-t">Juntar um montante até uma data</h2>'+botao+'</div>';
+  if(!r) return '<div class="sec">'+cab('<button class="sec-a" id="planoNovo">Montar um plano</button>')+
+    '<div class="card pad"><div class="empty"><b>Diga quanto e até quando</b>'+
+    'Eu olho sua renda, o que já está comprometido (gastos fixos, parcelas e dívidas) e seus gastos soltos dos últimos meses, '+
+    'e monto o plano: quanto dá para juntar em cada mês e onde cortar — só onde você já mostrou que consegue. '+
+    'Depois é só ir guardando: a conta se refaz sozinha todo dia até a data final.</div></div></div>';
+  const acs='<button class="sec-a" id="planoEdit">Mudar</button>';
+  if(r.vencido) return '<div class="sec">'+cab(acs)+'<div class="card pad"><div class="empty"><b>A data do plano já passou</b>'+
+    'Era juntar '+fmt(r.alvo)+' até '+diaMesAno(r.ate)+(r.guardado?'; você separou '+fmt(r.guardado)+' no caminho':'')+
+    '. Toque em Mudar para escolher uma data nova ou apagar o plano.</div></div></div>';
+
+  const pct=r.alvo>0?Math.min(100,Math.max(0,r.total/r.alvo*100)):0;
+  const feito=r.alvo>0?Math.min(100,Math.max(0,r.jaTem/r.alvo*100)):0;
+  const badge={folgado:["ok","Dá, sem cortar nada"],comCortes:["info","Dá, com alguns cortes"],
+    parcial:["warn","Dá uma parte"],travado:["bad","Hoje não fecha"]}[r.veredito];
+  const falaVeredito={
+    folgado:"Do jeito que você gasta hoje já sobram "+fmt(r.sobra/r.eq)+" por mês, mais do que os "+fmt(r.porMes)+" de que o plano precisa em média. É só separar assim que o dinheiro entrar.",
+    comCortes:"Sem mudar nada sobram "+fmt(Math.max(0,r.sobra)/r.eq)+" por mês. Faltam "+fmt(Math.max(0,r.precisa)/r.eq)+" por mês — é esse o tamanho do corte procurado abaixo.",
+    parcial:"Mesmo cortando tudo o que parece possível, o máximo é chegar a "+fmt(r.total)+" até "+diaMesAno(r.ate)+" ("+Math.round(pct)+"% do alvo)."+
+      (r.quando?" No ritmo máximo, o valor cheio sairia por volta de "+diaMesAno(r.quando)+".":"")+
+      " A outra saída é achar mais "+fmt(Math.max(0,r.alvo-r.total)/r.eq)+" de renda por mês.",
+    travado:"No ritmo de hoje o que entra não cobre o que já está comprometido: não sobra nada para guardar. Os cortes abaixo são por onde começar."}[r.veredito];
+  const linha=(rot,v,cor,sub)=>'<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">'+
+    '<span>'+esc(rot)+(sub?'<span style="display:block;font-size:11px;color:var(--ink-3)">'+esc(sub)+'</span>':'')+'</span>'+
+    '<b style="font-family:var(--f-m);font-weight:600;white-space:nowrap;color:'+(cor||"var(--ink)")+'">'+v+'</b></div>';
+  const mesesTxt=r.eq>=1?(Math.round(r.eq*10)/10).toString().replace(".",",")+(r.eq>=2?" meses":" mês"):Math.round(r.eq*30)+" dias";
+
+  /* mês a mês: o que cada mês aguenta, já contando parcelas e dívidas que terminam no caminho */
+  const hojeYm=ymOf(todayISO());
+  const mes=l=>{ const p2=l.pode>0?Math.max(3,Math.min(100,l.alvo/Math.max(l.pode,1)*100)):0;
+    const sobrando=l.pode<=0;
+    return '<div style="padding:10px 0;border-bottom:1px solid var(--line)">'+
+      '<div style="display:flex;justify-content:space-between;gap:10px;font-size:14px">'+
+      '<span style="font-weight:500">'+ymLabel(l.ym)+(l.ym===hojeYm?' <span class="chip hoje">do dia '+(+todayISO().slice(8,10))+' em diante</span>':'')+'</span>'+
+      '<span style="font-family:var(--f-m);font-weight:600;color:'+(sobrando&&!l.guardado?"var(--bad)":"var(--good)")+'">'+
+      (sobrando?(l.guardado?"já separou "+fmtN(l.guardado):"nada sobra"):"guardar "+fmtN(l.alvo))+'</span></div>'+
+      '<div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">entra '+fmtN(l.renda)+
+      ' · comprometido '+fmtN(l.comp)+' · gasto do dia a dia '+fmtN(Math.max(0,l.flex-l.corte))+
+      (l.corte>0?' (já com o corte de '+fmtN(l.corte)+')':'')+
+      ' · dá para guardar até '+fmtN(Math.max(0,l.pode))+
+      (l.guardado?' · você já separou '+fmtN(l.guardado):'')+'</div>'+
+      (sobrando?'':'<div class="meter" style="margin-top:6px"><i style="width:'+p2+'%;background:var(--good)"></i></div>')+
+      '</div>'; };
+
+  const cortes=r.usadas.length?r.usadas.map(c=>{
+    const alvoCat=Math.max(0,c.media-c.usaMes), p2=c.media>0?Math.max(4,alvoCat/c.media*100):0;
+    const prova=r.h.n>=2&&c.melhor<c.media*0.98
+      ? "média "+fmtN(c.media)+" por mês · seu melhor mês foi "+fmtN(c.melhor)+", em "+ymLabel(c.mesMelhor)
+      : "média "+fmtN(c.media)+" por mês · sugestão de "+Math.round(c.usaMes/c.media*100)+"% para "+NOMES_GRUPO[c.grupo].toLowerCase();
+    return '<div style="padding:11px 0;border-bottom:1px solid var(--line)">'+
+      '<div style="display:flex;justify-content:space-between;gap:10px;font-size:14px;font-weight:500">'+
+      '<span>'+esc(catName(c.id))+'</span><span style="font-family:var(--f-m);color:var(--good)">−'+fmtN(c.usaMes)+'/mês</span></div>'+
+      '<div style="font-size:11.5px;color:var(--ink-3);margin:2px 0 7px">'+esc(prova)+'</div>'+
+      '<div class="meter"><i style="width:'+p2+'%;background:var(--good)"></i></div>'+
+      '<div class="meter-s"><span>gastar até '+fmtN(alvoCat)+' por mês</span><span>hoje '+fmtN(c.media)+'</span></div></div>'; }).join("")
+    : '<div class="empty"><b>Sem corte necessário</b>O plano fecha com o que já sobra.</div>';
+  const outras=r.cortes.filter(c=>!r.usadas.some(u=>u.id===c.id));
+
+  return '<div class="sec">'+cab(acs)+
+    '<div class="grid g2">'+
+    '<div class="hero"><div class="hero-l">Juntar '+fmt(r.alvo)+' até '+diaMesAno(r.ate)+'</div>'+
+    '<span class="hero-v">'+fmt(r.veredito==="parcial"||r.veredito==="travado"?r.ritmoMax:r.porMes)+'</span>'+
+    '<div class="hero-s">'+(r.veredito==="parcial"||r.veredito==="travado"?"por mês, o máximo que dá":"por mês, em média")+' · faltam '+mesesTxt+'</div>'+
+    '<div style="margin-top:14px"><div class="meter"><i style="width:'+feito+'%;background:var(--good)"></i>'+
+    '<i style="width:'+Math.max(0,pct-feito)+'%;background:var(--good);opacity:.38"></i></div>'+
+    '<div class="meter-s"><span>já tem '+fmtN(r.jaTem)+'</span><span>projeção '+fmtN(r.total)+' de '+fmtN(r.alvo)+'</span></div></div>'+
+    '<div style="margin-top:14px"><span class="badge '+badge[0]+'">'+badge[1]+'</span></div>'+
+    '<div style="margin-top:10px;font-size:12.5px;color:var(--ink-2);line-height:1.55">'+esc(falaVeredito)+'</div>'+
+    (r.guardado?'<div style="margin-top:10px;font-size:12px;color:var(--ink-3)">Desde que você montou o plano, em '+diaMesAno(r.criado)+', já separou '+fmtN(r.guardado)+'. A conta abaixo já desconta isso e se refaz sozinha a cada dia.</div>':'')+
+    '</div>'+
+    '<div class="card pad"><div class="tile-l">No período todo ('+mesesTxt+')</div>'+
+    '<div style="display:grid;gap:10px;font-size:13px;color:var(--ink-2);margin-top:11px">'+
+    linha("Renda prevista",fmtN(r.renda),"","já sem o desconto do consignado")+
+    linha("Já comprometido",'−'+fmtN(r.comp),"var(--bad)","gastos fixos, parcelas e dívidas")+
+    linha("Gasto solto no ritmo de hoje",'−'+fmtN(r.flex),"","média dos "+(r.h.n||0)+(r.h.n===1?" mês fechado":" meses fechados"))+
+    linha("Sobra sem mudar nada",(r.sobra<0?"−":"")+fmtN(Math.abs(r.sobra)),r.sobra<0?"var(--bad)":"var(--good)")+
+    (r.corteMes>0?linha("Com os cortes sugeridos",'+'+fmtN(r.corteMes*r.eq),"var(--good)","cortando "+fmtN(r.corteMes)+" por mês"):"")+
+    linha("Ainda falta juntar",fmtN(r.falta),"",r.jaTem?"alvo menos o que você já tem":"")+
+    '</div>'+
+    (r.h.n<2?'<div class="note" style="margin-top:13px"><b>Ainda vejo poucos meses fechados</b>'+
+      'Com '+(r.h.n||"nenhum")+' mês de histórico, a parte dos gastos soltos é um chute. Importe os extratos e as faturas dos meses anteriores e o plano fica realista.</div>':'')+
+    '</div></div>'+
+
+    '<div class="sec-h" style="margin-top:18px"><h2 class="sec-t">Mês a mês</h2>'+
+    '<span class="day-t">'+fmtN(r.somaPode)+' possíveis</span></div>'+
+    '<div class="card pad">'+r.linhas.map(mes).join("")+
+    (r.passados.length?'<div class="cardbox-s" style="margin:13px 0 0">Antes disso: '+
+      r.passados.map(x=>ymLabel(x.ym)+" "+(x.guardado?fmtN(x.guardado):"nada")).join(" · ")+'.</div>':'')+
+    '<div class="cardbox-s" style="margin:9px 0 0">Cada mês pesa o que entra e o que já está comprometido nele — '+
+    'por isso um mês pode aguentar muito mais que o outro. Quando uma parcela ou uma dívida termina no caminho, '+
+    'os meses seguintes já aparecem com a folga maior. Guardou menos num mês? No dia seguinte a conta se refaz e o que faltou é redistribuído até '+diaMesAno(r.ate)+'.</div>'+
+    '</div>'+
+
+    '<div class="sec-h" style="margin-top:18px"><h2 class="sec-t">Onde cortar</h2>'+
+    '<span class="day-t">'+(r.usadas.length?'−'+fmtN(r.corteMes)+'/mês':'')+'</span></div>'+
+    '<div class="card pad">'+cortes+
+    (outras.length?'<details class="grp" style="margin-top:12px"><summary>Outras categorias que ainda dariam '+
+      fmtN(outras.reduce((s,c)=>s+c.corte,0))+' por mês<span class="v"></span></summary><div class="in">'+
+      outras.map(c=>'<div class="linkrow"><div class="m"><div class="t">'+esc(catName(c.id))+'</div>'+
+      '<div class="s">média '+fmtN(c.media)+' por mês'+(r.h.n>=2&&c.melhor<c.media?' · melhor mês '+fmtN(c.melhor):'')+'</div></div>'+
+      '<b style="font-family:var(--f-m);font-size:13px;color:var(--ink-2)">até −'+fmtN(c.corte)+'</b></div>').join("")+
+      '</div></details>':'')+
+    '<div class="cardbox-s" style="margin:13px 0 0">Nada é lançado sozinho: isto é uma sugestão tirada do seu histórico. '+
+    'Gasto fixo, parcela em andamento e parcela de dívida não entram no corte porque já estão contratados. '+
+    'Toque em <b>Guardei um dinheiro</b>, ali em cima, toda vez que separar um valor — é assim que o plano anda.</div>'+
+    '</div></div>'; }
+
+function openPlano(){
+  const p=S.cfg.plano||{v:0,ate:"",usaGuardado:false};
+  const st={v:p.v||0, ate:p.ate||"", usa:!!p.usaGuardado};
+  const corpo=()=>'<div class="set">'+
+    '<div class="set-f"><label for="plV">Quanto quer juntar</label>'+
+    '<input id="plV" inputmode="decimal" value="'+(st.v?fmtN(st.v):"")+'" placeholder="10.000,00"></div>'+
+    '<div class="set-f"><label>Até quando</label>'+
+    '<button class="btn ghost" id="plD">'+(st.ate?diaMesAno(st.ate):"Escolher a data")+'</button>'+
+    '<span class="hint">Toque para marcar o dia no calendário.</span></div>'+
+    (savedTotal()>0?'<div class="set-f"><label style="display:flex;align-items:center;gap:9px;font-weight:500">'+
+      '<input type="checkbox" id="plG" style="width:20px;height:20px"'+(st.usa?" checked":"")+'>'+
+      'Contar os '+fmtN(savedTotal())+' que já guardei</label></div>':'')+
+    '</div>';
+  const abre=()=>{ sheet("Plano para juntar", corpo(),
+      (S.cfg.plano?'<button class="btn danger" id="plX">Apagar</button>':'')+'<button class="btn" id="plOk">Salvar</button>');
+    $("#plD").onclick=()=>{ st.v=toCents($("#plV").value); const g=$("#plG"); if(g) st.usa=g.checked;
+      openCalendario({titulo:"Data do plano", valor:st.ate||todayISO(), min:todayISO(),
+        dica:"O dia em que você quer ter o dinheiro na mão.", onPick:d=>{ st.ate=d; abre(); }}); };
+    $("#plOk").onclick=()=>{ const v=toCents($("#plV").value); const g=$("#plG");
+      if(!v){ toast("Diga quanto quer juntar."); return; }
+      if(!st.ate){ toast("Escolha a data."); return; }
+      S.cfg.plano={v, ate:st.ate, usaGuardado:g?g.checked:st.usa, criado:S.cfg.plano&&S.cfg.plano.criado||todayISO()};
+      saveCfg(); closeSheet(); render(); toast("Plano montado"); };
+    const x=$("#plX"); if(x) x.onclick=()=>{ S.cfg.plano=null; saveCfg(); closeSheet(); render(); toast("Plano apagado"); }; };
+  abre(); }
+
 function renderMeta(){
   const alvo=S.cfg.goalTarget||0, guardado=savedTotal();
   const pct=alvo>0?Math.min(100,guardado/alvo*100):0;
@@ -3142,6 +3393,7 @@ function renderMeta(){
       chartCols(meses.map(m=>({label:ymLabel(m).split(" ")[0],v:porMes[m],color:"var(--good)",
         tip:ymLabel(m)+" — guardou "+fmt(porMes[m])})),{alt:"Quanto guardou por mês"})+'</div>':'')+
     '</div></div></div>'+
+    htmlPlano()+
     '<div class="sec" id="m5030"></div>'+'<div class="sec"><div class="sec-h"><h2 class="sec-t">O que já guardei</h2></div>'+
     (dep.length?'<div class="card pad">'+dep.map(x=>{ const dt=new Date(x.d+"T12:00:00");
       return '<button class="row" data-dep="'+x.id+'"><span class="dot" style="background:var(--good)"></span>'+
@@ -3153,6 +3405,7 @@ function renderMeta(){
   render5030(); bindTips($("#p-meta"));
   $("#depBtn").onclick=openDeposit;
   $("#goalBtn").onclick=openGoal;
+  ["planoNovo","planoEdit"].forEach(id=>{ const b=$("#"+id); if(b) b.onclick=openPlano; });
   $$("[data-dep]").forEach(b=>b.onclick=()=>openDeposit(b.dataset.dep));
 }
 function openGoal(){

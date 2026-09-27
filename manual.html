@@ -97,7 +97,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div class="sub">Manual de uso — controle de gastos por fala, extrato e fatura</div>
   <div class="meta">
     Endereço do app: https://rgbittencourt.github.io/caderneta/<br>
-    Setembro de 2026 · aplica-se à versão caderneta-v48 em diante
+    Setembro de 2026 · aplica-se à versão caderneta-v49 em diante
   </div>
 </header>
 
@@ -121,6 +121,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
     <li><a href="#dividas">Dívidas e quitação</a></li>
     <li><a href="#salario">Salário e renda</a></li>
     <li><a href="#futuro">Futuro e Meta</a></li>
+    <li><a href="#plano">Plano para juntar um montante</a></li>
     <li><a href="#analises">Análises</a></li>
     <li><a href="#consulta">Consulta</a></li>
     <li><a href="#categorias">Categorias: renomear e dividir</a></li>
@@ -469,7 +470,46 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <figcaption><b>Meta</b>: a meta de poupança e o método 50-30-20, que divide a renda em Necessidades, Desejos e Futuro. O anel de fora é a meta; o de dentro, para onde a renda foi. Necessidades e Desejos são tetos; Futuro é piso.</figcaption>
 </figure>
 
-<h2 id="analises">18. Análises</h2>
+<h2 id="plano">18. Plano para juntar um montante</h2>
+
+<p>Na aba <b>Meta</b>, em <b>Juntar um montante até uma data</b>, você diz <b>quanto</b> quer juntar e <b>até quando</b>. O app olha a sua renda, tudo o que já está comprometido (gastos fixos, parcelas em andamento e parcelas de dívida) e os seus gastos soltos dos últimos meses fechados, e monta o plano.</p>
+
+<figure>
+  <img src="manual/meta-plano.png" alt="O plano para juntar um montante">
+  <figcaption>O número grande é quanto guardar por mês, em média — ou, quando o alvo não cabe no prazo, o máximo que dá. A barra mostra o que você já tem (verde cheio) e a projeção até a data (verde claro). O selo dá o veredito, e ao lado ficam as contas do período inteiro.</figcaption>
+</figure>
+
+<p>São quatro vereditos possíveis:</p>
+
+<table>
+  <tr><th>Selo</th><th>O que quer dizer</th></tr>
+  <tr><td><b>Dá, sem cortar nada</b></td><td>O que já sobra por mês cobre o alvo. É só separar o dinheiro assim que entrar.</td></tr>
+  <tr><td><b>Dá, com alguns cortes</b></td><td>Falta um tanto por mês — e a lista <i>Onde cortar</i> mostra exatamente de onde tirar.</td></tr>
+  <tr><td><b>Dá uma parte</b></td><td>Nem cortando tudo o que é realista o alvo cabe no prazo. Ele diz quanto dá para juntar, em que porcentagem do alvo isso fica, por volta de que data o valor cheio sairia e quanto de renda a mais resolveria.</td></tr>
+  <tr><td><b>Hoje não fecha</b></td><td>O que entra não cobre nem o que já está comprometido. Os cortes são por onde começar.</td></tr>
+</table>
+
+<figure>
+  <img src="manual/meta-plano-meses.png" alt="O plano mês a mês">
+  <figcaption>Cada mês é calculado separado: o que entra, o que já está comprometido <b>naquele</b> mês e o gasto do dia a dia. Por isso um mês pode aguentar bem mais que o outro — e quando uma parcela ou uma dívida termina no meio do caminho, os meses seguintes já aparecem com a folga maior. O mês corrente conta só do dia de hoje em diante.</figcaption>
+</figure>
+
+<figure>
+  <img src="manual/meta-plano-cortes.png" alt="Onde cortar, com a prova no histórico">
+  <figcaption><b>Onde cortar</b> não chuta: cada sugestão vem com a média da categoria e <b>o seu melhor mês</b> — a prova de que você já gastou aquilo. O corte nunca desce abaixo do seu melhor mês e respeita um limite por grupo do 50-30-20 (mais folgado nos Desejos, apertado nas Necessidades, zero no que é dívida ou gasto fixo).</figcaption>
+</figure>
+
+<div class="nota">
+  <b>O plano é dinâmico.</b>
+  A conta se refaz sozinha a cada dia até a data final — ou até você apagar o plano. Toque em <b>Guardei um dinheiro</b> toda vez que separar um valor: o que você já juntou sai do que falta, e o restante é redistribuído pelos meses que sobraram. Guardou menos num mês? O mês seguinte aparece pedindo um pouco mais. Guardou mais? O plano afrouxa — e pode até deixar de pedir cortes.
+</div>
+
+<div class="dica">
+  <b>O que o plano não faz.</b>
+  Ele não lança nada sozinho e não mexe nos seus gastos: é uma sugestão tirada do seu próprio histórico. Gasto fixo, parcela em andamento e parcela de dívida ficam de fora dos cortes porque já estão contratados — para mexer neles, o caminho é a aba <b>Análises</b> (quitação de dívida) ou rever o gasto fixo em Ajustes. E quanto mais meses fechados você tiver importado, mais realista fica a parte dos gastos soltos.
+</div>
+
+<h2 id="analises">19. Análises</h2>
 
 <figure>
   <img src="manual/analises-diagnostico.png" alt="Diagnóstico do mês">
@@ -478,7 +518,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <p>Também estão nessa aba: compras parceladas (quando cada uma termina e quanto sobra por mês depois), gastos por cartão e forma de pagamento, e o acompanhamento das dívidas.</p>
 
-<h2 id="consulta">19. Consulta</h2>
+<h2 id="consulta">20. Consulta</h2>
 
 <p>A aba <b>Consulta</b> responde perguntas do tipo "quanto gastei com mercado e alimentação neste mês?" ou "o que passou no cartão entre os dias 1 e 10?".</p>
 
@@ -524,7 +564,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <figcaption>Cada linha traz a data, a descrição, a categoria, a forma de pagamento e o valor; as parcelas mostram o número da parcela, e a compra no crédito vem marcada. Tocando na linha, dá para corrigir o lançamento.</figcaption>
 </figure>
 
-<h2 id="categorias">20. Categorias: renomear, dividir, juntar</h2>
+<h2 id="categorias">21. Categorias: renomear, dividir, juntar</h2>
 
 <p>As categorias são suas: Ajustes → <b>Categorias de gasto</b> (e <b>Categorias de entrada</b>). Tocando em uma delas, dá para mudar o <b>nome</b>, o <b>limite por mês</b> e o <b>grupo no 50-30-20</b> (Necessidade, Desejo ou Futuro). O botão <i>Adicionar</i> cria quantas você quiser.</p>
 
@@ -571,7 +611,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <b>Financiamento de veículo, consignado, empréstimo, crediário longo:</b> a parcela é <b>dívida</b> — cadastre em Lançar → <i>Cadastrar dívidas</i>, com valor da parcela, total de parcelas, taxa e o mês em que começou. Ela entra sozinha todo mês, aparece no Futuro como renda comprometida e permite a simulação de quitação com desconto de juros. <b>Carro e manutenção</b> é o custo de andar com o carro: revisão, pneus, IPVA, seguro, oficina, lavagem — o combustível tem categoria própria. No 50-30-20, a parcela da dívida conta como <b>Futuro</b> (pagar dívida é formar patrimônio) e a manutenção como <b>Necessidade</b>.
 </div>
 
-<h2 id="carregar">21. Carregar meses anteriores</h2>
+<h2 id="carregar">22. Carregar meses anteriores</h2>
 
 <ol class="passos">
   <li><b>Comece do zero, se for o caso:</b> Ajustes → <i>Recomeçar os lançamentos</i>. O app guarda um backup no seu Drive antes de apagar e pergunta a data do primeiro extrato e o saldo de cada conta no dia anterior.</li>
@@ -604,7 +644,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   As compras que vêm da fatura não tiram dinheiro da conta, e o pagamento que vem do extrato não conta como gasto. É por isso que a ordem não estraga nada.
 </div>
 
-<h2 id="problemas">22. Quando algo não bate</h2>
+<h2 id="problemas">23. Quando algo não bate</h2>
 
 <table>
   <tr><th>Sintoma</th><th>O que olhar</th></tr>
@@ -617,7 +657,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <tr><td>Não vejo uma opção nova</td><td>Confira a versão em <b>Ajustes → Dados</b>, feche o app e abra de novo.</td></tr>
 </table>
 
-<h2 id="dados">23. Dados, backup e privacidade</h2>
+<h2 id="dados">24. Dados, backup e privacidade</h2>
 <ul>
   <li>Os dados ficam <b>no aparelho</b> e no <b>seu Google Drive</b>, numa pasta chamada Caderneta. Não existe servidor: ninguém mais tem acesso.</li>
   <li>Os documentos que você lê (PDF, foto) <b>não saem do aparelho</b> — a leitura acontece ali mesmo.</li>
@@ -626,7 +666,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <li>O acesso ao Drive dura cerca de uma hora; depois aparece <i>Sincronizar</i> no alto — um toque e pronto.</li>
 </ul>
 
-<h2 id="ajuda">24. Ajuda dentro do app</h2>
+<h2 id="ajuda">25. Ajuda dentro do app</h2>
 
 <p>A <b>Ajuda</b> é a última aba do app (no celular, dentro de <i>Mais</i>). Ali ficam 40 perguntas e respostas, agrupadas por tema, e o atalho para este manual.</p>
 
@@ -642,7 +682,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <p>O botão <b>Perguntar ao Claude</b> copia a sua pergunta e abre a conversa. O app não tem inteligência artificial embutida: ele funciona sem servidor e sem custo, e é na conversa com o Claude que dúvidas mais longas são respondidas — e é lá também que se pedem mudanças no app.</p>
 
-<h2 id="glossario">25. Glossário</h2>
+<h2 id="glossario">26. Glossário</h2>
 <table>
   <tr><th>Termo</th><th>O que quer dizer na Caderneta</th></tr>
   <tr><td><b>Fatura de um mês</b></td><td>A fatura que <b>fechou</b> naquele mês, mesmo que seja paga no mês seguinte.</td></tr>
