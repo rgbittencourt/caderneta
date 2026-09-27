@@ -2332,8 +2332,8 @@ function periodoDatas(p){
   if(p==="ano") return [Y+"-01-01", Y+"-12-31"];
   if(p==="tudo") return ["2000-01-01", Y+"-12-31"];
   return null; }
-function consultaAchados(){
-  const c=S.consulta;
+function consultaAchados(c){
+  c=c||S.consulta;
   const [de,ate]=c.periodo==="livre"?[c.de,c.ate]:periodoDatas(c.periodo);
   if(!de||!ate||de>ate) return {de,ate,linhas:[]};
   const out=[];
@@ -2351,7 +2351,21 @@ function consultaAchados(){
   return {de,ate,linhas:out}; }
 function renderConsulta(){
   const c=S.consulta=S.consulta||{periodo:"mes",de:ymOf(todayISO())+"-01",ate:todayISO(),cats:[],formas:[],tipo:"g"};
-  const r=consultaAchados(), L=r.linhas;
+  const r=consultaAchados(c), L=r.linhas;
+  /* nada no período não quer dizer nada no app: diz onde estão os lançamentos que batem com os filtros */
+  let dica="";
+  if(!L.length){
+    const noAno=consultaAchados(Object.assign({},c,{periodo:"ano"})).linhas.length;
+    const emTudo=consultaAchados(Object.assign({},c,{periodo:"tudo"})).linhas.length;
+    const quanto=noAno===emTudo
+      ? emTudo+(emTudo>1?" lançamentos, todos neste ano":" lançamento, neste ano")
+      : (noAno?noAno+(noAno>1?" lançamentos neste ano e ":" lançamento neste ano e "):"")+emTudo+" no total";
+    dica=emTudo
+      ? '<div class="note" style="margin-top:12px"><b>Nada neste período</b>Com os filtros de agora há '+quanto+
+        '. Veja em outro período: '+
+        (noAno?'<button class="mini" data-per="ano" style="margin-right:6px">Este ano</button>':'')+
+        '<button class="mini" data-per="tudo">Tudo</button></div>'
+      : '<div class="note" style="margin-top:12px"><b>Nada encontrado</b>Não há lançamentos com esses filtros em nenhum período. Desmarque alguma categoria ou forma de pagamento.</div>'; }
   const total=L.reduce((s,t)=>s+(t.k==="e"?-t.v:t.v),0);
   const soma={}, porForma={};
   L.forEach(t=>{ soma[t.cat]=(soma[t.cat]||0)+t.v; const f=t.card||t.method; porForma[f]=(porForma[f]||0)+t.v; });
@@ -2387,6 +2401,7 @@ function renderConsulta(){
     '<div class="card pad"><div class="tile-l">'+(c.tipo==="e"?"Entrou":c.tipo==="tudo"?"Gastos menos entradas":"Gasto no período")+'</div>'+
     '<span class="tile-v" style="font-size:30px">'+fmt(Math.abs(total))+'</span>'+
     '<div class="tile-s">'+L.length+(L.length===1?" lançamento":" lançamentos")+' · de '+diaMesAno(r.de)+' a '+diaMesAno(r.ate)+'</div>'+
+    dica+
     (resumoCat?'<div style="margin-top:12px;padding-top:11px;border-top:1px solid var(--line);display:grid;gap:7px;font-size:13px;color:var(--ink-2)">'+resumoCat+'</div>':'')+
     '</div>'+
     '<div class="card pad"><div class="tile-l">Por forma de pagamento</div>'+
@@ -2522,6 +2537,8 @@ const AJUDA=[
 
  {g:"Entender os números",t:"O que a aba Análises mostra?",
   c:"O diagnóstico do mês (ritmo contra o teto, 50-30-20, renda comprometida, cartões perto do limite, gastos que parecem fixos), as compras parceladas, os gastos por cartão e o acompanhamento das dívidas.",a:"analises"},
+ {g:"Entender os números",t:"A Consulta mostrou R$ 0,00",
+  c:"É porque não há lançamentos naquele período com os filtros marcados — por exemplo, a semana atual quando você ainda está carregando meses antigos. O próprio app avisa quantos lançamentos existem no ano e no total, e oferece o atalho para ver em Este ano ou Tudo.",a:"consulta"},
  {g:"Entender os números",t:"Como vejo quanto gastei numa categoria?",
   c:"Na aba Consulta: escolha o período (hoje, semana, mês, mês passado, últimos 30 dias, ano, ou duas datas), marque as categorias e, se quiser, as formas de pagamento. Ele mostra o total, o valor por categoria e por forma de pagamento, e a lista com data, descrição e como foi pago. Dá para copiar tudo para uma planilha.",a:"consulta"},
  {g:"Entender os números",t:"Para que serve a aba Futuro?",
