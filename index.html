@@ -239,6 +239,15 @@ main{padding:0 16px calc(76px + env(safe-area-inset-bottom,0px));max-width:680px
   box-shadow:0 4px 14px rgba(0,0,0,.22);transform:translate(-50%,-100%)}
 .tip[hidden]{display:none}
 .tip b{font-family:var(--f-m);font-weight:600;display:block;font-size:12.5px}
+.tip .mais{display:block;margin-top:3px;opacity:.75;font-size:11px;white-space:normal}
+
+/* ===== dica ao parar o mouse (3s) ou no toque longo ===== */
+[data-dica]{cursor:help}
+#dica{position:fixed;z-index:60;max-width:300px;background:var(--ink);color:var(--paper);
+  padding:9px 12px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.5;
+  box-shadow:0 8px 24px rgba(0,0,0,.28);transform:translate(-50%,-100%);pointer-events:none}
+#dica[hidden]{display:none}
+#dica b{display:block;font-weight:600;margin-bottom:2px}
 .scroll{overflow-x:auto}
 
 /* ===== insights ===== */
@@ -457,6 +466,7 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 <nav class="tabs"><div class="tabs-in" id="tabsIn" role="tablist"></div></nav>
 <div class="scrim" id="scrim" hidden><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast" hidden></div>
+<div id="dica" hidden role="tooltip"></div>
 <script>
 "use strict";
 /* ===================================================================
@@ -903,11 +913,16 @@ const CENT  = /^(centavos?)$/;
 const STOP  = /^(ah|ai|ei|entao|tipo|assim|olha|opa|beleza|ok|e|de|do|da|no|na|em|com|pra|para|por|foi|um|uma|o|a|os|as|meu|minha|hoje|agora|paguei|gastei|comprei|foram|reais|real|deu|custou|ficou|la|aqui|que|se|ao|aos|recebi|recebido|recebida|caiu|entrou|depositei|ganhei|entrada)$/;
 const ENTRADA = /^(recebi|recebido|recebida|receber|caiu|entrou|entrada|depositei|deposito|ganhei|salario|holerite|contracheque|freela|freelance|bolsa|estagio|reembolso|estorno|restituicao|rendimento|rendimentos|dividendo|dividendos|vendi|adiantamento|decimo|prolabore|plr)$/;
 
-function readWords(t,i){ let total=0,cur=0,any=false,j=i;
+/* "trinta e nove" soma; "trinta e nove e noventa" não: em português a composição só desce
+   (centena → dezena → unidade). O que vem depois, maior ou igual, já são os centavos. */
+function readWords(t,i){ let total=0,cur=0,any=false,j=i,last=Infinity;
   while(j<t.length){ const w=t[j];
-    if(w==="e"&&any){ const nx=t[j+1]; if(nx&&(nx in NW||nx in SC)){ j++; continue; } break; }
-    if(w in NW){ cur+=NW[w]; any=true; j++; continue; }
-    if(w in SC){ total+=(cur||1)*SC[w]; cur=0; any=true; j++; continue; }
+    if(w==="e"&&any){ const nx=t[j+1];
+      if(nx&&(nx in SC)){ j++; continue; }
+      if(nx&&(nx in NW)&&NW[nx]<last){ j++; continue; }
+      break; }
+    if(w in NW){ if(any&&NW[w]>=last) break; cur+=NW[w]; last=NW[w]; any=true; j++; continue; }
+    if(w in SC){ total+=(cur||1)*SC[w]; cur=0; last=Infinity; any=true; j++; continue; }
     break; }
   return any ? {v:total+cur, end:j} : null; }
 function readDigits(w){ if(!/\d/.test(w)||!/^\d[\d.,]*$/.test(w)) return null;
@@ -999,9 +1014,13 @@ function parseOne(raw,cfg){
     let score=1,end=b;
     if(b<t.length&&MOEDA.test(t[b])){ score=10; end=b+1; }
     if(a>0&&t[a-1]==="r$"){ score=10; a=a-1; }
-    if(score===10&&end<t.length){ let k=end; if(t[k]==="e") k++;
+    /* centavos: "e noventa centavos" e também o jeito de falar "trinta e nove e noventa" */
+    if(end<t.length){ let k=end; const temE=t[k]==="e"; if(temE) k++;
       const cw = readDigits(t[k])!==null ? {v:readDigits(t[k]), end:k+1} : readWords(t,k);
-      if(cw&&cw.v<100&&CENT.test(t[cw.end]||"")){ v+=cw.v/100; end=cw.end+1; } }
+      if(cw&&cw.v<100&&cw.v===Math.round(cw.v)){
+        const temCent=CENT.test(t[cw.end]||"");
+        if(temCent){ v+=cw.v/100; end=cw.end+1; score=10; }
+        else if(temE&&cw.v>=10){ v+=cw.v/100; end=cw.end; if(score<10) score=9; } } }
     const sc=score-i*0.001;
     if(!cand||sc>cand.score) cand={v,a,b:end,score:sc}; }
   if(cand){ d.v=Math.round(cand.v*100); take(cand.a,cand.b); }
@@ -1333,7 +1352,7 @@ function chartBarsH(rows,opt){
     s+='<path d="'+pathRight(0,y+18,bw,12,4)+'" style="fill:var(--accent)"/>';
     if(r.limit>0){ const lx=Math.min(W,(r.limit/max)*W);
       s+='<rect x="'+(lx-1)+'" y="'+(y+15)+'" width="2" height="18" style="fill:var(--ink-3)"/>'; }
-    s+='<rect x="0" y="'+y+'" width="'+W+'" height="'+RH+'" style="fill:transparent" data-tip="'+esc(r.tip||(r.label+" — "+fmt(r.v)))+'"/>'; });
+    s+='<rect x="0" y="'+y+'" width="'+W+'" height="'+RH+'" style="fill:transparent" data-tip="'+esc(r.tip||(r.label+" — "+fmt(r.v)))+'"'+attrLeitura(r)+'/>'; });
   return s+'</svg>'; }
 
 /* linha: acumulado real contra o ritmo que cabe no teto */
@@ -1363,7 +1382,13 @@ function chartPace(ym){
   s+='<circle cx="'+X(last.d)+'" cy="'+Y(last.v)+'" r="4.5" style="fill:var(--accent);stroke:var(--surface);stroke-width:2"/>';
   s+='<text x="'+Math.min(W-4,X(last.d)+10)+'" y="'+(Y(last.v)-9)+'" text-anchor="'+(X(last.d)>W-90?"end":"start")+'" style="fill:var(--ink);font:600 11.5px var(--f-m)">'+fmtN(last.v)+'</text>';
   acc.forEach(p=>{ const bw=(W-L-6)/dim;
-    s+='<rect x="'+(X(p.d)-bw/2)+'" y="'+T+'" width="'+bw+'" height="'+(H-T-B)+'" style="fill:transparent" data-tip="Dia '+p.d+" — acumulado "+fmt(p.v)+(cap?" · ritmo "+fmt(Math.round(cap*p.d/dim)):"")+'"/>'; });
+    const ritmo=cap?Math.round(cap*p.d/dim):0;
+    const f=["No dia "+p.d+" você já tinha gasto "+fmt(p.v)+" no mês."];
+    if(cap){ f.push("O ritmo que cabe no teto nesse dia é "+fmtN(ritmo)+", então você estava "+
+        (p.v>ritmo?fmtN(p.v-ritmo)+" à frente do ritmo":fmtN(ritmo-p.v)+" dentro do ritmo")+".");
+      const resto=dim-p.d; if(resto>0) f.push("Sobravam "+resto+" dias e "+fmtN(Math.max(0,cap-p.v))+" do teto — "+fmtN(Math.max(0,(cap-p.v)/resto))+" por dia.");
+      f.push("Mantido esse passo, o mês fecharia em "+fmtN(Math.round(p.v/p.d*dim))+"."); }
+    s+='<rect x="'+(X(p.d)-bw/2)+'" y="'+T+'" width="'+bw+'" height="'+(H-T-B)+'" style="fill:transparent" data-tip="Dia '+p.d+" — acumulado "+fmt(p.v)+(cap?" · ritmo "+fmt(ritmo):"")+'" data-leitura="'+esc(f.join(" "))+'" data-lt="Dia '+p.d+' de '+esc(ymLabel(ym))+'" style="cursor:pointer"/>'; });
   return s+'</svg>'; }
 
 /* colunas com linha de referência do teto */
@@ -1381,7 +1406,7 @@ function chartCols(rows,opt){
     const cx=L+band*i+band/2, h=Math.max(1,(r.v/max)*(H-T-B)), y=Y(r.v);
     s+='<path d="'+pathTop(cx-bw/2,y,bw,h,4)+'" style="fill:'+(r.color||"var(--accent)")+'"/>';
     s+='<text x="'+cx+'" y="'+(H-8)+'" text-anchor="middle" style="fill:var(--ink-3);font:400 10.5px var(--f)">'+esc(r.label)+'</text>';
-    s+='<rect x="'+(cx-band/2)+'" y="'+T+'" width="'+band+'" height="'+(H-T-B)+'" style="fill:transparent" data-tip="'+esc(r.tip||(r.label+" — "+fmt(r.v)))+'"/>'; });
+    s+='<rect x="'+(cx-band/2)+'" y="'+T+'" width="'+band+'" height="'+(H-T-B)+'" style="fill:transparent" data-tip="'+esc(r.tip||(r.label+" — "+fmt(r.v)))+'"'+attrLeitura(r)+'/>'; });
   if(ref>0){ const y=Y(ref);
     s+='<line x1="'+L+'" y1="'+y+'" x2="'+W+'" y2="'+y+'" style="stroke:var(--bad);stroke-width:2;stroke-linecap:round"/>';
     s+='<text x="'+W+'" y="'+(y-6)+'" text-anchor="end" style="fill:var(--ink-2);font:600 10.5px var(--f)">teto '+fmtK(ref)+'</text>'; }
@@ -1410,11 +1435,39 @@ function chartStack(rows,series,opt){
       acc+=p.v; });
     s+='<text x="'+cx+'" y="'+(H-8)+'" text-anchor="middle" style="fill:var(--ink-3);font:400 10.5px var(--f)">'+esc(r.label)+'</text>';
     const tip=esc(r.label)+" — "+fmt(tot(r))+"|"+series.map(k=>esc(k.n)+" "+fmtN(r[k.key]||0)).join(" · ");
-    s+='<rect x="'+(cx-band/2)+'" y="'+T+'" width="'+band+'" height="'+(H-T-B)+'" style="fill:transparent" data-tip="'+tip+'"/>'; });
+    s+='<rect x="'+(cx-band/2)+'" y="'+T+'" width="'+band+'" height="'+(H-T-B)+'" style="fill:transparent" data-tip="'+tip+'"'+attrLeitura(r)+'/>'; });
   if(ref>0){ const y=Y(ref);
     s+='<line x1="'+L+'" y1="'+y+'" x2="'+W+'" y2="'+y+'" style="stroke:var(--bad);stroke-width:2;stroke-linecap:round"/>';
     s+='<text x="'+W+'" y="'+(y-6)+'" text-anchor="end" style="fill:var(--ink-2);font:600 10.5px var(--f)">teto '+fmtK(ref)+'</text>'; }
   return s+'</svg>'; }
+
+/* leitura do empilhado do comprometido: o que pesa em cada mês e o que isso sobra da renda */
+function compromissoLido(fut,ym0){
+  const linhas=fut.map(f=>({label:ymLabel(f.ym).split(" ")[0],nome:ymLabel(f.ym),ym:f.ym,
+    once:f.once,fix:f.fix,parc:f.parc,v:f.total}));
+  linhas.forEach((r,i)=>{ const renda=rendaPrevista(r.ym), sobra=renda-r.v;
+    const partes=[["parcelas de compras",r.parc],["gastos fixos",r.fix],["gastos à vista já lançados",r.once]]
+      .filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+    const f=[];
+    f.push("Em "+r.nome+", "+fmt(r.v)+" já tem dono antes de você gastar mais nada.");
+    if(partes.length) f.push("O maior pedaço são "+partes[0][0]+" ("+fmtN(partes[0][1])+")"+
+      (partes[1]?", depois "+partes[1][0]+" ("+fmtN(partes[1][1])+")":"")+".");
+    if(renda>0) f.push(sobra>=0?"Da renda prevista de "+fmtN(renda)+" sobram "+fmtN(sobra)+" para o resto do mês, "+Math.round(r.v/renda*100)+"% já comprometidos."
+      :"Isso passa a renda prevista de "+fmtN(renda)+" em "+fmtN(-sobra)+".");
+    if(i>0) f.push("Contra "+linhas[i-1].nome+" ("+fmtN(linhas[i-1].v)+"), "+maisOuMenos(r.v,linhas[i-1].v)+".");
+    if(i<linhas.length-1&&linhas[i+1].parc<r.parc) f.push("Em "+linhas[i+1].nome+" as parcelas caem para "+fmtN(linhas[i+1].parc)+": alguma coisa termina aqui.");
+    r.leitura=f.join(" "); r.leituraT=r.nome; });
+  return linhas; }
+function resumoCompromisso(linhas){
+  if(linhas.length<2) return "";
+  const pico=linhas.reduce((a,b)=>b.v>a.v?b:a), leve=linhas.reduce((a,b)=>b.v<a.v?b:a);
+  const f=["<b>O que este gráfico diz</b>"];
+  f.push("O mês mais pesado à frente é "+pico.nome+", com "+fmtN(pico.v)+" já comprometidos; o mais leve é "+leve.nome+", com "+fmtN(leve.v)+".");
+  const r0=rendaPrevista(linhas[0].ym);
+  if(r0>0) f.push("Em "+linhas[0].nome+" isso é "+Math.round(linhas[0].v/r0*100)+"% da renda prevista.");
+  const cai=linhas.find((r,i)=>i>0&&r.parc<linhas[i-1].parc-1000);
+  if(cai) f.push("As parcelas afrouxam a partir de "+cai.nome+".");
+  return '<div class="cardbox-s" style="margin:10px 0 0">'+f.join(" ")+' <i>Toque numa coluna para entender aquele mês.</i></div>'; }
 
 function legendHTML(series){ return '<div class="legend">'+series.map(k=>'<span class="lg"><i style="background:'+k.color+'"></i>'+esc(k.n)+'</span>').join("")+'</div>'; }
 function tableView(head,rows){
@@ -1424,19 +1477,204 @@ function tableView(head,rows){
     '</tbody></table></div></details>'; }
 
 /* dica flutuante */
+/* =================== dicas =================== */
+/* Pedido do dono (27/09/2026): "quando parasse o mouse sobre um campo, um título, por 3 segundos,
+   você desse uma dica". No celular não há mouse: vale o toque longo (0,6s). O texto vem do próprio
+   rótulo — um dicionário por texto —, então toda tela nova já nasce com dica, sem marcar nada na mão. */
+const chaveDica=t=>deacc(String(t||"").toLowerCase()).replace(/[^a-z0-9 ]+/g," ").replace(/\s+/g," ").trim();
+const DICAS={};
+/* a chave casa por começo do texto, porque os rótulos trazem o mês ou o nome junto
+   ("Disponível até o fim de set 2026"). Vence a chave mais longa que encaixa. */
+[["No banco hoje","O saldo de todas as contas somadas, hoje. O dinheiro da carteira aparece à parte, porque não está no banco."],
+ ["Lançado nos cartões","O que já está lançado na fatura de cada cartão para este mês. Compra no crédito só sai da conta quando a fatura é paga."],
+ ["Melhor cartão","O cartão cuja fatura fecha mais longe: comprando com ele hoje, você fica mais tempo com o dinheiro na conta. Depende do dia de fechamento de cada cartão, informado em Ajustes."],
+ ["Disponível até o fim","O que ainda cabe no seu teto neste mês: o teto menos o que já foi gasto e menos o que está comprometido (parcelas, fixos e agendados)."],
+ ["Gasto no mês","Tudo o que saiu neste mês, inclusive as compras no crédito — elas contam no dia da compra, mesmo que o dinheiro só saia na fatura."],
+ ["Entrou no mês","O que entrou neste mês: salário e outras entradas já lançadas. Empréstimo recebido não conta como renda."],
+ ["Saldo hoje","O dinheiro que você tem agora, somando as contas."],
+ ["Previsto dia","O saldo que o app espera para o último dia do mês: o de hoje, mais o que ainda entra, menos os fixos e as faturas que ainda vão sair."],
+ ["Próximos vencimentos","Faturas, boletos, gastos fixos e parcelas de dívida com data marcada nos próximos dias."],
+ ["Onde meu dinheiro está indo","As categorias do mês em ordem de valor. O traço cinza na barra é o limite que você definiu para aquela categoria em Ajustes."],
+ ["Onde o dinheiro está","O saldo de cada conta hoje, uma por uma."],
+ ["O que salta aos olhos","O diagnóstico do mês: o que passou do teto, o que fugiu do 50-30-20, gastos que parecem fixos e cartões perto do limite."],
+ ["Ritmo do mês","A linha azul é quanto você já gastou, dia a dia. A cinza é o ritmo que cabe no teto. Acima da cinza, você está gastando mais rápido do que o mês aguenta."],
+ ["Últimos 6 meses","Quanto saiu em cada um dos últimos meses, com a linha vermelha do teto para comparar."],
+ ["Quanto do futuro já está comprometido","O que já tem dono nos próximos meses — parcelas, gastos fixos e dívidas — antes de você gastar mais nada."],
+ ["Próximos 12 meses","O mesmo, um ano à frente: dá para ver quando as parcelas afrouxam."],
+ ["Tenho hoje","O saldo somado das contas neste momento."],
+ ["Previsto no dia","O saldo esperado para o fim do mês, já descontando o que ainda vai sair."],
+ ["Cartões de crédito","A fatura de cada cartão, quanto está em aberto e quanto do limite ainda cabe."],
+ ["Extrato de","Todos os lançamentos do mês, do mais novo para o mais antigo. Toque em qualquer linha para corrigir."],
+ ["Gasto e comprometido","O que já saiu mais o que já tem data para sair neste mês."],
+ ["Teto","Quanto você decidiu gastar no mês. Muda em Ajustes, em Meta do mês — não é limite do banco, é a sua decisão."],
+ ["Contas a pagar","O que ainda vence neste mês: fixos, faturas, boletos e parcelas de dívida."],
+ ["Por categoria","Em que os gastos do mês se dividem. Toque numa barra para entender aquela categoria."],
+ ["Lançar por fala","Toque no microfone e diga o gasto como você contaria para alguém: valor, o que foi, como pagou e em quantas vezes."],
+ ["Importar extrato da conta","Leia o PDF do extrato do banco: o app traz os lançamentos já classificados e confere se algum já estava lançado."],
+ ["Importar fatura do cartão","Leia o PDF da fatura, a foto de um canhoto ou de um boleto. Parcelas são reconhecidas e reservadas nos meses seguintes."],
+ ["Dívidas e empréstimos","Consignados, empréstimos e financiamentos. Cadastrados, entram sozinhos todo mês e dão acesso à simulação de quitação."],
+ ["Confira antes de salvar","A lista do que o app entendeu. Dá para mudar valor, descrição, categoria, forma de pagamento, data e parcelas antes de gravar."],
+ ["Lançado hoje","O que você já lançou hoje, para não repetir sem querer."],
+ ["Já guardei para","Tudo o que você já separou para a meta. Use Guardei um dinheiro a cada valor separado."],
+ ["Juntar um montante","Você diz quanto quer juntar e até quando; o app calcula, mês a mês, quanto dá para guardar e de onde dá para cortar, olhando o seu histórico."],
+ ["Juntar R$","O alvo e a data deste plano. O número grande é quanto guardar por mês, em média."],
+ ["No período todo","As contas do plano somando todos os meses que faltam: o que entra, o que já está comprometido e o que sobra."],
+ ["Mês a mês","Cada mês pesa o que entra e o que já está comprometido nele. Por isso um mês aguenta mais que o outro — quando uma parcela termina, o seguinte fica mais folgado."],
+ ["Onde cortar","Sugestões tiradas do seu histórico: a média da categoria e o seu melhor mês. O corte nunca desce abaixo do que você já conseguiu gastar."],
+ ["Método 50-30-20","Divide a renda em Necessidades (50%), Desejos (30%) e Futuro (20%). O anel de fora é a meta; o de dentro, para onde a renda foi."],
+ ["O que tem em cada grupo","Quais categorias entram em Necessidades, Desejos e Futuro — o grupo de cada uma muda em Ajustes."],
+ ["Maiores lançamentos","Os gastos que mais pesaram no mês, um a um."],
+ ["O que já guardei","A lista de tudo o que você separou, dizendo de que conta saiu e onde ficou."],
+ ["Diagnóstico de","A leitura do mês em frases: ritmo contra o teto, 50-30-20, renda comprometida, cartões perto do limite e gastos que viraram hábito."],
+ ["Por cartão e forma de pagamento","Quanto saiu em cada cartão, no débito, no Pix, em dinheiro e em boleto."],
+ ["Limite dos cartões","Quanto de cada limite já está usado, contando também as parcelas que ainda vão cair."],
+ ["Compras parceladas","As compras que você dividiu e ainda estão correndo, com quanto falta em cada uma."],
+ ["Parcelas neste mês","Quanto das compras parceladas cai neste mês."],
+ ["Ainda a pagar","A soma de tudo o que falta pagar das compras parceladas."],
+ ["A última termina em","O mês em que a sua última parcela em aberto acaba."],
+ ["Parcelas por mês","Quanto das compras parceladas cai em cada mês. A barra desce quando uma compra termina."],
+ ["Dívidas:","Empréstimos, consignados e financiamentos cadastrados, com saldo devedor, juros e simulação de quitação."],
+ ["Saldo devedor","Quanto você ainda deve hoje, já descontando os juros que não vão correr se quitar agora."],
+ ["Juros que ainda vai pagar","O que dos próximos pagamentos é só juros, se você seguir pagando em dia."],
+ ["Tudo quitado em","O mês em que a última parcela da última dívida acaba."],
+ ["Período","De quando até quando a consulta olha. Os períodos prontos seguem o mês que está na barra de cima."],
+ ["O que mostrar","Gastos, entradas ou os dois juntos."],
+ ["Categorias (","Marque quantas quiser. Sem marcar nenhuma, valem todas."],
+ ["Forma de pagamento","Marque cartões, débito, Pix, dinheiro ou boleto. Sem marcar nenhum, valem todos."],
+ ["Gasto no período","O total do período com os filtros marcados."],
+ ["Por forma de pagamento","Quanto do período saiu em cada cartão ou forma de pagamento."],
+ ["Lançamentos","A lista do período: data, descrição, categoria, forma de pagamento e valor. Toque para corrigir."],
+ ["Saldo de cada conta","O saldo que o app calcula para cada conta e cartão, com os atalhos de saldo inicial e de correção."],
+ ["O que já foi importado","Quais extratos e faturas você já leu, mês a mês. Serve para não ficar perdido no meio da carga."],
+ ["Meta do mês","Sua renda, o teto de gastos e quanto você quer ter na conta no fim do mês."],
+ ["Renda líquida mensal","O que entra por mês, já descontados impostos. Ao mudar, o app pergunta a partir de que mês vale — os meses anteriores não mudam."],
+ ["O salário cai na conta","O dia em que o salário costuma entrar. O app pode lançá-lo sozinho."],
+ ["Teto de gastos","Quanto você decidiu gastar por mês. É a base do Painel e dos avisos."],
+ ["Quanto quero ter na conta","A sua meta de saldo no fim do mês; o Painel compara o previsto com ela."],
+ ["Formas de pagamento","Seus cartões, com dia de fechamento, dia de vencimento e limite — é daí que sai o melhor cartão para comprar hoje."],
+ ["Categorias de gasto","Suas categorias. Renomear é seguro e vale para trás; ao excluir, o app pergunta para onde levar os lançamentos."],
+ ["Categorias de entrada","As categorias do que entra: salário, aluguel recebido, reembolso, venda."],
+ ["Gastos fixos do mês","O que se repete todo mês. Entram no comprometido antes mesmo de serem lançados."],
+ ["O que o app aprendeu","As palavras que o app associou a uma categoria ou a um cartão quando você corrigiu um lançamento."],
+ ["Dados","Backup, restauração, sincronização com o Drive e recomeçar do zero."],
+ ["Quanto você separou","O valor que está saindo da conta do dia a dia para ficar guardado."],
+ ["Quanto quer juntar","O montante que você quer ter na mão na data escolhida."],
+ ["Até quando","A data em que você quer o dinheiro pronto."],
+ ["Sai de","A conta de onde o dinheiro sai."],
+ ["Fica em","A conta onde o dinheiro fica guardado."],
+ ["Limite por mês","Quanto você quer gastar nesta categoria por mês. Vira um traço na barra e um aviso quando estoura."],
+ ["No método 50-30-20","Em qual grupo esta categoria entra: Necessidade, Desejo ou Futuro."],
+ ["Anotação","Um lembrete curto para você lembrar depois do que se tratava."]
+].forEach(d=>{ DICAS[chaveDica(d[0])]=d[1]; });
+const CHAVES_DICA=Object.keys(DICAS).sort((a,b)=>b.length-a.length);
+const achaDica=t=>{ const k=chaveDica(t); if(!k) return ""; 
+  for(const c of CHAVES_DICA){ if(k===c||k.indexOf(c+" ")===0||k.indexOf(c)===0) return DICAS[c]; }
+  return ""; };
+/* põe data-dica nos rótulos conhecidos da tela toda, a cada render */
+const ALVO_DICA=".tile-l,.hero-l,.ch-t,.sec-t,.set-f label,.day-t,.badge,.linkrow .t,.seg,.chip,button.btn,button.mini,.row-d";
+function bindDicas(root){
+  $$(ALVO_DICA,root||document).forEach(el=>{
+    if(el.dataset.dica) return;
+    const d=achaDica(el.textContent);
+    if(d) el.dataset.dica=d; }); }
+/* um só ouvinte para a página inteira: espera 3s parado no mouse, 0,6s no toque longo */
+(function(){
+  const caixa=()=>$("#dica");
+  let t=null, alvo=null;
+  const esconde=()=>{ if(t){ clearTimeout(t); t=null; } alvo=null; const c=caixa(); if(c) c.hidden=true; };
+  const mostra=(el,x,y)=>{ const c=caixa(); if(!c) return;
+    c.innerHTML='<b>'+esc((el.dataset.dicaT||el.textContent||"").trim().slice(0,60))+'</b>'+esc(el.dataset.dica);
+    c.hidden=false;
+    const r=c.getBoundingClientRect();
+    c.style.left=Math.max(r.width/2+8,Math.min(innerWidth-r.width/2-8,x))+"px";
+    c.style.top=Math.max(r.height+10,y-12)+"px"; };
+  document.addEventListener("mouseover",e=>{ const el=e.target.closest&&e.target.closest("[data-dica]");
+    if(!el||el===alvo) return; esconde(); alvo=el;
+    t=setTimeout(()=>{ const b=el.getBoundingClientRect(); mostra(el,b.left+b.width/2,b.top); },3000); });
+  document.addEventListener("mouseout",e=>{ const el=e.target.closest&&e.target.closest("[data-dica]");
+    if(el&&el===alvo) esconde(); });
+  document.addEventListener("scroll",esconde,true);
+  document.addEventListener("touchstart",e=>{ const el=e.target.closest&&e.target.closest("[data-dica]");
+    if(!el) return; esconde(); alvo=el;
+    const p=e.touches&&e.touches[0];
+    t=setTimeout(()=>{ mostra(el,p?p.clientX:innerWidth/2,p?p.clientY:120); },600); },{passive:true});
+  ["touchend","touchmove","touchcancel"].forEach(ev=>document.addEventListener(ev,esconde,{passive:true}));
+})();
+
+/* =================== leitura dos gráficos ===================
+   Pedido do dono (27/09/2026): "nos gráficos, você explicasse os gráficos, interpretando os dados
+   reais dele; se clicar em algum ponto, você desse a interpretação daquele dado". Cada ponto leva
+   um data-leitura pronto; o resumo embaixo do gráfico é montado dos mesmos números. */
+const attrLeitura=r=>r&&r.leitura?' data-leitura="'+esc(r.leitura)+'" data-lt="'+esc(r.leituraT||r.label||"")+'" style="cursor:pointer"':"";
+const maisOuMenos=(a,b)=>{ if(!b) return ""; const p=Math.round((a-b)/b*100);
+  return p===0?"na mesma":(p>0?p+"% acima":Math.abs(p)+"% abaixo"); };
+const media=vs=>vs.length?vs.reduce((x,y)=>x+y,0)/vs.length:0;
+/* série no tempo (meses ou dias): compara com o anterior, com a média e com o teto */
+function leituraSerie(rows,i,opt){
+  opt=opt||{}; const r=rows[i], vs=rows.map(x=>x.v), m=media(vs);
+  const max=Math.max.apply(null,vs), min=Math.min.apply(null,vs);
+  const f=[]; f.push((opt.oque||"Foram")+" "+fmt(r.v)+" em "+(r.nome||r.label)+".");
+  if(i>0) f.push("Contra "+(rows[i-1].nome||rows[i-1].label)+" ("+fmtN(rows[i-1].v)+"), "+maisOuMenos(r.v,rows[i-1].v)+".");
+  if(rows.length>2) f.push("A média dos "+rows.length+" meses do gráfico é "+fmtN(m)+", então este mês está "+maisOuMenos(r.v,m)+".");
+  if(r.v===max&&rows.length>1) f.push("É o maior do período.");
+  else if(r.v===min&&rows.length>1) f.push("É o menor do período.");
+  if(opt.ref>0) f.push(r.v>opt.ref?"Passou do teto de "+fmtN(opt.ref)+" em "+fmtN(r.v-opt.ref)+".":"Ficou "+fmtN(opt.ref-r.v)+" dentro do teto de "+fmtN(opt.ref)+".");
+  if(opt.extra&&opt.extra(r)) f.push(opt.extra(r));
+  return f.join(" "); }
+function resumoSerie(rows,opt){
+  opt=opt||{}; if(rows.length<2) return "";
+  const vs=rows.map(r=>r.v), m=media(vs), u=rows[rows.length-1], a=rows[rows.length-2];
+  const max=rows.reduce((x,y)=>y.v>x.v?y:x), min=rows.reduce((x,y)=>y.v<x.v?y:x);
+  const f=["<b>O que este gráfico diz</b>"];
+  f.push((u.nome||u.label)+" fechou em "+fmtN(u.v)+", "+maisOuMenos(u.v,a.v)+" de "+(a.nome||a.label)+
+    " e "+maisOuMenos(u.v,m)+" da média do período ("+fmtN(m)+").");
+  if(max.v!==min.v) f.push("O maior foi "+(max.nome||max.label)+" ("+fmtN(max.v)+") e o menor, "+(min.nome||min.label)+" ("+fmtN(min.v)+").");
+  if(opt.ref>0){ const passou=rows.filter(r=>r.v>opt.ref).length;
+    f.push(passou?passou+(passou>1?" desses meses passaram":" desses meses passou")+" do teto de "+fmtN(opt.ref)+".":"Nenhum deles passou do teto de "+fmtN(opt.ref)+"."); }
+  if(opt.fim) f.push(opt.fim);
+  return '<div class="cardbox-s" style="margin:10px 0 0">'+f.join(" ")+' <i>Toque numa barra para entender aquele mês.</i></div>'; }
+/* fatias: o peso de cada uma dentro do total */
+function leituraFatia(r,total,opt){
+  opt=opt||{}; const f=[];
+  f.push(r.label+": "+fmt(r.v)+(total?", "+Math.round(r.v/total*100)+"% "+(opt.de||"do total do mês"):"")+".");
+  if(opt.lugar) f.push(opt.lugar);
+  if(r.limit>0) f.push(r.v>r.limit?"Passou do limite de "+fmtN(r.limit)+" que você definiu, em "+fmtN(r.v-r.limit)+".":"O limite que você definiu é "+fmtN(r.limit)+"; sobra "+fmtN(r.limit-r.v)+".");
+  if(opt.media>0) f.push("Nos meses anteriores a média desta categoria é "+fmtN(opt.media)+", então está "+maisOuMenos(r.v,opt.media)+".");
+  if(opt.extra) f.push(opt.extra);
+  return f.join(" "); }
+function resumoFatias(rows,total,opt){
+  opt=opt||{}; if(!rows.length) return "";
+  const o=rows.slice().sort((a,b)=>b.v-a.v), top=o[0];
+  const tres=o.slice(0,3), soma=tres.reduce((s,r)=>s+r.v,0);
+  const f=["<b>O que este gráfico diz</b>"];
+  f.push("O maior peso é "+top.label+", com "+fmtN(top.v)+(total?" ("+Math.round(top.v/total*100)+"% "+(opt.de||"do mês")+")":"")+".");
+  if(o.length>2&&total) f.push("As três maiores — "+tres.map(r=>r.label).join(", ")+" — somam "+fmtN(soma)+", "+Math.round(soma/total*100)+"% do total.");
+  const estourou=rows.filter(r=>r.limit>0&&r.v>r.limit);
+  if(estourou.length) f.push(estourou.length===1?estourou[0].label+" passou do limite que você definiu.":estourou.length+" categorias passaram do limite que você definiu.");
+  if(opt.fim) f.push(opt.fim);
+  return '<div class="cardbox-s" style="margin:10px 0 0">'+f.join(" ")+' <i>Toque numa barra para entender aquela categoria.</i></div>'; }
+function openLeitura(titulo,texto){
+  sheet(titulo||"O que isto quer dizer",
+    '<div class="set"><div class="note"><b>'+esc(titulo||"")+'</b>'+esc(texto)+'</div></div>',
+    '<button class="btn" id="lqOk">Entendi</button>');
+  $("#lqOk").onclick=closeSheet; }
+
 function bindTips(root){
   $$(".chart",root).forEach(box=>{
     let tip=box.querySelector(".tip");
     if(!tip){ tip=document.createElement("div"); tip.className="tip"; tip.hidden=true; box.appendChild(tip); }
     const show=ev=>{ const el=ev.target.closest("[data-tip]"); if(!el){ tip.hidden=true; return; }
       const parts=el.getAttribute("data-tip").split("|");
-      tip.innerHTML="<b>"+parts[0]+"</b>"+(parts[1]?parts[1]:"");
+      tip.innerHTML="<b>"+parts[0]+"</b>"+(parts[1]?parts[1]:"")+
+        (el.getAttribute("data-leitura")?'<span class="mais">toque para entender este dado</span>':"");
       const r=box.getBoundingClientRect(), b=el.getBoundingClientRect();
       tip.style.left=Math.max(60,Math.min(r.width-60,b.left+b.width/2-r.left))+"px";
       tip.style.top=Math.max(30,b.top-r.top)+"px"; tip.hidden=false; };
     box.addEventListener("mousemove",show);
     box.addEventListener("mouseleave",()=>{ tip.hidden=true; });
-    box.addEventListener("touchstart",show,{passive:true}); }); }
+    box.addEventListener("touchstart",show,{passive:true});
+    box.addEventListener("click",ev=>{ const el=ev.target.closest("[data-leitura]"); if(!el) return;
+      tip.hidden=true; openLeitura(el.getAttribute("data-lt")||"Este ponto do gráfico",el.getAttribute("data-leitura")); }); }); }
 /* =================== navegação =================== */
 const IC={
   consulta:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/>',
@@ -1488,6 +1726,7 @@ function render(){
   NAV.forEach(x=>{ const p=$("#p-"+x.id); if(p){ p.hidden = x.id!==S.view; if(p.hidden) p.innerHTML=""; } });
   const fn={painel:renderPainel,lancar:renderLancar,mes:renderMes,contas:renderContas,futuro:renderFuturo,meta:renderMeta,analises:renderAnalises,consulta:renderConsulta,ajustes:renderAjustes,ajuda:renderAjuda}[S.view];
   if(fn) fn();
+  bindDicas();
 }
 
 /* =================== painel =================== */
@@ -1594,16 +1833,25 @@ function renderPainel(){
   /* onde o dinheiro está indo */
   const ents=Object.keys(st.byCat).map(id=>({id,v:st.byCat[id]})).sort((a,b)=>b.v-a.v);
   const tot=ents.reduce((s,e)=>s+e.v,0);
-  let rows=ents.slice(0,8).map(e=>({label:catName(e.id),v:e.v,pct:tot?Math.round(e.v/tot*100):0,
-    limit:catLimit(e.id), tip:catName(e.id)+" — "+fmt(e.v)+(catLimit(e.id)?"|limite "+fmtN(catLimit(e.id)):"")}));
+  /* média da categoria nos meses fechados, para a leitura comparar com o histórico */
+  const hCat=historicoPlano();
+  const mediaCat=id=>{ const c=hCat.cats.find(x=>x.id===id); return c?c.media:0; };
+  let rows=ents.slice(0,8).map((e,i)=>{ const r={label:catName(e.id),v:e.v,pct:tot?Math.round(e.v/tot*100):0,
+      limit:catLimit(e.id), tip:catName(e.id)+" — "+fmt(e.v)+(catLimit(e.id)?"|limite "+fmtN(catLimit(e.id)):"")};
+    r.leitura=leituraFatia(r,tot,{de:"de tudo o que saiu em "+ymLabel(S.ym), media:mediaCat(e.id),
+      lugar:i===0?"É a maior do mês.":(i+1)+"ª maior do mês.",
+      extra:"No método 50-30-20 ela conta como "+NOMES_GRUPO[grupoDe(e.id)]+"."});
+    return r; });
   if(ents.length>8){ const resto=ents.slice(8).reduce((s,e)=>s+e.v,0);
     rows.push({label:"Outras ("+(ents.length-8)+")",v:resto,pct:tot?Math.round(resto/tot*100):0,
-      tip:"Outras categorias — "+fmt(resto)}); }
+      tip:"Outras categorias — "+fmt(resto),
+      leitura:"As outras "+(ents.length-8)+" categorias somam "+fmt(resto)+", "+(tot?Math.round(resto/tot*100):0)+"% do mês. Nenhuma delas isolada chega às oito maiores."}); }
 
   html+='<div class="sec"><div class="grid g23">'+
     '<div class="card pad chart"><div class="ch-h"><span class="ch-t">Onde meu dinheiro está indo</span></div>'+
     '<div class="ch-s">'+esc(ymLabel(S.ym))+' · '+fmt(tot)+' no total. O traço cinza é o limite que você definiu para a categoria.</div>'+
     chartBarsH(rows,{alt:"Gastos por categoria"})+
+    resumoFatias(rows,tot,{de:"do mês",fim:st.cap?("O mês todo soma "+fmtN(tot)+" contra um teto de "+fmtN(st.cap)+"."):""})+
     tableView(["Categoria","Valor","% do total"],ents.map(e=>[catName(e.id),fmtN(e.v),(tot?Math.round(e.v/tot*100):0)+"%"]))+
     '</div>'+
     '<div><div class="sec-h"><h2 class="sec-t">O que salta aos olhos</h2></div>'+insHTML(buildInsights(S.ym))+'</div>'+
@@ -1619,8 +1867,13 @@ function renderPainel(){
     '<span class="lg"><i style="background:var(--ink-3)"></i>Ritmo do teto</span></div></div>'+
     '<div class="card pad chart"><div class="ch-h"><span class="ch-t">Últimos 6 meses</span></div>'+
     '<div class="ch-s">Quanto saiu por mês, contra a linha do teto.</div>'+
-    chartCols(hist.map(h=>({label:ymLabel(h.ym).split(" ")[0],v:h.gasto,tip:ymLabel(h.ym)+" — "+fmt(h.gasto)})),
-      {ref:S.cfg.cap||0,alt:"Gasto dos últimos seis meses"})+
+    (()=>{ const linhas=hist.map(h=>({label:ymLabel(h.ym).split(" ")[0],nome:ymLabel(h.ym),v:h.gasto,renda:h.renda,
+        tip:ymLabel(h.ym)+" — "+fmt(h.gasto)}));
+      linhas.forEach((r,i)=>{ r.leituraT=r.nome;
+        r.leitura=leituraSerie(linhas,i,{oque:"Saíram",ref:S.cfg.cap||0,
+          extra:x=>x.renda?("Entraram "+fmtN(x.renda)+" nesse mês, então "+(x.v>x.renda?"o mês fechou no vermelho em "+fmtN(x.v-x.renda):"sobraram "+fmtN(x.renda-x.v))+"."):""}); });
+      return chartCols(linhas,{ref:S.cfg.cap||0,alt:"Gasto dos últimos seis meses"})+
+        resumoSerie(linhas,{ref:S.cfg.cap||0}); })()+
     tableView(["Mês","Gasto","Entrou"],hist.map(h=>[ymLabel(h.ym),fmtN(h.gasto),fmtN(h.renda)]))+
     '</div></div></div>';
 
@@ -1630,9 +1883,9 @@ function renderPainel(){
   html+='<div class="sec"><div class="card pad chart">'+
     '<div class="ch-h"><span class="ch-t">Quanto do futuro já está comprometido</span></div>'+
     '<div class="ch-s">Parcelas e gastos fixos que já estão reservados nos próximos meses, antes de você gastar mais nada.</div>'+
-    chartStack(fut.map(f=>({label:ymLabel(f.ym).split(" ")[0],once:f.once,fix:f.fix,parc:f.parc})),SER,
-      {ref:S.cfg.cap||0,alt:"Comprometido nos próximos seis meses"})+
-    legendHTML(SER)+
+    (()=>{ const L=compromissoLido(fut);
+      return chartStack(L,SER,{ref:S.cfg.cap||0,alt:"Comprometido nos próximos seis meses"})+
+        legendHTML(SER)+resumoCompromisso(L); })()+
     tableView(["Mês","À vista","Fixos","Parcelas","Total"],
       fut.map(f=>[ymLabel(f.ym),fmtN(f.once),fmtN(f.fix),fmtN(f.parc),fmtN(f.total)]))+
     '</div></div>';
@@ -1857,8 +2110,14 @@ function renderMes(){
     htmlContas(S.ym)+
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Por categoria</h2>'+
     (st.fixPend>0?'<button class="sec-a" id="fixBtn">Lançar fixos</button>':'')+'</div>'+
-    '<div class="card pad chart">'+chartBarsH(ents.map(e=>({label:catName(e.id),v:e.v,pct:tot?Math.round(e.v/tot*100):0,
-      limit:catLimit(e.id),tip:catName(e.id)+" — "+fmt(e.v)})),{alt:"Gastos por categoria"})+'</div></div>'+
+    '<div class="card pad chart">'+(()=>{ const hC=historicoPlano();
+      const L=ents.map((e,i)=>{ const r={label:catName(e.id),v:e.v,pct:tot?Math.round(e.v/tot*100):0,
+          limit:catLimit(e.id),tip:catName(e.id)+" — "+fmt(e.v)};
+        const h=hC.cats.find(x=>x.id===e.id);
+        r.leitura=leituraFatia(r,tot,{de:"do gasto de "+ymLabel(S.ym), media:h?h.media:0,
+          lugar:(i+1)+"ª maior do mês.", extra:"No 50-30-20 conta como "+NOMES_GRUPO[grupoDe(e.id)]+"."});
+        r.leituraT=r.label; return r; });
+      return chartBarsH(L,{alt:"Gastos por categoria"})+resumoFatias(L,tot,{de:"do mês"}); })()+'</div></div>'+
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Extrato de '+esc(ymLabel(S.ym))+'</h2></div>'+
     (days.length?days.map(d=>{ const dt=new Date(d+"T12:00:00");
       const tg=byDay[d].filter(x=>x.k==="g").reduce((s,x)=>s+x.v,0);
@@ -1940,8 +2199,8 @@ function renderFuturo(){
     '<div class="sec"><div class="card pad chart">'+
     '<div class="ch-h"><span class="ch-t">Próximos 12 meses</span></div>'+
     '<div class="ch-s">O que já está reservado antes de qualquer gasto novo.</div>'+
-    chartStack(fut.map(f=>({label:ymLabel(f.ym).split(" ")[0],once:f.once,fix:f.fix,parc:f.parc})),SER,
-      {ref:S.cfg.cap||0,alt:"Comprometido nos próximos doze meses"})+legendHTML(SER)+
+    (()=>{ const L=compromissoLido(fut);
+      return chartStack(L,SER,{ref:S.cfg.cap||0,alt:"Comprometido nos próximos doze meses"})+legendHTML(SER)+resumoCompromisso(L); })()+
     tableView(["Mês","À vista","Fixos","Parcelas","Total"],fut.map(f=>[ymLabel(f.ym),fmtN(f.once),fmtN(f.fix),fmtN(f.parc),fmtN(f.total)]))+
     '<div style="margin-top:14px;padding-top:13px;border-top:1px solid var(--line);display:grid;gap:8px;font-size:13px;color:var(--ink-2)">'+
     '<div style="display:flex;justify-content:space-between"><span>Parcelas ainda a pagar</span><b style="font-family:var(--f-m)">'+fmt(totRest)+'</b></div>'+
@@ -1963,7 +2222,7 @@ function sheet(title,body,acts){
   $("#sheet").innerHTML='<div class="sheet-h"><span class="sheet-t">'+esc(title)+
     '</span><button class="icon-btn" id="shX" aria-label="Fechar">✕</button></div>'+body+
     '<div class="sheet-acts">'+(acts||"")+'</div>';
-  $("#scrim").hidden=false; $("#shX").onclick=closeSheet; }
+  $("#scrim").hidden=false; $("#shX").onclick=closeSheet; bindDicas($("#sheet")); }
 function closeSheet(){ $("#scrim").hidden=true; $("#sheet").innerHTML=""; }
 $("#scrim").onclick=e=>{ if(e.target===$("#scrim")) closeSheet(); };
 const optId=(arr,sel)=>arr.map(o=>'<option value="'+o.id+'"'+(o.id===sel?" selected":"")+">"+esc(o.n)+"</option>").join("");
@@ -2630,6 +2889,12 @@ const AJUDA=[
   c:"Na Consulta, toque em Escolher datas: abre um calendário para marcar o dia de início e, logo depois, outro para o dia do fim — é só tocar no dia, não se digita nada. Depois, os botões De e Até mostram as datas escolhidas e reabrem o calendário daquela ponta quando você toca neles. As setas mudam de mês (‹ ›) e de ano (« »), e o botão Hoje marca a data de hoje. No calendário do fim, os dias anteriores ao início ficam apagados, para o período não sair invertido.",a:"consulta"},
  {g:"Entender os números",t:"A Consulta é de qual mês?",
   c:"Do mês que estiver na barra de cima — o mesmo seletor que comanda o Painel e o Mês. Todos os períodos seguem esse mês: quando ele é o mês atual, hoje é hoje mesmo e a semana é a semana corrente; quando você volta para um mês passado, o dia de referência passa a ser o último dia daquele mês (em fev 2026, 28/02), e os botões mudam de nome para dizer isso — Dia 28/02, Semana até 28/02, 30 dias até 28/02. O ano também é o da barra. Para consultar outro mês, troque ali em cima; para um período que não começa nem termina em mês fechado, use Escolher datas.",a:"consulta"},
+ {g:"No dia a dia",t:"O que é aquela bolha que aparece quando paro o mouse?",
+  c:"É a dica daquele item. Pare o mouse três segundos sobre um título, um número ou o nome de um campo e o app explica o que é aquilo — no celular, segure o dedo por um instante sobre o texto. A bolha some sozinha quando você tira o mouse ou o dedo. Vale no app inteiro, inclusive dentro das fichas.",a:"ajuda"},
+ {g:"Entender os números",t:"Não sei ler os gráficos. O app explica?",
+  c:"Explica. Embaixo de cada gráfico há um parágrafo O que este gráfico diz, escrito com os seus próprios números: qual categoria pesa mais, quanto o mês subiu ou caiu, quantos meses passaram do teto, quando as parcelas afrouxam. E tocando em qualquer barra, ponto ou fatia, o app abre a leitura daquele dado — o valor, a comparação com o mês anterior e com a média, a posição em relação ao teto e o que muda dali para a frente.",a:"painel"},
+ {g:"Lançar",t:"Falei \u201ctrinta e nove e noventa\u201d. Ele entende os centavos?",
+  c:"Entende. Tanto faz dizer \u201ctrinta e nove e noventa\u201d, \u201ctrinta e nove reais e noventa\u201d ou \u201ctrinta e nove e noventa centavos\u201d: os três viram R$ 39,90. O app sabe que, em português, a conta só desce (cem, e vinte, e sete) — o que vem depois maior que isso já são os centavos.",a:"fala"},
  {g:"No dia a dia",t:"Quero reorganizar as categorias. Vou bagunçar o que já lancei?",
   c:"Não. Por dentro, cada lançamento está amarrado à categoria por um código, não pelo nome — então renomear é seguro e vale para trás: tudo o que já estava ali passa a aparecer com o nome novo, inclusive nos meses fechados, nos gráficos e no 50-30-20. Criar categoria nova também não mexe em nada (ela nasce vazia). E ao excluir, o app não deixa nada solto: ele conta quantos lançamentos, gastos fixos e palavras aprendidas estão naquela categoria e pede para onde levar tudo, antes de tirá-la da lista. Duas não podem ser excluídas, só renomeadas: Dívidas e empréstimos (o app lança nela sozinho, nos consignados) e Outros (é a reserva de quando ele não sabe classificar).",a:"categorias"},
  {g:"No dia a dia",t:"Como divido uma categoria em duas ou três?",
@@ -3392,8 +3657,12 @@ function renderMeta(){
       '</span><b style="font-family:var(--f-m);font-weight:600;color:'+(n[2]||"var(--ink)")+'">'+esc(n[1])+'</b></div>').join("")+'</div>'
       :'<div class="empty"><b>Defina renda, teto e meta</b>Aí eu calculo em quantos meses você chega lá.</div>')+
     (meses.length>1?'<div class="chart" style="margin-top:16px">'+
-      chartCols(meses.map(m=>({label:ymLabel(m).split(" ")[0],v:porMes[m],color:"var(--good)",
-        tip:ymLabel(m)+" — guardou "+fmt(porMes[m])})),{alt:"Quanto guardou por mês"})+'</div>':'')+
+      (()=>{ const L=meses.map(m=>({label:ymLabel(m).split(" ")[0],nome:ymLabel(m),v:porMes[m],color:"var(--good)",
+          tip:ymLabel(m)+" — guardou "+fmt(porMes[m])}));
+        L.forEach((r,i)=>{ r.leituraT=r.nome;
+          r.leitura=leituraSerie(L,i,{oque:"Você guardou",
+            extra:x=>alvo>0?("Nesse passo, "+Math.ceil(Math.max(0,alvo-guardado)/Math.max(1,x.v))+" meses assim fechariam o que falta da meta."):""}); });
+        return chartCols(L,{alt:"Quanto guardou por mês"})+resumoSerie(L,{}); })()+'</div>':'')+
     '</div></div></div>'+
     htmlPlano()+
     '<div class="sec" id="m5030"></div>'+'<div class="sec"><div class="sec-h"><h2 class="sec-t">O que já guardei</h2></div>'+
@@ -3563,11 +3832,19 @@ function chartDonut5030(g,m,base){
     a+=d; });
   a=NOTCH/2;
   ks.forEach(k=>{ const d=span*g[k]/total;
-    if(d>GAP) s+='<path d="'+arco(C,C,60,94,a+GAP/2,a+d-GAP/2)+'" style="fill:'+cor[k]+'" data-tip="'+NOMES_GRUPO[k]+' — '+fmt(g[k])+'|'+(base?Math.round(g[k]/base*100):0)+'% da renda · meta '+m[k]+'%"/>';
+    if(d>GAP){ const alvo=Math.round(base*m[k]/100), piso=k==="fut";
+      const f=[NOMES_GRUPO[k]+" somam "+fmt(g[k])+" neste mês"+(base?", "+Math.round(g[k]/base*100)+"% da renda de "+fmtN(base):"")+"."];
+      f.push("A meta é "+m[k]+"% ("+fmtN(alvo)+"), que "+(piso?"é um piso: quanto mais, melhor.":"é um teto: o ideal é ficar abaixo."));
+      f.push(piso
+        ? (g[k]>=alvo?"Você está "+fmtN(g[k]-alvo)+" acima do piso — está guardando mais do que a meta.":"Faltam "+fmtN(alvo-g[k])+" para cumprir o piso deste mês.")
+        : (g[k]>alvo?"Passou do teto em "+fmtN(g[k]-alvo)+".":"Está "+fmtN(alvo-g[k])+" dentro do teto."));
+      f.push("Entram aqui as categorias marcadas como "+NOMES_GRUPO[k]+" em Ajustes — dá para mudar o grupo de qualquer categoria por lá.");
+      s+='<path d="'+arco(C,C,60,94,a+GAP/2,a+d-GAP/2)+'" style="fill:'+cor[k]+';cursor:pointer" data-tip="'+NOMES_GRUPO[k]+' — '+fmt(g[k])+'|'+(base?Math.round(g[k]/base*100):0)+'% da renda · meta '+m[k]+'%" data-leitura="'+esc(f.join(" "))+'" data-lt="'+NOMES_GRUPO[k]+' em '+esc(ymLabel(S.ym))+'"/>'; }
     a+=d; });
   const livre=Math.max(0,base-usado);
   if(livre>0){ const d=span*livre/total;
-    if(d>GAP) s+='<path d="'+arco(C,C,60,94,a+GAP/2,a+d-GAP/2)+'" style="fill:var(--surface-3)" data-tip="Sem destino ainda — '+fmt(livre)+'"/>'; }
+    if(d>GAP) s+='<path d="'+arco(C,C,60,94,a+GAP/2,a+d-GAP/2)+'" style="fill:var(--surface-3);cursor:pointer" data-tip="Sem destino ainda — '+fmt(livre)+'" data-lt="O que ainda não tem destino" data-leitura="'+
+      esc("Dos "+fmt(base)+" de renda do mês, "+fmt(livre)+" ainda não foram gastos nem guardados. Esse é o pedaço que dá para mandar para o Futuro — guardar, investir ou adiantar dívida — antes que vire gasto sem querer.")+'"/>'; }
   const pct=base?Math.round(usado/base*100):0, over=usado>base;
   s+='<text x="'+C+'" y="'+(C+2)+'" text-anchor="middle" style="fill:'+(over?'var(--bad)':'var(--ink)')+';font:600 30px var(--f)">'+pct+'%</text>';
   s+='<text x="'+C+'" y="'+(C+21)+'" text-anchor="middle" style="fill:var(--ink-3);font:400 10.5px var(--f)">'+(over?'acima da':'da renda')+'</text>';
@@ -4015,11 +4292,19 @@ function diagnostico(ym){
 function htmlPagamentos(ym,st){
   const por={}; st.gastos.forEach(t=>{ const k=t.card||t.method; por[k]=(por[k]||0)+t.v; });
   const tot=Object.keys(por).reduce((s,k)=>s+por[k],0), nome=k=>cardName(k)||METODOS[k]||(k==="folha"?"Desconto em folha":"Outro");
-  const rows=Object.keys(por).map(k=>({label:nome(k),v:por[k],pct:tot?Math.round(por[k]/tot*100):0,tip:nome(k)+" — "+fmt(por[k])})).sort((a,b)=>b.v-a.v);
+  const rows=Object.keys(por).map(k=>({label:nome(k),v:por[k],pct:tot?Math.round(por[k]/tot*100):0,tip:nome(k)+" — "+fmt(por[k]),id:k})).sort((a,b)=>b.v-a.v);
+  rows.forEach((r,i)=>{ const c=(S.cfg.cards||[]).find(x=>x.id===r.id), inv=c&&c.type==="credito"?cardInvoice(c.id,ym):null;
+    r.leituraT=r.label;
+    r.leitura=leituraFatia(r,tot,{de:"do que você gastou em "+ymLabel(ym), lugar:(i+1)+"ª forma mais usada no mês.",
+      extra:inv?("A fatura de "+ymLabel(ym)+" nesse cartão está em "+fmtN(inv.total||r.v)+
+        (c.limit?"; do limite de "+fmtN(c.limit)+", ainda cabem "+fmtN(Math.max(0,c.limit-cardOwed(c.id)))+".":"."))
+        :"Sai da conta na hora — não é crédito."}); });
   const cred=st.gastos.filter(t=>t.method==="credito").reduce((s,t)=>s+t.v,0), cartoes=creditCards().filter(c=>c.limit>0);
   return '<div class="sec"><div class="sec-h"><h2 class="sec-t">Por cartão e forma de pagamento</h2><span class="day-t">'+(tot?fmt(tot):"")+'</span></div>'+
     '<div class="grid g2"><div class="card pad chart"><div class="ch-s">'+(tot?Math.round(cred/tot*100)+"% dos gastos de "+esc(ymLabel(ym))+" foram no crédito.":"Nada lançado neste mês.")+'</div>'+
-    chartBarsH(rows,{alt:"Gastos por forma de pagamento"})+tableView(["Forma","Valor","%"],rows.map(r=>[r.label,fmtN(r.v),r.pct+"%"]))+'</div>'+
+    chartBarsH(rows,{alt:"Gastos por forma de pagamento"})+
+    resumoFatias(rows,tot,{de:"do mês",fim:cred?("No crédito foram "+fmtN(cred)+", que só saem da conta quando a fatura for paga."):""})+
+    tableView(["Forma","Valor","%"],rows.map(r=>[r.label,fmtN(r.v),r.pct+"%"]))+'</div>'+
     '<div class="card pad"><div class="tile-l" style="margin-bottom:10px">Limite dos cartões, já contando as parcelas futuras</div>'+
     (cartoes.length?cartoes.map(c=>{ const o=cardOwed(c.id), p=Math.min(100,o/c.limit*100);
       return '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;gap:10px"><span style="font-weight:600">'+esc(c.n)+'</span>'+
@@ -4038,7 +4323,16 @@ function htmlParcelados(){
     tile("Ainda a pagar",fmt(rest),"somando todas","flat")+tile("A última termina em",ymLabel(ultimo),"","flat")+'</div>';
   h+='<div class="card pad chart" style="margin-top:12px"><div class="ch-h"><span class="ch-t">Parcelas por mês</span></div>'+
     '<div class="ch-s">Quanto das compras parceladas cai em cada fatura. A barra desce quando uma compra termina.</div>'+
-    chartCols(fut.map(f=>({label:ymLabel(f.ym).split(" ")[0],v:f.parc,color:"var(--c3)",tip:ymLabel(f.ym)+" — "+fmt(f.parc)+(fins[f.ym]?"|termina: "+esc(fins[f.ym].slice(0,3).join(", ")):"")})),{alt:"Parcelas por mês"})+
+    (()=>{ const L=fut.map(f=>({label:ymLabel(f.ym).split(" ")[0],nome:ymLabel(f.ym),ym:f.ym,v:f.parc,color:"var(--c3)",
+        tip:ymLabel(f.ym)+" — "+fmt(f.parc)+(fins[f.ym]?"|termina: "+esc(fins[f.ym].slice(0,3).join(", ")):"")}));
+      L.forEach((r,i)=>{ r.leituraT=r.nome;
+        r.leitura=leituraSerie(L,i,{oque:"Em parcelas caem",
+          extra:x=>{ const t=[]; if(fins[x.ym]) t.push("Termina aqui: "+fins[x.ym].join(", ")+".");
+            const prox=L[i+1]; if(prox&&prox.v<x.v) t.push("A partir de "+prox.nome+" sobram "+fmtN(x.v-prox.v)+" por mês.");
+            const renda=rendaPrevista(x.ym); if(renda>0) t.push("É "+Math.round(x.v/renda*100)+"% da renda prevista desse mês.");
+            return t.join(" "); }}); });
+      return chartCols(L,{alt:"Parcelas por mês"})+
+        resumoSerie(L,{fim:"Quando uma compra acaba, a barra desce — e aquele dinheiro fica livre."}); })()+
     tableView(["Mês","Parcelas","Termina"],fut.map(f=>[ymLabel(f.ym),fmtN(f.parc),(fins[f.ym]||[]).join(", ")]))+'</div>';
   h+='<div class="grid g2" style="margin-top:12px">'+P.slice().sort((a,b)=>a.last.localeCompare(b.last)).map(p=>{
     const vm=(p.parts.find(x=>x.ym===cur)||p.parts.find(x=>x.ym>cur)||{v:0}).v, faltam=p.parts.filter(x=>x.ym>=cur).length;
