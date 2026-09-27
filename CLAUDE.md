@@ -233,7 +233,7 @@ Primeira publicação num computador novo: o dono autoriza no navegador (Git Cre
 
 ## Situação e próximos passos
 
-- **Publicado:** `caderneta-v62` (27/09/2026). O que existe está descrito acima; os commits contam a ordem.
+- **Publicado:** `caderneta-v63` (27/09/2026). O que existe está descrito acima; os commits contam a ordem.
 - **O que o dono está fazendo:** carregando os extratos da conta corrente e as faturas dos cartões (Visa, Mastercard, Elo) de janeiro a setembro de 2026, todos em PDF, no MacBook Air, depois de usar *Recomeçar do zero*. O passo a passo está no README, em *Importar meses anteriores*.
 - **Documentos reais (15/09/2026):** o dono mandou, por iniciativa própria, o extrato da conta corrente do BB de jan/2026 e uma fatura Ourocard Mastercard. Até a v14 o extrato vinha com descrições erradas (lote e documento no lugar do nome) e o Rende Fácil contado como gasto e entrada; a fatura lia taxas de juros como compras. Os formatos estão descritos acima e foram conferidos com os dois PDFs, que **não** estão no repositório. A fatura recebida só tinha anuidade e desconto; compras parceladas no formato do BB foram testadas com linhas simuladas. Se outro documento falhar, peça a *amostra sem dados*.
 - **Consignados:** ele tem dois — um pagando a 4ª de 12 em setembro de 2026, outro com a 1ª parcela em 01/10/2026. Depois do Recomeçar, precisam ser cadastrados de novo, com a data real do empréstimo e 0 já descontadas, antes de importar janeiro.
