@@ -336,6 +336,7 @@ table.dv td.n{text-align:right;font-family:var(--f-m);font-variant-numeric:tabul
 .chip.c{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)}
 .chip.ok{background:var(--good-soft,#e7f4ec);color:var(--good);border-color:#bfe0cd}
 button.chip{cursor:pointer;font-family:inherit}
+button.chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .chip.d{background:var(--surface-2);color:var(--ink-2)}
 
@@ -430,6 +431,7 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
   <section class="panel" id="p-meta" role="tabpanel" hidden></section>
   <section class="panel" id="p-analises" role="tabpanel" hidden></section>
   <section class="panel" id="p-ajustes" role="tabpanel" hidden></section>
+  <section class="panel" id="p-consulta" role="tabpanel" hidden></section>
   <section class="panel" id="p-ajuda" role="tabpanel" hidden></section>
 </main>
 </div>
@@ -1420,6 +1422,7 @@ function bindTips(root){
     box.addEventListener("touchstart",show,{passive:true}); }); }
 /* =================== navegação =================== */
 const IC={
+  consulta:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/>',
   ajuda:'<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.7.3-1.1.9-1.1 1.6v.3"/><path d="M12 17h.01"/>',
   painel:'<path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/>',
   lancar:'<path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><path d="M12 18v4"/>',
@@ -1433,7 +1436,7 @@ const IC={
 };
 const svgIc=k=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+IC[k]+'</svg>';
 const NAV=[{id:"painel",n:"Painel"},{id:"lancar",n:"Lançar"},{id:"mes",n:"Mês"},
-           {id:"contas",n:"Contas"},{id:"futuro",n:"Futuro"},{id:"meta",n:"Meta"},{id:"analises",n:"Análises"},{id:"ajustes",n:"Ajustes"},
+           {id:"contas",n:"Contas"},{id:"futuro",n:"Futuro"},{id:"meta",n:"Meta"},{id:"analises",n:"Análises"},{id:"consulta",n:"Consulta"},{id:"ajustes",n:"Ajustes"},
            {id:"ajuda",n:"Ajuda"}];
 const TABS=["painel","lancar","mes","contas"];
 
@@ -1443,7 +1446,7 @@ function renderNav(){
     '<div class="side-foot" id="sideFoot"></div>';
   $("#tabsIn").innerHTML=TABS.map(id=>{ const x=NAV.find(y=>y.id===id);
     return '<button class="tab" role="tab" data-go="'+id+'" aria-selected="'+(S.view===id)+'">'+svgIc(id)+esc(x.n)+'</button>'; }).join("")+
-    '<button class="tab" role="tab" data-more="1" aria-selected="'+(["futuro","meta","analises","ajustes","ajuda"].indexOf(S.view)>=0)+'">'+svgIc("mais")+'Mais</button>';
+    '<button class="tab" role="tab" data-more="1" aria-selected="'+(["futuro","meta","analises","consulta","ajustes","ajuda"].indexOf(S.view)>=0)+'">'+svgIc("mais")+'Mais</button>';
   $$("[data-go]").forEach(b=>b.onclick=()=>setView(b.dataset.go));
   $$("[data-more]").forEach(b=>b.onclick=openMore);
   $("#sideFoot").innerHTML = (S.mode==="nuvem"
@@ -1453,7 +1456,7 @@ function renderNav(){
 function setView(v){ S.view=v; render(); window.scrollTo({top:0,behavior:"smooth"}); }
 function openMore(){
   sheet("Mais", '<div class="card pad">'+
-    [{id:"futuro",n:"Futuro",s:"Parcelas e meses comprometidos"},{id:"analises",n:"Análises",s:"Diagnóstico, parcelas, dívidas e cartões"},{id:"meta",n:"Meta",s:"Meta de poupança e 50-30-20"},{id:"ajustes",n:"Ajustes",s:"Saldos, cartões, categorias e dados"},{id:"ajuda",n:"Ajuda",s:"Dúvidas comuns, busca e o manual"}]
+    [{id:"futuro",n:"Futuro",s:"Parcelas e meses comprometidos"},{id:"analises",n:"Análises",s:"Diagnóstico, parcelas, dívidas e cartões"},{id:"meta",n:"Meta",s:"Meta de poupança e 50-30-20"},{id:"consulta",n:"Consulta",s:"Gastos por categoria e período"},{id:"ajustes",n:"Ajustes",s:"Saldos, cartões, categorias e dados"},{id:"ajuda",n:"Ajuda",s:"Dúvidas comuns, busca e o manual"}]
       .map(x=>'<div class="linkrow"><div class="m"><div class="t">'+x.n+'</div><div class="s">'+x.s+'</div></div><button class="mini" data-goto="'+x.id+'">Abrir</button></div>').join("")+
     '</div>', '<button class="btn ghost" id="moreX">Fechar</button>');
   $("#moreX").onclick=closeSheet;
@@ -1466,7 +1469,7 @@ function render(){
   $("#topTitle").textContent=(NAV.find(x=>x.id===S.view)||{n:""}).n;
   /* só a aba aberta fica montada: o leitor e a conferência existem em Lançar e em Ajustes, com os mesmos ids */
   NAV.forEach(x=>{ const p=$("#p-"+x.id); if(p){ p.hidden = x.id!==S.view; if(p.hidden) p.innerHTML=""; } });
-  const fn={painel:renderPainel,lancar:renderLancar,mes:renderMes,contas:renderContas,futuro:renderFuturo,meta:renderMeta,analises:renderAnalises,ajustes:renderAjustes,ajuda:renderAjuda}[S.view];
+  const fn={painel:renderPainel,lancar:renderLancar,mes:renderMes,contas:renderContas,futuro:renderFuturo,meta:renderMeta,analises:renderAnalises,consulta:renderConsulta,ajustes:renderAjustes,ajuda:renderAjuda}[S.view];
   if(fn) fn();
 }
 
@@ -2314,6 +2317,104 @@ function htmlImportacoes(){
     (antes?'<div class="say-hint" style="margin-top:10px">Ainda faltam '+antes+(antes>1?" documentos de anos anteriores":" documento de anos anteriores")+'. Eles saíram da lista, mas continuam podendo ser importados: basta escolher o arquivo em Lançar.</div>':"")+
     '</div></div>'; }
 
+/* =================== consulta =================== */
+/* procurar gastos por categoria e período, com data e forma de pagamento em cada linha */
+const PERIODOS=[["hoje","Hoje"],["semana","Esta semana"],["mes","Este mês"],["anterior","Mês passado"],
+  ["30","Últimos 30 dias"],["ano","Este ano"],["tudo","Tudo"],["livre","Escolher datas"]];
+function periodoDatas(p){
+  const hoje=todayISO(), Y=+hoje.slice(0,4), M=+hoje.slice(5,7);
+  const dia=n=>new Date(Date.parse(hoje+"T12:00:00")+n*86400000).toISOString().slice(0,10);
+  if(p==="hoje") return [hoje,hoje];
+  if(p==="semana"){ const d=new Date(Date.parse(hoje+"T12:00:00")).getDay(); return [dia(-((d+6)%7)),hoje]; }
+  if(p==="mes") return [ymOf(hoje)+"-01", ymOf(hoje)+"-"+pad(daysIn(ymOf(hoje)))];
+  if(p==="anterior"){ const a=ymShift(ymOf(hoje),-1); return [a+"-01", a+"-"+pad(daysIn(a))]; }
+  if(p==="30") return [dia(-29),hoje];
+  if(p==="ano") return [Y+"-01-01", Y+"-12-31"];
+  if(p==="tudo") return ["2000-01-01", Y+"-12-31"];
+  return null; }
+function consultaAchados(){
+  const c=S.consulta;
+  const [de,ate]=c.periodo==="livre"?[c.de,c.ate]:periodoDatas(c.periodo);
+  if(!de||!ate||de>ate) return {de,ate,linhas:[]};
+  const out=[];
+  let ym=ymOf(de); const fim=ymOf(ate);
+  while(ym<=fim){ txOf(ym).forEach(t=>{
+      if(t.d<de||t.d>ate) return;
+      const k=t.k||"g";
+      if(c.tipo!=="tudo"&&k!==c.tipo) return;
+      if(c.tipo==="tudo"&&k!=="g"&&k!=="e") return;
+      if(c.cats.length&&c.cats.indexOf(t.cat)<0) return;
+      if(c.formas.length&&c.formas.indexOf(t.card||t.method)<0) return;
+      out.push(t); });
+    ym=ymShift(ym,1); }
+  out.sort((a,b)=>(b.d+(b.t||"")).localeCompare(a.d+(a.t||"")));
+  return {de,ate,linhas:out}; }
+function renderConsulta(){
+  const c=S.consulta=S.consulta||{periodo:"mes",de:ymOf(todayISO())+"-01",ate:todayISO(),cats:[],formas:[],tipo:"g"};
+  const r=consultaAchados(), L=r.linhas;
+  const total=L.reduce((s,t)=>s+(t.k==="e"?-t.v:t.v),0);
+  const soma={}, porForma={};
+  L.forEach(t=>{ soma[t.cat]=(soma[t.cat]||0)+t.v; const f=t.card||t.method; porForma[f]=(porForma[f]||0)+t.v; });
+  const selo=(on,rot,attr)=>'<button class="chip'+(on?" on":"")+'" '+attr+'>'+esc(rot)+'</button>';
+  const cats=(c.tipo==="e"?(S.cfg.ecats||ECATS):S.cfg.cats);
+  const formas=S.cfg.cards;
+  const linha=t=>'<button class="row" data-ym="'+t.ym+'" data-id="'+t.id+'"><span class="ext-d">'+diaMes(t.d)+'</span>'+
+    '<span class="row-m"><span class="row-d">'+esc(t.desc)+'</span><span class="row-s"><span>'+esc(catLabel(t))+'</span><span>·</span>'+
+    '<span>'+esc(cardName(t.card)||METODOS[t.method]||"—")+'</span>'+(t.n>1?'<span class="chip p">'+t.i+"/"+t.n+'</span>':'')+
+    (t.k==="g"&&t.method==="credito"?'<span class="chip c">crédito</span>':'')+'</span></span>'+
+    '<span class="ext-v"><span class="row-v'+(t.k==="e"?" plus":"")+'">'+(t.k==="e"?"+":"")+fmtN(t.v)+'</span></span></button>';
+  const resumoCat=Object.keys(soma).sort((a,b)=>soma[b]-soma[a]).map(id=>
+    '<div style="display:flex;justify-content:space-between;gap:10px"><span>'+esc(c.tipo==="e"?ecatName(id):catName(id))+'</span>'+
+    '<b style="font-family:var(--f-m);font-weight:600">'+fmtN(soma[id])+'</b></div>').join("");
+  const resumoForma=Object.keys(porForma).sort((a,b)=>porForma[b]-porForma[a]).map(id=>
+    '<div style="display:flex;justify-content:space-between;gap:10px"><span>'+esc(cardName(id)||METODOS[id]||id)+'</span>'+
+    '<b style="font-family:var(--f-m);font-weight:600">'+fmtN(porForma[id])+'</b></div>').join("");
+  $("#p-consulta").innerHTML=
+    '<div class="sec"><div class="card pad">'+
+    '<div class="tile-l">Período</div>'+
+    '<div class="segs" style="margin-top:8px">'+PERIODOS.map(p=>selo(c.periodo===p[0],p[1],'data-per="'+p[0]+'"')).join("")+'</div>'+
+    (c.periodo==="livre"?'<div class="two" style="margin-top:6px"><div class="set-f"><label for="cqDe">De</label><input id="cqDe" type="date" value="'+c.de+'"></div>'+
+      '<div class="set-f"><label for="cqAte">Até</label><input id="cqAte" type="date" value="'+c.ate+'"></div></div>':'')+
+    '<div class="tile-l" style="margin-top:14px">O que mostrar</div>'+
+    '<div class="segs" style="margin-top:8px">'+[["g","Gastos"],["e","Entradas"],["tudo","Tudo"]].map(x=>selo(c.tipo===x[0],x[1],'data-tipo="'+x[0]+'"')).join("")+'</div>'+
+    '<div class="tile-l" style="margin-top:14px">Categorias <span style="text-transform:none;letter-spacing:0">'+(c.cats.length?"("+c.cats.length+" marcadas)":"(todas)")+'</span></div>'+
+    '<div class="segs" style="margin-top:8px">'+selo(!c.cats.length,"Todas",'data-cat=""')+cats.map(x=>selo(c.cats.indexOf(x.id)>=0,x.n,'data-cat="'+x.id+'"')).join("")+'</div>'+
+    '<div class="tile-l" style="margin-top:14px">Forma de pagamento '+(c.formas.length?'<span style="text-transform:none;letter-spacing:0">('+c.formas.length+" marcadas)"+'</span>':'<span style="text-transform:none;letter-spacing:0">(todas)</span>')+'</div>'+
+    '<div class="segs" style="margin-top:8px">'+selo(!c.formas.length,"Todas",'data-forma=""')+formas.map(x=>selo(c.formas.indexOf(x.id)>=0,x.n,'data-forma="'+x.id+'"')).join("")+'</div>'+
+    '</div></div>'+
+
+    '<div class="sec"><div class="grid g2">'+
+    '<div class="card pad"><div class="tile-l">'+(c.tipo==="e"?"Entrou":c.tipo==="tudo"?"Gastos menos entradas":"Gasto no período")+'</div>'+
+    '<span class="tile-v" style="font-size:30px">'+fmt(Math.abs(total))+'</span>'+
+    '<div class="tile-s">'+L.length+(L.length===1?" lançamento":" lançamentos")+' · de '+diaMesAno(r.de)+' a '+diaMesAno(r.ate)+'</div>'+
+    (resumoCat?'<div style="margin-top:12px;padding-top:11px;border-top:1px solid var(--line);display:grid;gap:7px;font-size:13px;color:var(--ink-2)">'+resumoCat+'</div>':'')+
+    '</div>'+
+    '<div class="card pad"><div class="tile-l">Por forma de pagamento</div>'+
+    (resumoForma?'<div style="margin-top:10px;display:grid;gap:7px;font-size:13px;color:var(--ink-2)">'+resumoForma+'</div>'
+      :'<div class="tile-s">Nada no período.</div>')+
+    '<div class="cardbox-a" style="margin-top:14px"><button class="btn ghost sm" id="cqCopiar">Copiar para planilha</button></div>'+
+    '</div></div></div>'+
+
+    '<div class="sec"><div class="sec-h"><h2 class="sec-t">Lançamentos</h2><span class="day-t">'+(L.length?fmt(Math.abs(total)):"")+'</span></div>'+
+    '<div class="card pad">'+(L.length?L.map(linha).join("")
+      :'<div class="empty"><b>Nada encontrado</b>Mude o período ou desmarque alguma categoria.</div>')+'</div></div>';
+  bindRows($("#p-consulta"));
+  $$("[data-per]").forEach(b=>b.onclick=()=>{ c.periodo=b.dataset.per; renderConsulta(); });
+  $$("[data-tipo]").forEach(b=>b.onclick=()=>{ c.tipo=b.dataset.tipo; c.cats=[]; renderConsulta(); });
+  $$("[data-cat]").forEach(b=>b.onclick=()=>{ const id=b.dataset.cat;
+    if(!id) c.cats=[]; else { const i=c.cats.indexOf(id); if(i>=0) c.cats.splice(i,1); else c.cats.push(id); }
+    renderConsulta(); });
+  $$("[data-forma]").forEach(b=>b.onclick=()=>{ const id=b.dataset.forma;
+    if(!id) c.formas=[]; else { const i=c.formas.indexOf(id); if(i>=0) c.formas.splice(i,1); else c.formas.push(id); }
+    renderConsulta(); });
+  const de=$("#cqDe"), ate=$("#cqAte");
+  if(de) de.onchange=()=>{ c.de=de.value; renderConsulta(); };
+  if(ate) ate.onchange=()=>{ c.ate=ate.value; renderConsulta(); };
+  $("#cqCopiar").onclick=()=>{
+    const linhas=[["Data","Descrição","Categoria","Forma de pagamento","Valor"]].concat(
+      L.map(t=>[t.d, t.desc, catLabel(t), cardName(t.card)||METODOS[t.method]||"", (t.k==="e"?"":"-")+(t.v/100).toFixed(2).replace(".",",")]));
+    copyText(linhas.map(l=>l.join(";")).join("\n"), L.length+" lançamentos copiados. Cole numa planilha."); }; }
+
 /* =================== ajuda =================== */
 /* o app não tem IA embutida (não há servidor nem chave): a ajuda é busca no próprio conteúdo, e para
    perguntar ao Claude o app prepara o texto e abre a conversa. */
@@ -2421,6 +2522,8 @@ const AJUDA=[
 
  {g:"Entender os números",t:"O que a aba Análises mostra?",
   c:"O diagnóstico do mês (ritmo contra o teto, 50-30-20, renda comprometida, cartões perto do limite, gastos que parecem fixos), as compras parceladas, os gastos por cartão e o acompanhamento das dívidas.",a:"analises"},
+ {g:"Entender os números",t:"Como vejo quanto gastei numa categoria?",
+  c:"Na aba Consulta: escolha o período (hoje, semana, mês, mês passado, últimos 30 dias, ano, ou duas datas), marque as categorias e, se quiser, as formas de pagamento. Ele mostra o total, o valor por categoria e por forma de pagamento, e a lista com data, descrição e como foi pago. Dá para copiar tudo para uma planilha.",a:"consulta"},
  {g:"Entender os números",t:"Para que serve a aba Futuro?",
   c:"Mostra quanto dos próximos meses já está comprometido — parcelas, gastos fixos e dívidas — antes de você gastar mais nada.",a:"futuro"},
  {g:"Entender os números",t:"O que é o método 50-30-20?",

@@ -78,6 +78,8 @@ Teve aumento ou correção? Mude o valor em Ajustes: o app pergunta a partir de 
 
 **Painel:** a primeira coisa que aparece é quanto você tem no banco, conta por conta, e quanto já está lançado na fatura de cada cartão de crédito, com o que está em aberto e o limite livre. Tocando numa linha, você vai direto para o extrato daquela conta ou cartão.
 
+**Consulta** (aba própria): escolha o período — hoje, semana, mês, mês passado, últimos 30 dias, ano ou duas datas —, marque categorias e formas de pagamento, e veja o total, o resumo por categoria e por forma, e a lista com data, descrição e como foi pago. Dá para copiar para uma planilha.
+
 **Método 50-30-20** (aba Meta): divide a renda líquida em Necessidades, Desejos e Futuro. A rosca mostra a meta (anel de fora) e para onde a renda foi (anel de dentro); abaixo, o que tem em cada grupo. Os percentuais e o grupo de cada categoria são ajustáveis.
 
 **Análises** (no menu lateral, ou em *Mais* no celular):
