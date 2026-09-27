@@ -683,6 +683,7 @@ function rememberUser(u){ const L=knownUsers().filter(x=>x.id!==u.id);
 function useUser(u){
   S.user=u; rememberUser(u); S.token=null; S.tokenExp=0; S.folderId=null; S.snap=null;
   loadLocal(); restoreToken(); S.mode=u.kind==="google"?"nuvem":"local"; S.view="painel";
+  setTimeout(garantirNomeCompleto,600);
   hideGate(); render();
   if(!S.cfg.seen) setTimeout(openWelcome,300); }
 function signOut(){
@@ -794,6 +795,15 @@ async function writeJson(name,parent,data,id){
 let syncTimer=null, syncing=false, syncAgain=false;
 function scheduleSync(){ if(!S.user||S.user.kind!=="google") return;
   clearTimeout(syncTimer); syncTimer=setTimeout(()=>{ if(tokenOk()) syncNow(); else renderSyncBadge(); },2000); }
+/* o nome completo só chegava no login. Quem já estava logado ficava com o primeiro nome
+   guardado — então, com o acesso válido, o app pergunta ao Google uma vez e completa. */
+async function garantirNomeCompleto(){
+  if(!S.user||S.user.kind!=="google"||S.user.full||!tokenOk()||!navigator.onLine) return;
+  try{ const p=await whoAmI();
+    const n=(p&&(p.name||p.given_name))||"";
+    if(n&&S.user&&S.user.kind==="google"){ S.user.full=n; rememberUser(S.user); renderNav(); }
+  }catch(e){ warn(e); } }
+
 async function syncNow(){
   if(!S.user||S.user.kind!=="google") return;
   if(syncing){ syncAgain=true; return; }
@@ -822,6 +832,7 @@ async function syncNow(){
     const chegouNovidade=JSON.stringify(fim.months)!==JSON.stringify(S.months)||(fim.cfg.u||0)!==(S.cfg.u||0);
     S.cfg=Object.assign(DEFAULTS(),fim.cfg); S.months=fim.months; S.sincronizado=true; migrarCfg(); setTimeout(()=>garantirSalario(),0);
     S.sync.last=Date.now(); S.sync.state="ok"; S.sync.err=""; S.dirty=mudouNoMeio; saveLocal();
+    garantirNomeCompleto();
     if(chegouNovidade) safeRender(); else renderSyncBadge();
     if(mudouNoMeio) syncAgain=true;
   }catch(e){
@@ -942,7 +953,11 @@ function openAccount(){
     (u.kind==="google"?'<div class="linkrow"><div class="m"><div class="t">Última sincronização: '+esc(quando(S.sync.last))+'</div>'+
       '<div class="s">'+(S.dirty?"Há lançamentos ainda não enviados ao Drive.":"Tudo enviado.")+(S.sync.err?" "+esc(S.sync.err):"")+'</div></div>'+
       '<button class="mini" id="acSync">Sincronizar agora</button></div>':'')+
-    '</div>'+installHTML()+'</div>',
+    '</div>'+
+    '<div class="set-f"><label for="acNome">Como o seu nome aparece no app</label>'+
+    '<input id="acNome" value="'+esc(u.full||u.name||"")+'" placeholder="Nome e sobrenome">'+
+    '<span class="hint">No menu aparecem o primeiro e o último nome. '+(u.kind==="google"?'Vem da sua conta Google; se preferir outro, escreva aqui.':'Você escolheu esse nome ao entrar sem conta.')+'</span></div>'+
+    installHTML()+'</div>',
     '<button class="btn danger" id="acOut">Sair desta conta</button><button class="btn" id="acFim">Sair da Caderneta</button>');
   $("#acFim").onclick=sairDoApp;
   $("#acOut").onclick=()=>{
@@ -955,6 +970,9 @@ function openAccount(){
     $("#soX").onclick=closeSheet;
     $("#soOk").onclick=signOut; };
   const s=$("#acSync"); if(s) s.onclick=()=>{ closeSheet(); syncTap(); };
+  const nm=$("#acNome");
+  if(nm) nm.onchange=()=>{ const v=nm.value.trim(); if(!v) return;
+    S.user.full=v; S.user.name=v.split(" ")[0]; rememberUser(S.user); renderNav(); toast("Nome atualizado."); };
   bindInstall(); }
 function openWelcome(){
   if(!S.user) return;
@@ -2908,7 +2926,7 @@ const AJUDA=[
   {g:"Conta e saldo",t:"Cliquei em Backup completo e só apareceu \u201ccopiado\u201d. Onde está o arquivo?",
   c:"Em nenhum lugar ainda: Copiar joga o backup na área de transferência, e ele só existe depois que você colar em algum lugar — um e-mail para você mesmo, uma nota. Para ter um arquivo de verdade, use o botão ao lado, Salvar arquivo: ele gera o caderneta-backup-DD-MM-AAAA.json, que no computador cai na pasta de downloads e no celular abre o menu de compartilhar, para você escolher onde guardar. O mesmo vale para Levar para uma planilha.",a:"dados"},
  {g:"Conta e saldo",t:"O que é aquilo no alto do menu, com o ícone e o meu nome?",
-  c:"É a marca da Caderneta com a sua assinatura embaixo: o nome do app em letra serifada e, miúdo, o seu primeiro e último nome. O app guarda o nome completo da sua conta Google, mas mostra ali só os dois — os do meio saem, para caber na linha (Maria Aparecida de Souza Lima aparece como Maria Lima). Tocando nesse canto abre a ficha da sua conta, com o e-mail, a última sincronização e os botões de sair. O mesmo nome aparece no pé do menu, junto com onde os seus dados estão guardados.",a:"dados"},
+  c:"É a marca da Caderneta com a sua assinatura embaixo: o nome do app em letra serifada e, miúdo, o seu primeiro e último nome. O app guarda o nome completo da sua conta Google, mas mostra ali só os dois — os do meio saem, para caber na linha (Maria Aparecida de Souza Lima aparece como Maria Lima). Tocando nesse canto abre a ficha da sua conta, com o e-mail, a última sincronização e os botões de sair. O mesmo nome aparece no pé do menu, junto com onde os seus dados estão guardados. Se aparecer só o primeiro nome, é porque você já estava logado antes desta versão: o app busca o nome completo sozinho na próxima sincronização — ou você escreve como quiser na ficha da conta, no campo Como o seu nome aparece no app.",a:"dados"},
  {g:"Conta e saldo",t:"Como saio da conta ou fecho o app?",
   c:"Toque na marca no alto do menu — o ícone com o nome Caderneta, no canto superior esquerdo (no celular, no alto da tela). Abre a ficha da sua conta, com dois botões: Sair desta conta desconecta (pede confirmação; entrando de novo com a mesma conta Google, tudo volta do Drive), e Sair da Caderneta fecha o app. O fechar só funciona na janela do app instalado — numa aba comum do navegador, a página não pode se fechar sozinha, e o próprio app explica isso. Fechar o app não desconecta: ao abrir de novo, você entra direto.",a:"dados"},
  {g:"Conta e saldo",t:"Reinstalei o app e perdi cartões e configurações. E agora?",
