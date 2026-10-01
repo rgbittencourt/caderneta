@@ -688,7 +688,10 @@ function useUser(u){
      liga cada um ao cartão cuja fatura fecha com aquele valor. Só mexe no que o próprio app chutou. */
   setTimeout(async()=>{ const n=await religarPagamentos();
     if(n){ render(); toast(n+(n>1?" pagamentos do extrato foram ligados ao cartão certo."
-      :" pagamento do extrato foi ligado ao cartão certo.")); } },1200);
+      :" pagamento do extrato foi ligado ao cartão certo.")); }
+    /* uma vez só, depois das correções de outubro: mostra o que ficou para arrumar */
+    if(!S.cfg.rev69&&(comprasSemDescricao().length||faturasQueNaoFecham().length)){
+      S.cfg.rev69=true; await saveCfg(); openRevisao(); } },1200);
   hideGate(); render();
   if(!S.cfg.seen) setTimeout(openWelcome,300); }
 function signOut(){
@@ -2945,7 +2948,9 @@ function renderConsulta(){
    perguntar ao Claude o app prepara o texto e abre a conversa. */
 const AJUDA=[
  /* começar */
-  {g:"Conta e saldo",t:"Cliquei em Backup completo e só apareceu \u201ccopiado\u201d. Onde está o arquivo?",
+  {g:"Conta e saldo",t:"Tem como o app conferir tudo sozinho depois de uma atualização?",
+  c:"Tem: Ajustes, em Dados, botão Revisar. Numa tela só ele mostra as linhas de câmbio que versões antigas liam como compra (com botão para apagar todas), os pagamentos do extrato que ficaram sem cartão (com botão para ligar ao cartão certo) e as faturas que não fecham com o que saiu da conta. O que depende do PDF — uma compra que a leitura antiga perdeu — ele aponta, e aí basta importar a mesma fatura de novo: a conferência deixa entrar só o que falta. Nada é apagado sem você mandar.",a:"dados"},
+ {g:"Conta e saldo",t:"Cliquei em Backup completo e só apareceu \u201ccopiado\u201d. Onde está o arquivo?",
   c:"Em nenhum lugar ainda: Copiar joga o backup na área de transferência, e ele só existe depois que você colar em algum lugar — um e-mail para você mesmo, uma nota. Para ter um arquivo de verdade, use o botão ao lado, Salvar arquivo: ele gera o caderneta-backup-DD-MM-AAAA.json, que no computador cai na pasta de downloads e no celular abre o menu de compartilhar, para você escolher onde guardar. O mesmo vale para Levar para uma planilha.",a:"dados"},
  {g:"Conta e saldo",t:"O que é aquilo no alto do menu, com o ícone e o meu nome?",
   c:"É a marca da Caderneta com a sua assinatura embaixo: o nome do app em letra serifada e, miúdo, o seu primeiro e último nome. O app guarda o nome completo da sua conta Google, mas mostra ali só os dois — os do meio saem, para caber na linha (Maria Aparecida de Souza Lima aparece como Maria Lima). Tocando nesse canto abre a ficha da sua conta, com o e-mail, a última sincronização e os botões de sair. O mesmo nome aparece no pé do menu, junto com onde os seus dados estão guardados. Se aparecer só o primeiro nome, é porque você já estava logado antes desta versão: o app busca o nome completo sozinho na próxima sincronização — ou você escreve como quiser na ficha da conta, no campo Como o seu nome aparece no app.",a:"dados"},
@@ -3026,11 +3031,11 @@ const AJUDA=[
  {g:"Cartões",t:"A compra no cartão sai da minha conta?",
   c:"Não. Ela conta como gasto no mês em que foi feita e entra nas análises, mas o dinheiro só sai quando a fatura é paga. Cada linha mostra a marca crédito · não sai da conta.",a:"cartoes"},
  {g:"Cartões",t:"O banco já descontou, mas a fatura continua pedindo Pagar fatura",
-  c:"Pode clicar em Pagar fatura sem medo: ele não desconta nada sozinho, abre uma tela. Se o app achar o pagamento que veio do extrato, aparece o aviso \u201cEsse pagamento já parece ter saído da conta\u201d e o botão É este pagamento — toque nele: a fatura fica paga e o dinheiro não sai de novo. O outro botão, Pagar mesmo assim, é que cria um pagamento novo. Se o aviso não aparecer, o pagamento ficou preso em outro cartão: abra o extrato da conta, toque nesse pagamento e corrija De qual cartão e Abate a fatura de. E se sobrar um resto pequeno, confira antes as Compras sem descrição, em Ajustes → Dados: linha de câmbio lida como compra deixa a fatura do app maior que a do banco.",a:"cartoes"},
+  c:"Pode clicar em Pagar fatura sem medo: ele não desconta nada sozinho, abre uma tela. Se o app achar o pagamento que veio do extrato, aparece o aviso \u201cEsse pagamento já parece ter saído da conta\u201d e o botão É este pagamento — toque nele: a fatura fica paga e o dinheiro não sai de novo. O outro botão, Pagar mesmo assim, é que cria um pagamento novo. Se o aviso não aparecer, o pagamento ficou preso em outro cartão: abra o extrato da conta, toque nesse pagamento e corrija De qual cartão e Abate a fatura de. E se sobrar um resto pequeno, confira antes a Revisão, em Ajustes → Dados: linha de câmbio lida como compra deixa a fatura do app maior que a do banco.",a:"cartoes"},
  {g:"Cartões",t:"A fatura do app ficou menor que a do banco. Por quê?",
   c:"Até a v68, uma compra que se chamasse \u201cPAGTO DE TITULO\u201d — pagar um boleto com o cartão — era confundida com a baixa da fatura anterior: sumia da lista e ainda entrava como se fosse pagamento. Na fatura do Elo isso deixava 628,25 de fora. A partir da v69 só conta como baixa o que vem como crédito (valor negativo) ou dizendo de onde saiu, como \u201cem débito em conta\u201d ou \u201cpagamentos/créditos\u201d. Para consertar uma fatura já importada, importe o mesmo PDF de novo: a conferência marca o que já está lançado e só o que faltava entra.",a:"fatura"},
  {g:"Cartões",t:"A fatura do app ficou maior que a do banco. Por quê?",
-  c:"Se a diferença for de poucos reais e você tiver compra internacional na fatura, era a linha de câmbio: embaixo da compra o banco imprime algo como \u201c*** 9,99 DOLAR AMERICANO\u201d, que é o valor em dólar, não uma cobrança a mais. Versões antigas do app liam essa linha como compra, sem descrição e com data trocada. A partir da v67 ela é ignorada. Para limpar o que já entrou: Ajustes, em Dados, toque em Revisar, na linha Compras sem descrição — ele lista esses lançamentos e você apaga.",a:"cartoes"},
+  c:"Se a diferença for de poucos reais e você tiver compra internacional na fatura, era a linha de câmbio: embaixo da compra o banco imprime algo como \u201c*** 9,99 DOLAR AMERICANO\u201d, que é o valor em dólar, não uma cobrança a mais. Versões antigas do app liam essa linha como compra, sem descrição e com data trocada. A partir da v67 ela é ignorada. Para limpar o que já entrou: Ajustes, em Dados, toque em Revisar: o app mostra quantas são, quanto somam a mais, e apaga todas de uma vez se você mandar.",a:"cartoes"},
  {g:"Cartões",t:"Paguei a fatura duas vezes. Como conserto?",
   c:"Abra Contas, escolha a conta corrente e toque em Repetidos, no alto do extrato: o app mostra os pagamentos parecidos e você escolhe qual apagar. Dá para apagar também pelo próprio extrato, tocando no pagamento errado e escolhendo Excluir. Apagar um pagamento não mexe nas compras da fatura.",a:"cartoes"},
  {g:"Cartões",t:"A fatura aparece atrasada, mas eu paguei",
@@ -3249,8 +3254,8 @@ function renderAjustes(){
     '<button class="mini" id="verBtn">Procurar atualização</button></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Levar para uma planilha</div><div class="s">Todos os lançamentos em CSV, para abrir no Excel ou no Google Planilhas</div></div>'+
     '<div class="acts"><button class="mini" id="expSalvar">Salvar arquivo</button><button class="mini" id="expBtn">Copiar</button></div></div>'+
-    '<div class="linkrow"><div class="m"><div class="t">Compras sem descrição</div><div class="s">Confere as linhas de câmbio que o leitor antigo lançava como compra</div></div>'+
-    '<button class="mini" id="sdBtn">Revisar</button></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Revisão</div><div class="s">Confere faturas, pagamentos e linhas de câmbio lidas como compra</div></div>'+
+    '<button class="mini" id="rvBtn">Revisar</button></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Backup completo</div><div class="s">Tudo num arquivo: contas, cartões, categorias, dívidas e lançamentos. Guarde num e-mail para você mesmo.</div></div>'+
     '<div class="acts"><button class="mini" id="bkSalvar">Salvar arquivo</button><button class="mini" id="bkBtn">Copiar</button></div></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Restaurar de um backup</div><div class="s">Traz os dados de um backup, inclusive da versão anterior</div></div>'+
@@ -3302,7 +3307,7 @@ function renderAjustes(){
     try{ const r=await navigator.serviceWorker.getRegistration(); if(r) await r.update(); }catch(e){}
     setTimeout(mostrarVersao,1500); };
   const pacote=()=>JSON.stringify({app:"caderneta",v:1,salvoEm:new Date().toISOString(),cfg:S.cfg,months:S.months});
-  $("#sdBtn").onclick=openSemDescricao;
+  $("#rvBtn").onclick=openRevisao;
   $("#expSalvar").onclick=exportCSV;
   $("#expBtn").onclick=()=>{ exportCSV.copiar=true; exportCSV(); };
   $("#bkSalvar").onclick=()=>salvarArquivo("caderneta-backup-"+hojeArquivo()+".json",pacote(),"application/json");
@@ -5384,6 +5389,51 @@ function openSemDescricao(){
   $("#sdX").onclick=closeSheet;
   $$("[data-sd]").forEach(b=>b.onclick=async()=>{ const [ym,id]=b.dataset.sd.split("|");
     await removeTx(ym,id); toast("Apagado."); render(); openSemDescricao(); }); }
+
+/* Revisão: junta num lugar só os consertos que o app sabe fazer sozinho depois das correções
+   de set-out/2026 — apagar as linhas de câmbio lidas como compra, religar pagamentos que ficaram
+   sem cartão e apontar as faturas que ainda não fecham com o que saiu da conta. */
+function faturasQueNaoFecham(){
+  const out=[], hoje=ymOf(todayISO());
+  creditCards().forEach(c=>{
+    for(let k=0;k<4;k++){ const ym=ymShift(hoje,-k), inv=cardInvoice(c.id,ym);
+      if(!inv.total) continue;
+      const pg=pagamentosDaFatura(c.id,ym), pago=pg.reduce((s,t)=>s+t.v,0);
+      if(!pago||Math.abs(pago-inv.total)<=100) continue;      /* fecha, ou ninguém pagou ainda */
+      out.push({card:c, ym, total:inv.total, pago, dif:inv.total-pago}); } });
+  return out.sort((a,b)=>b.ym.localeCompare(a.ym)); }
+
+async function openRevisao(){
+  const fant=comprasSemDescricao();
+  const semCartao=allTx().filter(t=>t.k==="p"&&semCartaoCerto(t));
+  const tortas=faturasQueNaoFecham();
+  const bloco=(t,s,extra)=>'<div class="linkrow"><div class="m"><div class="t">'+t+'</div><div class="s">'+s+'</div></div>'+(extra||'')+'</div>';
+  sheet("Revisão da Caderneta",
+    '<div class="set">'+
+    '<div class="note"><b>O que o app consegue conferir sozinho</b>Nada é apagado sem você mandar. '+
+    'O que depender da fatura em PDF fica indicado aqui, para você reimportar — a conferência deixa entrar só o que falta.</div>'+
+    '<div class="card pad">'+
+    bloco(fant.length?fant.length+(fant.length>1?" linhas de câmbio lidas como compra":" linha de câmbio lida como compra"):"Nenhuma linha de câmbio",
+      fant.length?"Somam "+fmtN(fant.reduce((s,t)=>s+t.v,0))+" a mais nas faturas":"As faturas não têm compras sem descrição",
+      fant.length?'<div class="acts"><button class="mini" id="rvVer">Ver</button><button class="mini del" id="rvApagar">'+(fant.length>1?"Apagar as "+fant.length:"Apagar")+'</button></div>':'')+
+    bloco(semCartao.length?semCartao.length+(semCartao.length>1?" pagamentos sem cartão":" pagamento sem cartão"):"Pagamentos com cartão definido",
+      semCartao.length?"Ligam sozinhos quando a fatura daquele valor for importada":"Todos os pagamentos do extrato já apontam para uma fatura",
+      semCartao.length?'<button class="mini" id="rvLigar">Tentar ligar agora</button>':'')+
+    bloco(tortas.length?tortas.length+(tortas.length>1?" faturas não fecham com o pago":" fatura não fecha com o pago"):"Faturas e pagamentos batem",
+      tortas.length?tortas.map(x=>cardName(x.card.id)+" de "+ymLabel(x.ym)+": fatura "+fmtN(x.total)+", pago "+fmtN(x.pago)+
+        " ("+(x.dif>0?"falta ":"sobra ")+fmtN(Math.abs(x.dif))+")").join(" · ")
+        :"Cada fatura paga confere com o que saiu da conta","")+
+    '</div>'+
+    (tortas.length?'<div class="set-f"><span class="hint">Fatura que não fecha quase sempre é leitura antiga: <b>importe o mesmo PDF de novo</b> em Lançar → Importar fatura. O que já está lançado não entra duas vezes.</span></div>':'')+
+    '</div>',
+    '<button class="btn" id="rvX">Fechar</button>');
+  $("#rvX").onclick=closeSheet;
+  const ver=$("#rvVer"); if(ver) ver.onclick=openSemDescricao;
+  const ap=$("#rvApagar"); if(ap) ap.onclick=async()=>{
+    for(const t of fant) await removeTx(t.ym,t.id);
+    render(); toast(fant.length+(fant.length>1?" lançamentos apagados.":" lançamento apagado.")); openRevisao(); };
+  const lg=$("#rvLigar"); if(lg) lg.onclick=async()=>{ const n=await religarPagamentos(); render();
+    toast(n?n+(n>1?" pagamentos ligados.":" pagamento ligado."):"Nenhum deles bate com uma fatura já importada."); openRevisao(); }; }
 
 function openRestore(){
   const google=S.user&&S.user.kind==="google";

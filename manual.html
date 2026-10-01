@@ -149,7 +149,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div>
     <h2 class="titulo">Manual de uso</h2>
     <p class="sub">Controle de gastos por fala, leitura de extratos e faturas em PDF, cartões e faturas, dívidas com quitação, plano para juntar dinheiro e o método 50-30-20.</p>
-    <span class="edicao">Edição de setembro de 2026 · aplica-se à versão caderneta-v69 em diante</span>
+    <span class="edicao">Edição de setembro de 2026 · aplica-se à versão caderneta-v70 em diante</span>
   </div>
 
   <div class="pe">
@@ -419,7 +419,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <div class="dica">
   <b>Compra em dólar: a linha de câmbio não é cobrança.</b>
-  Embaixo de uma compra internacional, a fatura do banco imprime duas linhas de apoio — <i>"*** 9,99 DOLAR AMERICANO"</i> (o valor na moeda de origem) e <i>"Cotação do Dólar de 27/08: R$ 5,3668"</i>. Nenhuma das duas é um gasto: o valor em reais já está na linha da compra. O app ignora as duas. Se você importou faturas em versões anteriores, use <b>Ajustes → Dados → Compras sem descrição → Revisar</b> para achar e apagar o que entrou por engano.
+  Embaixo de uma compra internacional, a fatura do banco imprime duas linhas de apoio — <i>"*** 9,99 DOLAR AMERICANO"</i> (o valor na moeda de origem) e <i>"Cotação do Dólar de 27/08: R$ 5,3668"</i>. Nenhuma das duas é um gasto: o valor em reais já está na linha da compra. O app ignora as duas. Se você importou faturas em versões anteriores, use <b>Ajustes → Dados → Revisão</b> para achar e apagar o que entrou por engano.
 </div>
 
 <div class="nota">
@@ -789,6 +789,11 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 <div class="nota">
   <b>Não desconta duas vezes</b>
   As compras que vêm da fatura não tiram dinheiro da conta, e o pagamento que vem do extrato não conta como gasto. É por isso que a ordem não estraga nada.
+</div>
+
+<div class="nota">
+  <b>Revisão: o app conferindo a si mesmo.</b>
+  <b>Ajustes → Dados → Revisar</b> abre uma tela só com três conferências: as <b>linhas de câmbio</b> que versões antigas liam como compra (com um botão para apagar todas), os <b>pagamentos do extrato sem cartão</b> (com um botão para ligá-los à fatura certa) e as <b>faturas que não fecham</b> com o que saiu da conta. O que depende do PDF — uma compra que a leitura antiga perdeu — fica indicado: é só importar a mesma fatura de novo, que a conferência deixa entrar só o que falta. Nada é apagado sem você mandar.
 </div>
 
 <h2 id="problemas">23. Quando algo não bate</h2>
