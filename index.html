@@ -3016,6 +3016,8 @@ const AJUDA=[
   c:"A fatura que fecha hoje já traz o fechamento do mês seguinte. Importando cada fatura quando ela sai, você fica sempre um ciclo à frente — não perde dias. E mesmo sem importar, o app já indica o melhor cartão pela estimativa do dia.",a:"cartoes"},
  {g:"Cartões",t:"A compra no cartão sai da minha conta?",
   c:"Não. Ela conta como gasto no mês em que foi feita e entra nas análises, mas o dinheiro só sai quando a fatura é paga. Cada linha mostra a marca crédito · não sai da conta.",a:"cartoes"},
+ {g:"Cartões",t:"A fatura do app ficou maior que a do banco. Por quê?",
+  c:"Se a diferença for de poucos reais e você tiver compra internacional na fatura, era a linha de câmbio: embaixo da compra o banco imprime algo como \u201c*** 9,99 DOLAR AMERICANO\u201d, que é o valor em dólar, não uma cobrança a mais. Versões antigas do app liam essa linha como compra, sem descrição e com data trocada. A partir da v67 ela é ignorada. Para limpar o que já entrou: Ajustes, em Dados, toque em Revisar, na linha Compras sem descrição — ele lista esses lançamentos e você apaga.",a:"cartoes"},
  {g:"Cartões",t:"Paguei a fatura duas vezes. Como conserto?",
   c:"Abra Contas, escolha a conta corrente e toque em Repetidos, no alto do extrato: o app mostra os pagamentos parecidos e você escolhe qual apagar. Dá para apagar também pelo próprio extrato, tocando no pagamento errado e escolhendo Excluir. Apagar um pagamento não mexe nas compras da fatura.",a:"cartoes"},
  {g:"Cartões",t:"A fatura aparece atrasada, mas eu paguei",
@@ -3234,6 +3236,8 @@ function renderAjustes(){
     '<button class="mini" id="verBtn">Procurar atualização</button></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Levar para uma planilha</div><div class="s">Todos os lançamentos em CSV, para abrir no Excel ou no Google Planilhas</div></div>'+
     '<div class="acts"><button class="mini" id="expSalvar">Salvar arquivo</button><button class="mini" id="expBtn">Copiar</button></div></div>'+
+    '<div class="linkrow"><div class="m"><div class="t">Compras sem descrição</div><div class="s">Confere as linhas de câmbio que o leitor antigo lançava como compra</div></div>'+
+    '<button class="mini" id="sdBtn">Revisar</button></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Backup completo</div><div class="s">Tudo num arquivo: contas, cartões, categorias, dívidas e lançamentos. Guarde num e-mail para você mesmo.</div></div>'+
     '<div class="acts"><button class="mini" id="bkSalvar">Salvar arquivo</button><button class="mini" id="bkBtn">Copiar</button></div></div>'+
     '<div class="linkrow"><div class="m"><div class="t">Restaurar de um backup</div><div class="s">Traz os dados de um backup, inclusive da versão anterior</div></div>'+
@@ -3285,6 +3289,7 @@ function renderAjustes(){
     try{ const r=await navigator.serviceWorker.getRegistration(); if(r) await r.update(); }catch(e){}
     setTimeout(mostrarVersao,1500); };
   const pacote=()=>JSON.stringify({app:"caderneta",v:1,salvoEm:new Date().toISOString(),cfg:S.cfg,months:S.months});
+  $("#sdBtn").onclick=openSemDescricao;
   $("#expSalvar").onclick=exportCSV;
   $("#expBtn").onclick=()=>{ exportCSV.copiar=true; exportCSV(); };
   $("#bkSalvar").onclick=()=>salvarArquivo("caderneta-backup-"+hojeArquivo()+".json",pacote(),"application/json");
@@ -5344,6 +5349,29 @@ function openRecomecar(){
     $("#rcFim").onclick=closeSheet; $("#rcContas").onclick=()=>{ closeSheet(); setView("ajustes"); }; }; }
 
 /* restaurar: backups do Drive com um toque, ou colando o texto */
+/* a anotação de câmbio da compra internacional ("*** 9,99 DOLAR AMERICANO") entrava como compra,
+   sem descrição, e inflava a fatura. O leitor já ignora (v67); isto limpa o que entrou antes. */
+function comprasSemDescricao(){
+  return allTx().filter(t=>(t.k||"g")==="g"&&t.method==="credito"&&/^compra no cart/i.test(t.desc||""))
+    .sort((a,b)=>b.d.localeCompare(a.d)); }
+function openSemDescricao(){
+  const L=comprasSemDescricao();
+  const linha=t=>'<div class="linkrow"><div class="m"><div class="t">'+fmtN(t.v)+' · '+esc(cardName(t.card)||"cartão")+'</div>'+
+    '<div class="s">'+diaMesAno(t.d)+' · fatura de '+esc(ymLabel(t.fat||t.ym))+'</div></div>'+
+    '<button class="mini del" data-sd="'+t.ym+'|'+t.id+'">Apagar</button></div>';
+  sheet("Compras sem descrição",
+    '<div class="set">'+
+    (L.length?'<div class="note"><b>'+L.length+(L.length>1?" lançamentos":" lançamento")+' para conferir</b>'+
+      'Quase sempre são a linha de câmbio da compra internacional — o banco imprime "*** 9,99 DOLAR AMERICANO" embaixo da compra, '+
+      'e versões antigas do app liam isso como uma cobrança a mais, deixando a fatura maior que a do banco. '+
+      'Confira na fatura em papel antes de apagar: se a compra existir mesmo, é só corrigir a descrição tocando nela.</div>'+
+      '<div class="card pad">'+L.map(linha).join("")+'</div>'
+      :'<div class="note"><b>Nada para conferir</b>Nenhuma compra sem descrição nos seus cartões.</div>')+'</div>',
+    '<button class="btn" id="sdX">Fechar</button>');
+  $("#sdX").onclick=closeSheet;
+  $$("[data-sd]").forEach(b=>b.onclick=async()=>{ const [ym,id]=b.dataset.sd.split("|");
+    await removeTx(ym,id); toast("Apagado."); render(); openSemDescricao(); }); }
+
 function openRestore(){
   const google=S.user&&S.user.kind==="google";
   sheet("Restaurar de um backup",

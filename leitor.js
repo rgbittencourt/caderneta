@@ -223,6 +223,11 @@ function lerLancamentos(texto,tipo,mes){
     const linha=bruta.replace(/\s+/g," ").trim(); if(linha.length<4) return;
     const sem=semAcento(linha);
     if(fatura&&/\d%/.test(linha)) return;                                      /* taxas de juros */
+    /* compra internacional vem com duas linhas de apoio embaixo, que não são cobranças:
+       "*** 9,99 DOLAR AMERICANO" (o valor na moeda de origem) e "Cotação do Dólar de 27/08: R$ 5,3668".
+       Sem isto, a fatura do app fica maior que a do banco — foi o que aconteceu com o dono em set/2026. */
+    if(/^\*{2,}/.test(linha)) return;
+    if(/^cotacao d[eoa]\b|^taxa de conversao|^valor em moeda/i.test(sem)) return;
     /* a fatura começa com o saldo da fatura anterior e o pagamento que a quitou. Os dois não são compras: se somam
        zero, a anterior foi paga; o que sobrar é o que faltou pagar e o banco cobra de novo nesta fatura. */
     if(fatura){
