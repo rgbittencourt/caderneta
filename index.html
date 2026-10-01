@@ -686,9 +686,9 @@ function useUser(u){
   setTimeout(garantirNomeCompleto,600);
   /* pagamento de fatura que o extrato trouxe sem dizer o cartão: agora que as faturas estão aqui,
      liga cada um ao cartão cuja fatura fecha com aquele valor. Só mexe no que o próprio app chutou. */
-  setTimeout(async()=>{ const n=await religarPagamentos();
-    if(n){ render(); toast(n+(n>1?" pagamentos do extrato foram ligados ao cartão certo."
-      :" pagamento do extrato foi ligado ao cartão certo.")); }
+  setTimeout(async()=>{ const n=await religarPagamentos()+await reapontarPagamentos();
+    if(n){ render(); toast(n+(n>1?" pagamentos foram ligados à fatura certa."
+      :" pagamento foi ligado à fatura certa.")); }
     /* uma vez só, depois das correções de outubro: mostra o que ficou para arrumar */
     if(!S.cfg.rev69&&(comprasSemDescricao().length||faturasQueNaoFecham().length)){
       S.cfg.rev69=true; await saveCfg(); openRevisao(); } },1200);
@@ -2200,7 +2200,7 @@ async function saveDrafts(){
   for(const d of ok){ if(d.fixo&&d.k!=="e"&&(+d.n||1)<=1){ const fx={id:uid(),name:d.desc||"Gasto fixo",amount:d.v,day:+String(d.date).slice(8,10)||1,cat:d.cat,card:d.cardId}; (S.cfg.fixed=S.cfg.fixed||[]).push(fx); d.fix=fx.id; fixos++; } await commit(d); } if(fixos) await saveCfg();
   /* carga de extratos chegou ao mês atual: o salário automático volta */
   if(S.cfg.salPausa&&ok.some(d=>d.origem==="extrato"&&String(d.date)>=ymOf(todayISO())+"-01")){ S.cfg.salPausa=false; saveCfg(); }
-  const religados=ok.some(d=>d.origem==="fatura")?await religarPagamentos():0;
+  const religados=ok.some(d=>d.origem==="fatura")?(await religarPagamentos())+(await reapontarPagamentos()):0;
   S.drafts=[]; render();
   toast(ok.length+(ok.length>1?" lançamentos salvos":" lançamento salvo")+(fixos?" · "+fixos+" como fixo todo mês":"")+
     (acertadas?" · "+acertadas+(acertadas>1?" parcelas acertadas":" parcela acertada")+" pelo valor da fatura":"")+
@@ -3032,6 +3032,8 @@ const AJUDA=[
   c:"Não. Ela conta como gasto no mês em que foi feita e entra nas análises, mas o dinheiro só sai quando a fatura é paga. Cada linha mostra a marca crédito · não sai da conta.",a:"cartoes"},
  {g:"Cartões",t:"O banco já descontou, mas a fatura continua pedindo Pagar fatura",
   c:"Pode clicar em Pagar fatura sem medo: ele não desconta nada sozinho, abre uma tela. Se o app achar o pagamento que veio do extrato, aparece o aviso \u201cEsse pagamento já parece ter saído da conta\u201d e o botão É este pagamento — toque nele: a fatura fica paga e o dinheiro não sai de novo. O outro botão, Pagar mesmo assim, é que cria um pagamento novo. Se o aviso não aparecer, o pagamento ficou preso em outro cartão: abra o extrato da conta, toque nesse pagamento e corrija De qual cartão e Abate a fatura de. E se sobrar um resto pequeno, confira antes a Revisão, em Ajustes → Dados: linha de câmbio lida como compra deixa a fatura do app maior que a do banco.",a:"cartoes"},
+ {g:"Cartões",t:"A fatura aparece com pagamento a mais, ou com dois pagamentos",
+  c:"Quase sempre é pagamento grudado no mês errado: o extrato foi importado quando o cartão ainda não tinha dia de fechamento, e a baixa caiu na fatura do mês anterior — o mês antigo fica com dois pagamentos e o novo sem nenhum. O app conserta sozinho: ao abrir, ele procura pagamento que não fecha onde está e, se a fatura vizinha fechar certinho com ele, muda de lugar. Para mandar conferir na hora: Ajustes, em Dados, Revisar, e toque em Conferir agora. Pagamento parcial de verdade não é movido.",a:"cartoes"},
  {g:"Cartões",t:"A fatura do app ficou menor que a do banco. Por quê?",
   c:"Até a v68, uma compra que se chamasse \u201cPAGTO DE TITULO\u201d — pagar um boleto com o cartão — era confundida com a baixa da fatura anterior: sumia da lista e ainda entrava como se fosse pagamento. Na fatura do Elo isso deixava 628,25 de fora. A partir da v69 só conta como baixa o que vem como crédito (valor negativo) ou dizendo de onde saiu, como \u201cem débito em conta\u201d ou \u201cpagamentos/créditos\u201d. Para consertar uma fatura já importada, importe o mesmo PDF de novo: a conferência marca o que já está lançado e só o que faltava entra.",a:"fatura"},
  {g:"Cartões",t:"A fatura do app ficou maior que a do banco. Por quê?",
@@ -5242,6 +5244,26 @@ function contaDaAplicacao(nome){
 
 /* extrato importado antes da fatura: o pagamento ficou com "confira o cartão". Quando a fatura chega, ele vai para o
    cartão cuja fatura tem exatamente o valor pago. */
+/* pagamento no mês errado: o extrato foi importado quando o cartão ainda não tinha dia de fechamento,
+   e a baixa caiu na fatura do mês anterior. Se a fatura vizinha fecha certinho com ele, muda para lá.
+   Só mexe quando a fatura de destino passa a fechar — pagamento parcial de verdade fica onde está. */
+async function reapontarPagamentos(){
+  let n=0; const meses=new Set();
+  const folga=v=>Math.max(100,Math.round(v*0.02));
+  for(const t of allTx()){
+    if(t.k!=="p"||!t.card||!t.ref) continue;
+    const aqui=cardInvoice(t.card,t.ref);
+    const pagoAqui=pagamentosDaFatura(t.card,t.ref).reduce((s,x)=>s+x.v,0);
+    if(aqui.total&&Math.abs(aqui.total-pagoAqui)<=folga(aqui.total)) continue;   /* já fecha: não mexe */
+    for(const ref of [ymShift(t.ref,1),ymShift(t.ref,-1)]){
+      const la=cardInvoice(t.card,ref); if(!la.total) continue;
+      const pagoLa=pagamentosDaFatura(t.card,ref).reduce((s,x)=>s+x.v,0);
+      if(Math.abs(la.total-(pagoLa+t.v))>folga(la.total)) continue;              /* lá também não fecharia */
+      Object.assign(S.months[t.ym].tx[t.id],{ref,u:Date.now()});
+      meses.add(t.ym); n++; break; } }
+  for(const ym of meses) await saveMonth(ym);
+  return n; }
+
 async function religarPagamentos(){
   let n=0; const meses=new Set(), cartoes=creditCards();
   const bate=(a,b)=>b>0&&Math.abs(a-b)<=Math.max(100,Math.round(b*0.02));   /* 2%, no mínimo R$ 1 */
@@ -5418,7 +5440,7 @@ async function openRevisao(){
       fant.length?'<div class="acts"><button class="mini" id="rvVer">Ver</button><button class="mini del" id="rvApagar">'+(fant.length>1?"Apagar as "+fant.length:"Apagar")+'</button></div>':'')+
     bloco(semCartao.length?semCartao.length+(semCartao.length>1?" pagamentos sem cartão":" pagamento sem cartão"):"Pagamentos com cartão definido",
       semCartao.length?"Ligam sozinhos quando a fatura daquele valor for importada":"Todos os pagamentos do extrato já apontam para uma fatura",
-      semCartao.length?'<button class="mini" id="rvLigar">Tentar ligar agora</button>':'')+
+      '<button class="mini" id="rvLigar">Conferir agora</button>')+
     bloco(tortas.length?tortas.length+(tortas.length>1?" faturas não fecham com o pago":" fatura não fecha com o pago"):"Faturas e pagamentos batem",
       tortas.length?tortas.map(x=>cardName(x.card.id)+" de "+ymLabel(x.ym)+": fatura "+fmtN(x.total)+", pago "+fmtN(x.pago)+
         " ("+(x.dif>0?"falta ":"sobra ")+fmtN(Math.abs(x.dif))+")").join(" · ")
@@ -5432,8 +5454,10 @@ async function openRevisao(){
   const ap=$("#rvApagar"); if(ap) ap.onclick=async()=>{
     for(const t of fant) await removeTx(t.ym,t.id);
     render(); toast(fant.length+(fant.length>1?" lançamentos apagados.":" lançamento apagado.")); openRevisao(); };
-  const lg=$("#rvLigar"); if(lg) lg.onclick=async()=>{ const n=await religarPagamentos(); render();
-    toast(n?n+(n>1?" pagamentos ligados.":" pagamento ligado."):"Nenhum deles bate com uma fatura já importada."); openRevisao(); }; }
+  const lg=$("#rvLigar"); if(lg) lg.onclick=async()=>{
+    const n=(await religarPagamentos())+(await reapontarPagamentos()); render();
+    toast(n?n+(n>1?" pagamentos foram para a fatura certa.":" pagamento foi para a fatura certa.")
+      :"Nenhum pagamento precisou mudar de lugar."); openRevisao(); }; }
 
 function openRestore(){
   const google=S.user&&S.user.kind==="google";
