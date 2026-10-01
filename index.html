@@ -1281,11 +1281,11 @@ async function commit(d){
     if(!S.months[ym]) S.months[ym]={tx:{}};
     if(!S.months[ym].tx) S.months[ym].tx={};
     S.months[ym].tx[n>1?planId+"-"+(i+1):d.id]={
-      d:i===i0-1&&ymOf(d.date)===ym?d.date:firstOfMonth(ym,d.date), t:d.time, v:parts[i],
+      d:i===i0-1&&ymOf(d.date)===ym?d.date:firstOfMonth(ym,d.date), t:d.time, v:d.cred?-parts[i]:parts[i],
       desc:d.desc||"Sem descrição", cat:d.cat||(kind==="e"?"outrae":"outros"),
       method:d.method, card:d.cardId, raw:i===i0-1?d.raw:"", plan:planId, i:i+1, n:n, total:planTotal,
       fix:d.fix||"", k:kind, acct:kind==="t"?(d.acct||""):(d.acct||acctOf(d.cardId)), acct2:d.acct2||"", ref:d.ref||"", to:d.to||"", u:Date.now(),
-      ...(fat?{fat}:{}), ...(d.aj?{aj:1}:{}), ...(d.cons?{cons:d.cons}:{}), ...(d.emp?{emp:d.emp}:{}) };
+      ...(fat?{fat}:{}), ...(d.cred?{cred:1}:{}), ...(d.aj?{aj:1}:{}), ...(d.cons?{cons:d.cons}:{}), ...(d.emp?{emp:d.emp}:{}) };
     touched.add(ym); }
   if(kind==="g") learn(d);
   for(const ym of touched) await saveMonth(ym);
@@ -3036,6 +3036,8 @@ const AJUDA=[
   c:"Quase sempre é pagamento grudado no mês errado: o extrato foi importado quando o cartão ainda não tinha dia de fechamento, e a baixa caiu na fatura do mês anterior — o mês antigo fica com dois pagamentos e o novo sem nenhum. O app conserta sozinho: ao abrir, ele procura pagamento que não fecha onde está e, se a fatura vizinha fechar certinho com ele, muda de lugar. Para mandar conferir na hora: Ajustes, em Dados, Revisar, e toque em Conferir agora. Pagamento parcial de verdade não é movido.",a:"cartoes"},
  {g:"Cartões",t:"A fatura do app ficou menor que a do banco. Por quê?",
   c:"Até a v68, uma compra que se chamasse \u201cPAGTO DE TITULO\u201d — pagar um boleto com o cartão — era confundida com a baixa da fatura anterior: sumia da lista e ainda entrava como se fosse pagamento. Na fatura do Elo isso deixava 628,25 de fora. A partir da v69 só conta como baixa o que vem como crédito (valor negativo) ou dizendo de onde saiu, como \u201cem débito em conta\u201d ou \u201cpagamentos/créditos\u201d. Para consertar uma fatura já importada, importe o mesmo PDF de novo: a conferência marca o que já está lançado e só o que faltava entra.",a:"fatura"},
+ {g:"Cartões",t:"Estorno de compra aparece na fatura?",
+  c:"Sim. Devolução de compra, cancelamento e anuidade cobrada indevidamente entram como crédito e abatem a fatura, igual ao banco faz. Quando o estorno anula uma compra da mesma fatura, os dois somem juntos; quando é de uma compra de outro mês, entra como \u201cEstorno\u201d com valor negativo. Até a v71 esses estornos eram descartados e a fatura do app ficava maior que a do banco.",a:"fatura"},
  {g:"Cartões",t:"A fatura do app ficou maior que a do banco. Por quê?",
   c:"Se a diferença for de poucos reais e você tiver compra internacional na fatura, era a linha de câmbio: embaixo da compra o banco imprime algo como \u201c*** 9,99 DOLAR AMERICANO\u201d, que é o valor em dólar, não uma cobrança a mais. Versões antigas do app liam essa linha como compra, sem descrição e com data trocada. A partir da v67 ela é ignorada. Para limpar o que já entrou: Ajustes, em Dados, toque em Revisar: o app mostra quantas são, quanto somam a mais, e apaga todas de uma vez se você mandar.",a:"cartoes"},
  {g:"Cartões",t:"Paguei a fatura duas vezes. Como conserto?",
@@ -4331,9 +4333,10 @@ function rascunhosDoc(r,op){
         desc:"Saldo da fatura anterior", k:"g", n:1, i0:1, date:r.fechada||(mesFat+"-01"), time:"", msg:"", origem:"fatura",
         incluir:true, cardId:cardFat, method:"credito", ym:mesFat, cat:"outros"}); } }
   return r.linhas.map(l=>{
-    const d={id:uid(), raw:"", v:l.v, desc:l.desc, k:l.k||"g", n:l.n||1, i0:l.i0||1, date:l.d||hoje, time:"", msg:"", origem:r.tipo, incluir:true};
+    const d={id:uid(), raw:"", v:Math.abs(l.v), desc:l.desc, k:l.k||"g", n:l.n||1, i0:l.i0||1, date:l.d||hoje, time:"", msg:"", origem:r.tipo, incluir:true};
+    if(l.cred||l.v<0) d.cred=1;                       /* estorno: abate da fatura em vez de somar */
     if(r.tipo==="fatura"){ d.cardId=cardFat; d.method="credito"; d.ym=mesFat; d.porParcela=d.n>1;
-      d.raw="Fatura de "+ymLabel(d.ym)+(d.i0>1?" · parcela "+d.i0+" de "+d.n+" — as seguintes já ficam reservadas":""); }
+      d.raw="Fatura de "+ymLabel(d.ym)+(d.cred?" · estorno, abate da fatura":(d.i0>1?" · parcela "+d.i0+" de "+d.n+" — as seguintes já ficam reservadas":"")); }
     else if(r.tipo==="extrato"){ const c=debitoDaConta(op.conta); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id;
       d.method=d.k==="e"?"pix":"debito"; d.acct=op.conta||acctOf(d.cardId); d.raw="Extrato";
       if(l.aplic) d.aplic=l.aplic;

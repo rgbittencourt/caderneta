@@ -263,14 +263,20 @@ function lerLancamentos(texto,tipo,mes){
     if(!desc) desc=fatura?"Compra no cartão":"Lançamento do extrato";
     let k="g";
     if(!val.v) return;
-    if(fatura){ if(val.neg||val.cred){ estornos++; creditos.push({v:val.v, i0, n}); return; } }
+    if(fatura){ if(val.neg||val.cred){ estornos++; creditos.push({d:dt.iso, desc:capitalizar(desc), v:val.v, i0, n}); return; } }
     else if(val.cred||(!val.neg&&RE_ENTRADA.test(sem))) k="e";
     linhas.push({d:dt.iso, desc:capitalizar(desc), v:val.v, k, i0, n}); });
   /* crédito que anula uma cobrança da mesma fatura (mesmo valor e mesma parcela, como o desconto da anuidade):
      os dois ficam de fora */
+  /* o que sobra é devolução de compra de outro mês (Mercado Livre, anuidade cobrada indevidamente):
+     o banco abate da fatura, então vira crédito com valor negativo — sem isso a fatura do app fica maior. */
+  const abertos=[];
   creditos.forEach(c=>{ const j=linhas.findIndex(l=>l.v===c.v&&l.i0===c.i0&&l.n===c.n);
-    if(j>=0){ linhas.splice(j,1); anulados++; } });
-  return {linhas, ignoradas, estornos, anulados, fechada, cartao, vencimento, proxFechamento, melhorCompra, saldoAnterior, pagoAnterior}; }
+    if(j>=0){ linhas.splice(j,1); anulados++; }
+    else abertos.push({d:c.d, desc:(/estorno|devolu|cancel/i.test(c.desc||"")?c.desc:"Estorno · "+(c.desc||"compra")), v:-c.v, k:"g", i0:1, n:1, cred:1}); });
+  abertos.forEach(c=>linhas.push(c));
+  return {linhas, ignoradas, estornos, anulados, estornosAbertos:abertos.length,
+    fechada, cartao, vencimento, proxFechamento, melhorCompra, saldoAnterior, pagoAnterior}; }
 
 /* ---- saldo que o próprio banco imprime: serve para acertar a conta ---- */
 function saldosDoExtrato(texto,mes){
