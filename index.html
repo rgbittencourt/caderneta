@@ -684,6 +684,11 @@ function useUser(u){
   S.user=u; rememberUser(u); S.token=null; S.tokenExp=0; S.folderId=null; S.snap=null;
   loadLocal(); restoreToken(); S.mode=u.kind==="google"?"nuvem":"local"; S.view="painel";
   setTimeout(garantirNomeCompleto,600);
+  /* pagamento de fatura que o extrato trouxe sem dizer o cartão: agora que as faturas estão aqui,
+     liga cada um ao cartão cuja fatura fecha com aquele valor. Só mexe no que o próprio app chutou. */
+  setTimeout(async()=>{ const n=await religarPagamentos();
+    if(n){ render(); toast(n+(n>1?" pagamentos do extrato foram ligados ao cartão certo."
+      :" pagamento do extrato foi ligado ao cartão certo.")); } },1200);
   hideGate(); render();
   if(!S.cfg.seen) setTimeout(openWelcome,300); }
 function signOut(){
@@ -2216,7 +2221,8 @@ function perguntarPagamentoDaFatura(cardId,ym){
   setTimeout(()=>sheet("Esta fatura já foi paga?",
     '<div class="set"><div class="note"><b>'+esc(cardName(cardId))+' · fatura de '+esc(ymLabel(ym))+'</b>Falta pagar '+fmt(inv.open)+
     ', e já existe um pagamento de '+fmt(t.v)+' em '+diaMesAno(t.d)+', saindo de '+esc(acctName(t.acct||acctOf(t.card)))+
-    (t.card&&t.card!==cardId?' (lançado no '+esc(cardName(t.card))+')':'')+'. Se for desta fatura, ligo os dois'+
+    (semCartaoCerto(t)?' — o extrato do banco não diz de qual cartão é, só "pagamento de fatura"'
+      :(t.card&&t.card!==cardId?' (lançado no '+esc(cardName(t.card))+')':''))+'. Se for desta fatura, ligo os dois'+
     (t.v<inv.open?': ela fica com pagamento parcial de '+fmt(t.v)+', faltando '+fmt(inv.open-t.v)+'.':': o dinheiro não sai de novo da conta.')+'</div></div>',
     '<button class="btn ghost" id="pfN">Não é esta fatura</button><button class="btn" id="pfS">Sim, é esta</button>'),500);
   setTimeout(()=>{ const n=$("#pfN"), y=$("#pfS"); if(!n||!y) return;
@@ -2591,12 +2597,18 @@ function openCorrigirFatura(cid){
 
 /* o pagamento desta fatura pode já ter saído da conta pelo extrato do banco, com outro nome, em outro cartão ou
    com o mês errado. Procura um pagamento perto do vencimento que ainda não está contado nesta fatura. */
+/* pagamento vindo do extrato sem o nome do cartão: o cartão que estiver ali é palpite, não informação */
+const semCartaoCerto=t=>!t.card||/confira o cart|cart.o a confirmar/.test(t.raw||"");
 function pagamentoJaLancado(cardId,ym,valor){
   const c=creditCards().find(x=>x.id===cardId)||{};
   const venc=c.due&&(!c.closing||c.due<c.closing)?ymShift(ym,1):ym;
   const alvo=Date.parse(venc+"-"+pad(Math.min(c.due||daysIn(venc),daysIn(venc)))+"T12:00:00");
   const perto=t=>Math.abs(Date.parse(t.d+"T12:00:00")-alvo)<=25*86400000;
-  const cand=allTx().filter(t=>t.k==="p"&&!(t.card===cardId&&t.ref===ym)&&perto(t))
+  /* só entram pagamentos que ainda não têm dono: sem cartão, ou com cartão que o próprio app chutou,
+     ou já deste cartão em outro mês. Pagamento de outro cartão não pode ser oferecido como se fosse
+     desta fatura — era o que acontecia: o pagamento do Visa aparecia como "parte" da fatura do Elo. */
+  const livre=t=>semCartaoCerto(t)||t.card===cardId;
+  const cand=allTx().filter(t=>t.k==="p"&&!(t.card===cardId&&t.ref===ym)&&perto(t)&&livre(t))
     .map(t=>({t,dif:Math.abs(t.v-valor),parcial:t.v<valor&&t.v>=Math.round(valor*0.15)}))
     .filter(x=>x.dif<=1||(valor>0&&x.dif<=Math.round(valor*0.02))||x.parcial)   /* o banco pode ter pago só um pedaço */
     .sort((a,b)=>a.dif-b.dif||Math.abs(Date.parse(a.t.d)-alvo)-Math.abs(Date.parse(b.t.d)-alvo));
@@ -2614,7 +2626,8 @@ function openPay(cardId){
   sheet("Pagar fatura · "+c.n,
     '<div class="set">'+
     (ja?'<div class="note"><b>'+(ja.v<inv.open?"Uma parte desta fatura já parece ter saído da conta":"Esse pagamento já parece ter saído da conta")+'</b>'+fmt(ja.v)+' em '+diaMesAno(ja.d)+
-      (ja.card&&ja.card!==cardId?' · lançado no '+esc(cardName(ja.card)):'')+(ja.ref&&ja.ref!==S.ym?' · como fatura de '+esc(ymLabel(ja.ref)):'')+
+      (semCartaoCerto(ja)?' · o extrato não disse de qual cartão era':(ja.card&&ja.card!==cardId?' · lançado no '+esc(cardName(ja.card)):''))+
+      (ja.ref&&ja.ref!==S.ym?' · como fatura de '+esc(ymLabel(ja.ref)):'')+
       ' · sai de '+esc(acctName(ja.acct||acctOf(ja.card)))+'. Se for desta fatura, use <b>É este pagamento</b>: '+
       (ja.v<inv.open?'ela fica com pagamento parcial de '+fmt(ja.v)+', faltando '+fmt(inv.open-ja.v)+', e o dinheiro não sai de novo da conta.'
         :'ela fica paga e o dinheiro não sai de novo da conta.')+'</div>':'')+
@@ -3003,6 +3016,8 @@ const AJUDA=[
   c:"A fatura que fecha hoje já traz o fechamento do mês seguinte. Importando cada fatura quando ela sai, você fica sempre um ciclo à frente — não perde dias. E mesmo sem importar, o app já indica o melhor cartão pela estimativa do dia.",a:"cartoes"},
  {g:"Cartões",t:"A compra no cartão sai da minha conta?",
   c:"Não. Ela conta como gasto no mês em que foi feita e entra nas análises, mas o dinheiro só sai quando a fatura é paga. Cada linha mostra a marca crédito · não sai da conta.",a:"cartoes"},
+ {g:"Cartões",t:"Paguei a fatura duas vezes. Como conserto?",
+  c:"Abra Contas, escolha a conta corrente e toque em Repetidos, no alto do extrato: o app mostra os pagamentos parecidos e você escolhe qual apagar. Dá para apagar também pelo próprio extrato, tocando no pagamento errado e escolhendo Excluir. Apagar um pagamento não mexe nas compras da fatura.",a:"cartoes"},
  {g:"Cartões",t:"A fatura aparece atrasada, mas eu paguei",
   c:"O pagamento provavelmente não está ligado a ela. Em Contas, toque em Pagar fatura: se o app achar o pagamento que já saiu da conta, ele oferece É este pagamento — e o dinheiro não sai de novo.",a:"cartoes"},
  {g:"Cartões",t:"O pagamento da fatura saiu duas vezes da conta",
@@ -5160,10 +5175,25 @@ function classificarLinhaExtrato(d){
     const palavras=s.split(" "), ym=ymOf(d.date);
     /* sem o nome do cartão ("Pagto cartão crédito"), vale o cartão cuja fatura tem exatamente esse valor */
     const peloValor=C.find(x=>{ const ref=x.due&&x.closing&&x.due>x.closing?ym:ymShift(ym,-1), inv=cardInvoice(x.id,ref); return inv.total&&Math.abs(inv.total-d.v)<=1; });
-    const c=C.find(x=>norm(x.n+" "+(x.alias||"")).split(" ").some(w=>w.length>2&&palavras.indexOf(w)>=0))||peloValor||(C.length===1?C[0]:null);
-    d.k="p"; d.method="debito"; d.n=1; d.cardId=(c||C[0]||{}).id||d.cardId;
+    /* o extrato do BB escreve "Pagto cartão crédito · Elo Nanquim". O nome do cartão no app pode ser outro
+       ("Ourocard", "Nanquim", "Elo"), então compara nos dois sentidos — palavra do app que aparece no extrato
+       e palavra do extrato que aparece no nome do app — e ainda usa os apelidos já aprendidos. */
+    const pal=palavras.filter(w=>w.length>2);
+    const pontua=x=>{ const nome=norm(x.n+" "+(x.alias||"")).split(" ").filter(w=>w.length>2);
+      return nome.filter(w=>pal.indexOf(w)>=0).length+pal.filter(w=>nome.indexOf(w)>=0).length; };
+    const ranque=C.map(x=>({x,p:pontua(x)})).filter(o=>o.p>0).sort((a,b)=>b.p-a.p);
+    const porNome=ranque.length&&(ranque.length===1||ranque[0].p>ranque[1].p)?ranque[0].x:null;
+    let porApelido=null;
+    Object.keys(S.cfg.kwCard||{}).forEach(w=>{ if(porApelido) return;
+      if(pal.indexOf(deacc(String(w).toLowerCase()))>=0) porApelido=C.find(x=>x.id===S.cfg.kwCard[w]); });
+    const c=porNome||porApelido||peloValor||(C.length===1?C[0]:null);
+    d.k="p"; d.method="debito"; d.n=1;
+    /* o BB escreve só "Pagto cartão crédito". Sem saber de qual cartão é, fica em branco: chutar o primeiro
+       da lista punha o pagamento no cartão errado e a fatura certa pedia pagamento de novo — foi assim que o
+       dono acabou pagando duas vezes a fatura do Elo (set/2026). */
+    d.cardId=c?c.id:"";
     d.ref=c&&c.due&&c.closing&&c.due>c.closing?ym:ymShift(ym,-1);      /* paga em setembro a fatura de agosto */
-    d.raw="Extrato · pagamento de fatura"+(c?"":" — confira o cartão"); return; }
+    d.raw="Extrato · pagamento de fatura"+(c?"":" — cartão a confirmar"); return; }
   /* saque (regra do dono): o dinheiro sai da conta e vai para a carteira; gasto é quando sai da carteira */
   if(d.k!=="e"&&/\bsaque\b/.test(s)){
     const car=(S.cfg.accounts||[]).find(a=>a.type==="carteira");
@@ -5190,13 +5220,24 @@ function contaDaAplicacao(nome){
 /* extrato importado antes da fatura: o pagamento ficou com "confira o cartão". Quando a fatura chega, ele vai para o
    cartão cuja fatura tem exatamente o valor pago. */
 async function religarPagamentos(){
-  let n=0; const meses=new Set();
+  let n=0; const meses=new Set(), cartoes=creditCards();
+  const bate=(a,b)=>b>0&&Math.abs(a-b)<=Math.max(100,Math.round(b*0.02));   /* 2%, no mínimo R$ 1 */
   for(const t of allTx()){
-    if(t.k!=="p"||!/confira o cart/.test(t.raw||"")) continue;
+    if(t.k!=="p") continue;
+    if(t.card&&!/confira o cart|cart.o a confirmar/.test(t.raw||"")) continue;
     const ym=ymOf(t.d);
-    const c=creditCards().find(x=>{ const ref=x.due&&x.closing&&x.due>x.closing?ym:ymShift(ym,-1), inv=cardInvoice(x.id,ref); return inv.total&&Math.abs(inv.total-t.v)<=1; });
-    if(!c) continue;
-    Object.assign(S.months[t.ym].tx[t.id],{card:c.id, ref:c.due&&c.closing&&c.due>c.closing?ym:ymShift(ym,-1), raw:"Extrato · pagamento de fatura", u:Date.now()});
+    /* procura em qualquer cartão a fatura que fecha com esse valor — a do mês do pagamento ou a do mês
+       anterior —, sem depender de o cartão ter dia de fechamento cadastrado */
+    let achou=null;
+    for(const c of cartoes) for(const ref of [ym,ymShift(ym,-1)]){
+      const inv=cardInvoice(c.id,ref);
+      if(!inv.total||inv.open<=0) continue;
+      if(!bate(t.v,inv.open)&&!bate(t.v,inv.total)) continue;
+      const dif=Math.min(Math.abs(t.v-inv.open),Math.abs(t.v-inv.total));
+      if(!achou||dif<achou.dif) achou={c,ref,dif}; }
+    if(!achou) continue;
+    Object.assign(S.months[t.ym].tx[t.id],{card:achou.c.id, ref:achou.ref,
+      raw:"Extrato · pagamento de fatura", u:Date.now()});
     meses.add(t.ym); n++; }
   for(const ym of meses) await saveMonth(ym);
   return n; }
