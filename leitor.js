@@ -235,8 +235,13 @@ function lerLancamentos(texto,tipo,mes){
       if(vs.length){
         const x=vs[vs.length-1], sinal=x.neg?-1:1;
         if(/\bsaldo\b.{0,24}\banterior\b/.test(baixa)){ saldoAnterior=sinal*x.v; ignoradas++; return; }
-        if(!/minimo/.test(baixa)&&/\b(pagamento|pagto|pgto)\b|\bdebito (automatico|em conta)\b|\bdeb(ito)? autom/.test(baixa)){
-          pagoAnterior+=x.v; ignoradas++; return; } } }
+        /* a baixa da fatura anterior vem como crédito (valor negativo) ou dizendo de onde saiu
+           ("em débito em conta", "pagamentos/créditos"). Uma COMPRA pode se chamar "PAGTO DE TITULO 01/03"
+           — pagar um boleto com o cartão — e não pode ser confundida com a baixa: antes ela sumia da fatura
+           e ainda entrava como se fosse pagamento (fatura do Elo de set/2026 ficava 628,25 menor). */
+        const ehBaixa=/\b(pagamento|pagamentos|pagto|pgto)\b/.test(baixa)&&
+          (x.neg||x.cred||/\b(fatura anterior|debito em conta|debito automatico|deb(ito)? autom|creditos?)\b/.test(baixa));
+        if(!/minimo/.test(baixa)&&ehBaixa){ pagoAnterior+=x.v; ignoradas++; return; } } }
     let dt=dataNaLinha(linha,ano,mesRef);
     const vals=valores(linha).filter(x=>!dt||x.ini>=dt.len);
     if(dt&&!vals.length){
