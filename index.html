@@ -666,7 +666,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v86";
+const VERSAO_APP="caderneta-v87";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -2296,6 +2296,9 @@ function readInput(){
 async function saveDrafts(){
   const ok=S.drafts.filter(d=>d.v&&d.incluir!==false); let fixos=0, acertadas=0, empurradas=0;
   for(const d of S.drafts) if(d.dupAuto&&d.dup&&(d.ajustarValor||d.moverPara)){ await ajustarParcelaReservada(d); acertadas++; }
+  for(const d of S.drafts) if(d.pagoAntes&&d.alinhar&&d.incluir===false){
+    const m=S.months[d.alinhar.ym], t=m&&m.tx&&m.tx[d.alinhar.id];
+    if(t&&!t.del&&ymOf(d.date)===d.alinhar.ym&&t.d!==d.date){ t.d=d.date; t.raw="Extrato · pagamento de fatura"; t.u=Date.now(); await saveMonth(d.alinhar.ym); } }
   /* uma fatura inteira acabou de ser lida: as parcelas que ela não traz vão para a fatura seguinte */
   const fatDoc=[...new Set(S.drafts.filter(d=>d.origem==="fatura"&&d.cardId&&d.ym).map(d=>d.cardId+"|"+d.ym))];
   for(const chave of fatDoc){ const [cid,ym]=chave.split("|"); empurradas+=await empurrarParcelasNaoCobradas(cid,ym,S.drafts); }
@@ -3236,6 +3239,8 @@ const AJUDA=[
   c:"Não deve mais acontecer: o app procura o pagamento antes de lançar outro. Se já aconteceu, use Contas → Repetidos: ele mostra os dois e você escolhe qual apagar.",a:"cartoes"},
  {g:"Cartões",t:"A Revisão diz que o pagamento está ligado à fatura errada",
   c:"Acontece quando o pagamento de um mês ficou guardado na fatura do mês vizinho, e o do vizinho nesta: os totais batem com o banco, mas cada fatura parece paga com o valor da outra, e o app pode achar que falta pagar a diferença. Na Revisão, toque em Conferir pagamentos: o app troca os dois de lugar quando assim as duas faturas fecham no centavo. Nada é pago nem apagado.",a:"cartoes"},
+ {g:"Cartões",t:"Toquei em Pagar fatura e depois importei o extrato. O pagamento conta duas vezes?",
+  c:"Não. Ao importar o extrato, o débito do banco que tem o mesmo cartão, a mesma fatura e o mesmo valor do pagamento que você lançou pelo botão é reconhecido como o mesmo, sem perguntar: aparece Você já tinha lançado este pagamento pelo botão Pagar fatura, ele não entra de novo, e a data do seu lançamento passa a ser a do banco. Importar o mesmo extrato duas vezes também não duplica. Só fica de fora o que for diferente de verdade, como um valor pago diferente do da fatura.",a:"cartoes"},
  {g:"Cartões",t:"O banco pagou a fatura em pedaços",
   c:"O app soma as partes: enquanto falta, mostra pagamento parcial de X em N vezes; quando fecha, paga em N pagamentos. Pedaços da mesma fatura não são tratados como repetidos.",a:"cartoes"},
  {g:"Cartões",t:"A fatura do app está maior que a do banco",
@@ -4662,6 +4667,13 @@ function rascunhosDoc(r,op){
              o dono respondeu "são diferentes" em todas e cada fatura reimportada dobrou (05/10/2026). */
           if(d.origem==="fatura"&&doBanco.has(rep.id)&&rep.card===d.cardId&&faturaDe(rep)===d.ym&&Math.abs(rep.v)===d.v
             &&(rep.d===d.date||norm(rep.desc||"")===norm(d.desc||""))){ d.dupResp=1; d.dupAuto=1; d.mesmaLinha=1; }
+          /* pagamento de fatura que o dono já tinha lançado pelo botão Pagar fatura: o débito do banco é o mesmo
+             (mesmo cartão, mesma fatura, mesmo valor, poucos dias de diferença). Não pergunta — respondendo "são
+             diferentes", o pagamento entrava duas vezes — e a data do lançamento passa a ser a do banco. */
+          if(d.origem==="extrato"&&d.k==="p"&&rep.k==="p"&&Math.abs(rep.v-d.v)<=1
+            &&(!d.cardId||!rep.card||rep.card===d.cardId)&&(!d.ref||!rep.ref||rep.ref===d.ref)){
+            d.dupResp=1; d.dupAuto=1; d.mesmaLinha=1;
+            if(!/^Extrato/.test(rep.raw||"")){ d.pagoAntes=1; d.alinhar={ym:rep.ym,id:rep.id}; } }
           /* o mesmo vale para o extrato importado de novo: mesma linha, mesmo dia, mesmo valor, mesmo nome */
           if(d.origem==="extrato"&&/^Extrato/.test(rep.raw||"")&&Math.abs(rep.v)===d.v&&rep.d===d.date
             &&norm(rep.desc||"")===norm(d.desc||"")){ d.dupResp=1; d.dupAuto=1; d.mesmaLinha=1; } } } }
@@ -5316,7 +5328,7 @@ function openAcerto(acctId,s,depois){
 function dupHTML(d,i){
   if(!d.dup) return "";
   const t=d.dup;
-  if(d.dupResp) return '<div class="dup ok">'+(d.mesmaLinha&&!d.incluir?"Já lançado por "+(d.origem==="extrato"?"este mesmo extrato":"esta mesma fatura")+": não vai entrar de novo.":d.dupAuto&&!d.incluir?"Parcela "+d.i0+"/"+d.n+" já reservada pela fatura em que a compra começou: não vai entrar de novo.":d.incluir?"Você disse que são dois lançamentos diferentes: este vai entrar.":"Você disse que é o mesmo: este não vai entrar.")+
+  if(d.dupResp) return '<div class="dup ok">'+(d.pagoAntes&&!d.incluir?"Você já tinha lançado este pagamento pelo botão Pagar fatura: não vai entrar de novo, e a data dele passa a ser a do banco.":d.mesmaLinha&&!d.incluir?"Já lançado por "+(d.origem==="extrato"?"este mesmo extrato":"esta mesma fatura")+": não vai entrar de novo.":d.dupAuto&&!d.incluir?"Parcela "+d.i0+"/"+d.n+" já reservada pela fatura em que a compra começou: não vai entrar de novo.":d.incluir?"Você disse que são dois lançamentos diferentes: este vai entrar.":"Você disse que é o mesmo: este não vai entrar.")+
     ' <button class="mini" data-dupv="'+i+'">mudar</button></div>';
   return '<div class="dup"><b>Isto já está lançado?</b>'+
     '<div class="dup-l">Na Caderneta: <b>'+esc(t.desc)+'</b> · '+diaMesAno(t.d)+' · '+fmtN(t.v)+(t.card?' · '+esc(cardName(t.card)):'')+'</div>'+
