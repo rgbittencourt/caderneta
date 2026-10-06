@@ -55,7 +55,7 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **Faturas e extratos fecham com o papel:** as 27 faturas de 2026 dos três cartões do autor e os 9 extratos do mesmo período fecham com o total e o saldo impressos pelo banco, centavo por centavo. Quando uma fatura não fechar, é leitura antiga: importe o mesmo PDF de novo, que a conferência deixa entrar só o que falta.
 
-**A fatura entra no mês em que ela fechou:** a fatura que fechou em 23/12 é a "fatura de dezembro", mesmo pagando em janeiro — é assim que o pagamento do extrato encontra ela. Se alguma fatura entrou no mês errado, use Ajustes → *Corrigir fatura* → **Apagar esta fatura** e importe o arquivo de novo; o pagamento não é apagado.
+**A fatura tem o nome do mês em que vence, como o banco faz:** a que fecha em 23/09 e vence em 05/10 é a "fatura de out (05/10)" — e a data do vencimento aparece entre parênteses em todo lugar. Com o mês de cima em outubro, cada cartão mostra a fatura que vence em outubro, e é ela que entra no previsto do mês. Se alguma fatura entrou errada, use Ajustes → *Corrigir fatura* (escolha o mês em que ela vence) → **Apagar esta fatura** e importe o arquivo de novo; o pagamento não é apagado.
 
 **Fatura paga em pedaços:** quando o banco debita a fatura em partes, o app soma os pedaços. Enquanto falta, ele mostra *pagamento parcial de X em N vezes*; quando fecha, *paga em N pagamentos*. Pedaços da mesma fatura não são tratados como pagamento repetido.
 

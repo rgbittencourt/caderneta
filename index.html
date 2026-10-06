@@ -666,7 +666,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v84";
+const VERSAO_APP="caderneta-v85";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -1422,6 +1422,16 @@ function vencimentoDe(c,ym){
   if(!c||!c.due) return "";
   const m=c.closing&&c.due<=c.closing?ymShift(ym,1):ym;
   return m+"-"+pad(Math.min(c.due,daysIn(m))); }
+/* O nome da fatura é o mês em que ela VENCE, como o banco faz (pedido do dono, 06/10/2026): a do Mastercard que
+   fecha em 23/09 e vence em 05/10 é a "fatura de outubro (05/10)". Por dentro, os lançamentos continuam guardados
+   pelo mês do fechamento (fat, ref, faturasLidas, totaisBanco) — a "chave" da fatura; estas funções traduzem. */
+const vencNoMesSeguinte=c=>!!(c&&c.due&&c.closing&&c.due<=c.closing);
+const cartaoPorId=id=>(S.cfg.cards||[]).find(x=>x.id===id)||null;
+function mesDeVencimento(c,chave){ if(typeof c==="string") c=cartaoPorId(c); return vencNoMesSeguinte(c)?ymShift(chave,1):chave; }
+function chaveDaFatura(c,mesVenc){ if(typeof c==="string") c=cartaoPorId(c); return vencNoMesSeguinte(c)?ymShift(mesVenc,-1):mesVenc; }
+function nomeFatura(c,chave,maiuscula){ if(typeof c==="string") c=cartaoPorId(c);
+  const v=vencimentoDe(c,chave);
+  return (maiuscula?"Fatura":"fatura")+" de "+ymLabel(mesDeVencimento(c,chave))+(v?" ("+v.slice(8,10)+"/"+v.slice(5,7)+")":""); }
 /* a fatura de uma compra no crédito; lançamento antigo, sem "fat", está guardado no mês da própria fatura */
 const faturaDe=t=>t.fat||t.ym;
 function cardOwed(cardId){ let o=0, inicio="";
@@ -1469,7 +1479,7 @@ function monthStats(ym){
 function projectMonth(ym){
   const st=monthStats(ym), last=ym+"-"+pad(daysIn(ym));
   const hoje=totalBalance(todayISO()), naData=totalBalance(last);
-  const faturas=creditCards().reduce((s,c)=>s+Math.max(0,cardInvoice(c.id,ym).open),0);
+  const faturas=creditCards().reduce((s,c)=>s+Math.max(0,cardInvoice(c.id,chaveDaFatura(c,ym)).open),0);   /* a que vence no mês */
   /* renda que ainda vai entrar: nos meses à frente, sempre; no mês atual, só antes do primeiro dia útil (depois o salário já
      entrou, ou foi apagado de propósito) ou, sem salário automático, até ser lançado. Durante a carga de extratos, não conta. */
   const hojeISO=todayISO(), curYm=ymOf(hojeISO), falta=Math.max(0,rendaPrevista(ym)-st.income);
@@ -1727,7 +1737,7 @@ const DICAS={};
 /* a chave casa por começo do texto, porque os rótulos trazem o mês ou o nome junto
    ("Disponível até o fim de set 2026"). Vence a chave mais longa que encaixa. */
 [["No banco hoje","O saldo de todas as contas somadas, hoje. O dinheiro da carteira aparece à parte, porque não está no banco."],
- ["Lançado nos cartões","O que já está lançado na fatura de cada cartão para este mês. Compra no crédito só sai da conta quando a fatura é paga."],
+ ["Faturas dos cartões que vencem em","A fatura de cada cartão que vence neste mês, com o dia do vencimento — a fatura tem o nome do mês em que vence, como o banco faz. Compra no crédito só sai da conta quando a fatura é paga."],
  ["Melhor cartão","O cartão cuja fatura fecha mais longe: comprando com ele hoje, você fica mais tempo com o dinheiro na conta. Depende do dia de fechamento de cada cartão, informado em Ajustes."],
  ["Disponível até o fim","O que ainda cabe no seu teto neste mês: o teto menos o que já foi gasto e menos o que está comprometido (parcelas, fixos e agendados)."],
  ["Gasto no mês","Tudo o que saiu neste mês, inclusive as compras no crédito — elas contam no dia da compra, mesmo que o dinheiro só saia na fatura."],
@@ -2017,7 +2027,7 @@ function htmlMelhorCartao(){
     '<div class="tile-l">Melhor cartão para comprar hoje</div>'+
     (top
       ? '<span class="tile-v" style="font-size:26px">'+esc(top.c.n)+'</span>'+
-        '<div class="tile-s">A compra de hoje entra na fatura de '+esc(ymLabel(top.p.fat))+', que fecha em '+diaMes2(top.p.fecha)+
+        '<div class="tile-s">A compra de hoje entra na fatura de '+esc(ymLabel(mesDeVencimento(top.c,top.p.fat)))+', que fecha em '+diaMes2(top.p.fecha)+
         (top.p.exata?" (data impressa na fatura)":"")+' e vence em '+diaMes2(top.p.paga)+': são <b>'+top.p.dias+(top.p.dias===1?" dia":" dias")+'</b> até o dinheiro sair da conta.'+
         (top.livre!==null?" Limite livre de "+fmtN(top.livre)+".":"")+
         (top.p.melhor?" O banco indica "+diaMes2(top.p.melhor)+" como melhor data de compra.":"")+'</div>'
@@ -2033,7 +2043,7 @@ function htmlBancoCartoes(){
     (sub?'<div class="s">'+esc(sub)+'</div>':'')+'</div><span class="row-v'+(valor<0?' neg':'')+'">'+fmtN(valor)+'</span></div>';
   const contas=A.map(a=>({a, v:balanceOf(a.id,hoje)}));
   const banco=contas.filter(x=>x.a.type!=="carteira").reduce((s,x)=>s+x.v,0);
-  const C=creditCards().map(c=>({c, fat:cardInvoice(c.id,S.ym).total, devo:cardOwed(c.id)}));
+  const C=creditCards().map(c=>{ const k=chaveDaFatura(c,S.ym); return {c, k, fat:cardInvoice(c.id,k).total, devo:cardOwed(c.id), venc:vencimentoDe(c,k)}; });
   const totalFat=C.reduce((s,x)=>s+x.fat,0);
   return '<div class="sec"><div class="grid g2">'+
     '<div class="card pad"><div class="tile-l">No banco hoje</div>'+
@@ -2043,11 +2053,11 @@ function htmlBancoCartoes(){
       return linha(x.a.n,x.v,norm(t)===norm(x.a.n)?"":t,' data-irext="'+x.a.id+'"'); }).join("")
       :'<div class="empty" style="padding:14px">Cadastre suas contas em Ajustes.</div>')+
     '</div>'+
-    '<div class="card pad"><div class="tile-l">Lançado nos cartões · fatura de '+esc(ymLabel(S.ym))+'</div>'+
+    '<div class="card pad"><div class="tile-l">Faturas dos cartões que vencem em '+esc(ymLabel(S.ym))+'</div>'+
     '<span class="tile-v" style="font-size:30px">'+fmt(totalFat)+'</span>'+
     '<div class="tile-s" style="margin-bottom:8px">Compra no crédito só sai da conta quando a fatura é paga.</div>'+
     (C.length?C.map(x=>linha(x.c.n,x.fat,
-      "em aberto "+fmtN(x.devo)+(x.c.limit?" · livre "+fmtN(livreDoCartao(x.c)):""),
+      (x.venc?"vence "+x.venc.slice(8,10)+"/"+x.venc.slice(5,7)+" · ":"")+"a pagar no total "+fmtN(x.devo)+(x.c.limit?" · livre "+fmtN(livreDoCartao(x.c)):""),
       ' data-irext="card:'+x.c.id+'"')).join("")
       :'<div class="empty" style="padding:14px">Cadastre seus cartões em Ajustes.</div>')+
     '</div></div></div>'; }
@@ -2159,7 +2169,7 @@ function insHTML(list){
 function catColorOf(t){ return t.k==="e"?"var(--good)":(t.k==="p"||t.k==="t")?"var(--ink-3)":"var(--accent)"; }
 function rowHTML(t){
   const isE=t.k==="e",isP=t.k==="p",isT=t.k==="t";
-  const meio = isP ? "Fatura de "+ymLabel(t.ref||t.ym)+" · sai de "+acctName(t.acct)
+  const meio = isP ? nomeFatura(t.card,t.ref||t.ym,true)+" · sai de "+acctName(t.acct)
     : isT ? (t.aj?acctName(t.acct||t.acct2):acctName(t.acct)+" → "+acctName(t.acct2))
     : isE ? "cai em "+acctName(t.acct||acctOf(t.card))
     : (cardName(t.card)||METODOS[t.method]||(t.method==="folha"?"Desconto em folha":""))+(t.to?" · para "+t.to:"");
@@ -2330,7 +2340,7 @@ function mostrarConferencia(L,depois){
   const tudoOk=L.every(c=>c.ok);
   setTimeout(()=>{
     sheet(tudoOk?(L.length>1?"As faturas fecham com o banco":"A fatura fecha com o banco"):"A fatura não fechou com o banco",
-      '<div class="set"><div class="card pad">'+L.map(c=>'<div class="linkrow"><div class="m"><div class="t">'+(c.ok?"✓ ":"⚠ ")+esc(cardName(c.cid))+' de '+esc(ymLabel(c.ym))+'</div>'+
+      '<div class="set"><div class="card pad">'+L.map(c=>'<div class="linkrow"><div class="m"><div class="t">'+(c.ok?"✓ ":"⚠ ")+esc(cardName(c.cid))+' · '+esc(nomeFatura(c.cid,c.ym))+'</div>'+
         '<div class="s">no app '+fmtN(c.tot)+' · o banco imprimiu '+fmtN(c.tb)+(c.ok?'':' · diferença de '+fmtN(Math.abs(c.tot-c.tb))+(c.tot>c.tb?' a mais no app':' a menos no app'))+'</div></div></div>').join("")+'</div>'+
       '<div class="set-f"><span class="hint">'+(tudoOk?'O total da fatura no app é o mesmo <b>Total da fatura</b> impresso no PDF do banco.'
         :'Abra a Revisão: a fatura aparece lá com o botão <b>Apagar fatura</b>. Apague, importe o PDF de novo e veja se fecha. Se continuar diferente, mande um print desta tela.')+'</span></div></div>',
@@ -2344,7 +2354,7 @@ function perguntarPagamentoDaFatura(cardId,ym){
   const inv=cardInvoice(cardId,ym); if(inv.open<=0) return false;
   const t=pagamentoJaLancado(cardId,ym,inv.open); if(!t) return false;
   setTimeout(()=>sheet("Esta fatura já foi paga?",
-    '<div class="set"><div class="note"><b>'+esc(cardName(cardId))+' · fatura de '+esc(ymLabel(ym))+'</b>Falta pagar '+fmt(inv.open)+
+    '<div class="set"><div class="note"><b>'+esc(cardName(cardId))+' · '+esc(nomeFatura(cardId,ym))+'</b>Falta pagar '+fmt(inv.open)+
     ', e já existe um pagamento de '+fmt(t.v)+' em '+diaMesAno(t.d)+', saindo de '+esc(acctName(t.acct||acctOf(t.card)))+
     (semCartaoCerto(t)?' — o extrato do banco não diz de qual cartão é, só "pagamento de fatura"'
       :(t.card&&t.card!==cardId?' (lançado no '+esc(cardName(t.card))+')':''))+'. Se for desta fatura, ligo os dois'+
@@ -2353,7 +2363,7 @@ function perguntarPagamentoDaFatura(cardId,ym){
   setTimeout(()=>{ const n=$("#pfN"), y=$("#pfS"); if(!n||!y) return;
     n.onclick=closeSheet;
     y.onclick=async()=>{ await ligarPagamento(t,cardId,ym); closeSheet(); render();
-      toast("Fatura de "+ymLabel(ym)+" marcada como paga pelo lançamento de "+diaMesAno(t.d)+"."); }; },620);
+      toast(nomeFatura(cardId,ym,true)+" marcada como paga pelo lançamento de "+diaMesAno(t.d)+"."); }; },620);
   return true; }
 
 /* =================== mês =================== */
@@ -2419,7 +2429,7 @@ function renderContas(){
   if(pr.goal){ const dif=pr.fim-pr.goal;
     notas.push([dif>=0?"Acima da meta de saldo":"Abaixo da meta de saldo",(dif>=0?"+":"")+fmt(dif),dif>=0?"var(--good)":"var(--bad)"]); }
   if(pr.rendaFalta>0) notas.push(["Renda que ainda deve entrar",fmt(pr.rendaFalta),""]);
-  if(pr.faturas>0) notas.push(["Faturas em aberto de "+ymLabel(S.ym),fmt(pr.faturas),"var(--bad)"]);
+  if(pr.faturas>0) notas.push(["Faturas que vencem em "+ymLabel(S.ym)+", a pagar",fmt(pr.faturas),"var(--bad)"]);
   if(pr.fixPend>0) notas.push(["Fixos ainda não lançados",fmt(pr.fixPend),""]);
 
   $("#p-contas").innerHTML=
@@ -2441,31 +2451,31 @@ function renderContas(){
     '</div></div>'+
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Cartões de crédito</h2></div><div class="grid g2">'+
     (creditCards().length?creditCards().map(c=>{
-      const inv=cardInvoice(c.id,S.ym), owed=cardOwed(c.id), lim=c.limit||0;
+      const kf=chaveDaFatura(c,S.ym), inv=cardInvoice(c.id,kf), owed=cardOwed(c.id), lim=c.limit||0;
       /* limite único: o banco divide um limite só entre os cartões marcados; o livre desconta todos */
       const grupo=c.limUnico?creditCards().filter(x=>x.limUnico):[c], usadoLim=usadoNoLimite(c);
       const p=lim>0?Math.min(100,usadoLim/lim*100):0;
       /* fatura de meses anteriores ainda sem pagamento no app: a que vence agora não pode ficar escondida
          dentro do "em aberto" (o dono estranhou o Mastercard: 11 mil em aberto e só a fatura do mês à vista) */
-      const antigas=[]; for(let k=1;k<=3;k++){ const ym=ymShift(S.ym,-k), i=cardInvoice(c.id,ym);
+      const antigas=[]; for(let k=1;k<=3;k++){ const ym=ymShift(kf,-k), i=cardInvoice(c.id,ym);
         if(i.total>0&&i.open>100) antigas.push({ym,open:i.open,venc:vencimentoDe(c,ym)}); }
-      const futuras=allTx().filter(t=>t.card===c.id&&t.k==="g"&&t.method==="credito"&&faturaDe(t)>S.ym).reduce((s,t)=>s+t.v,0);
-      const bits=[c.closing>0?"fecha dia "+c.closing:"sem fechamento"];
-      if(c.due>0) bits.push("vence dia "+c.due);
-      if(inv.paid>0){ const np=pagamentosDaFatura(c.id,S.ym).length;
+      const futuras=allTx().filter(t=>t.card===c.id&&t.k==="g"&&t.method==="credito"&&faturaDe(t)>kf).reduce((s,t)=>s+t.v,0);
+      const fechaEm=c.closing>0?kf+"-"+pad(Math.min(c.closing,daysIn(kf))):"";
+      const bits=[fechaEm?(fechaEm<=todayISO()?"fechou ":"fecha ")+fechaEm.slice(8,10)+"/"+fechaEm.slice(5,7):"sem fechamento"];
+      if(inv.paid>0){ const np=pagamentosDaFatura(c.id,kf).length;
         bits.push(inv.open<=0?"paga"+(np>1?" em "+np+" pagamentos":""):"parcial: pago "+fmtN(inv.paid)+(np>1?" em "+np+" pagamentos":"")); }
       return '<div class="cardbox"><div class="cardbox-h"><span class="cardbox-n">'+esc(c.n)+'</span>'+
         '<span class="cardbox-v">'+fmtN(Math.max(0,inv.open))+'</span></div>'+
-        '<div class="cardbox-s">Fatura de '+esc(ymLabel(S.ym))+' · '+esc(bits.join(" · "))+'</div>'+
-        antigas.map(a=>'<div class="cardbox-alerta"><span>⚠ Fatura de '+esc(ymLabel(a.ym))+' ainda sem pagamento no app: <b>'+fmtN(a.open)+'</b>'+
+        '<div class="cardbox-s">'+esc(nomeFatura(c,kf,true))+' · '+esc(bits.join(" · "))+'</div>'+
+        antigas.map(a=>'<div class="cardbox-alerta"><span>⚠ '+esc(nomeFatura(c,a.ym,true))+' ainda sem pagamento no app: <b>'+fmtN(a.open)+'</b>'+
           (a.venc?' · '+(a.venc<todayISO()?'venceu':a.venc===todayISO()?'vence hoje,':'vence')+' '+diaMesAno(a.venc):'')+'. Se o banco já debitou, ela fica paga quando você importar o extrato.</span>'+
           '<button class="mini" data-pay="'+c.id+'" data-payym="'+a.ym+'">Pagar</button></div>').join("")+
         (lim>0?'<div class="meter"><i class="'+(p>85?"bad":p>65?"warn":"")+'" style="width:'+p+'%"></i></div>':'')+
         '<div class="meter-s"><span>a pagar no total '+fmtN(owed)+'</span>'+
           (lim>0?'<span>livre '+fmtN(Math.max(0,lim-usadoLim))+' de '+fmtN(lim)+'</span>':'<span>limite não informado</span>')+'</div>'+
-        '<div class="cardbox-nota">'+(owed>0?(futuras>0?'o total inclui '+fmtN(futuras)+' de parcelas dos próximos meses':'sem parcelas para os próximos meses'):'nada a pagar')+
+        '<div class="cardbox-nota">'+(owed>0?(futuras>0?'o total inclui '+fmtN(futuras)+' de faturas que vencem nos próximos meses':'nada para os próximos meses'):'nada a pagar')+
           (c.limUnico&&grupo.length>1?' · limite único com '+esc(grupo.filter(x=>x.id!==c.id).map(x=>x.n).join(" e ")):'')+'</div>'+
-        '<div class="cardbox-a">'+(inv.open>0?'<button class="btn sm" data-pay="'+c.id+'">Pagar fatura</button>':'')+
+        '<div class="cardbox-a">'+(inv.open>0?'<button class="btn sm" data-pay="'+c.id+'" data-payym="'+kf+'">Pagar fatura</button>':'')+
         '<button class="btn ghost sm" data-verext="card:'+c.id+'">Ver fatura</button></div></div>'; }).join("")
       :'<div class="empty"><b>Nenhum cartão de crédito</b>Cadastre em Ajustes para acompanhar fatura e limite.</div>')+
     '</div></div>';
@@ -2537,9 +2547,9 @@ function openTx(ym,id){
         /* pagamento de fatura: dá para corrigir a qual cartão e a qual fatura ele pertence */
         (kind==="p"?'<div class="two"><div class="set-f"><label for="tPC">De qual cartão</label>'+
           '<select id="tPC"><option value="">A confirmar</option>'+optId(creditCards(),t.card)+'</select></div>'+
-          '<div class="set-f"><label for="tPR">Abate a fatura de</label>'+
-          '<input id="tPR" type="month" value="'+(t.ref||ym)+'"></div></div>'+
-          '<div class="set-f"><span class="hint">É assim que se conserta um pagamento que o app ligou ao cartão errado: escolha o cartão certo e o mês da fatura. O dinheiro não sai de novo da conta.</span></div>':''))+
+          '<div class="set-f"><label for="tPR">Abate a fatura que vence em</label>'+
+          '<input id="tPR" type="month" value="'+mesDeVencimento(t.card,t.ref||ym)+'"></div></div>'+
+          '<div class="set-f"><span class="hint">É assim que se conserta um pagamento que o app ligou ao cartão errado: escolha o cartão certo e o mês em que a fatura vence. O dinheiro não sai de novo da conta.</span></div>':''))+
     (t.n>1?'<div class="set-f"><span class="hint">Compra de '+fmt(t.total)+' em '+t.n+'x. Mudar o valor aqui muda só esta parcela.</span></div>':'')+
     (t.raw?'<div class="raw">“'+esc(t.raw)+'”</div>':'')+'</div>',
     (kind==="g"&&(+t.n||1)<=1&&!t.fix?'<button class="btn ghost" id="tFix">Tornar fixo</button>':'')+'<button class="btn danger" id="tKill">'+(t.n>1?"Excluir compra":"Excluir")+'</button><button class="btn" id="tOk">Salvar</button>');
@@ -2552,7 +2562,7 @@ function openTx(ym,id){
     if($("#tA")) patch.acct=$("#tA").value;
     if($("#tPC")!==null&&kind==="p"){ patch.card=$("#tPC").value;
       patch.raw=patch.card?"Extrato · pagamento de fatura":"Extrato · pagamento de fatura — cartão a confirmar"; }
-    if($("#tPR")&&kind==="p"&&$("#tPR").value) patch.ref=$("#tPR").value;
+    if($("#tPR")&&kind==="p"&&$("#tPR").value) patch.ref=chaveDaFatura(patch.card!=null?patch.card:t.card,$("#tPR").value);
     if($("#tB")) patch.acct2=$("#tB").value;
     if($("#tTo")) patch.to=$("#tTo").value.trim();
     /* compra no crédito continua na mesma fatura quando muda a data; virou crédito agora: a fatura sai do dia e do fechamento */
@@ -2716,29 +2726,30 @@ function openCorrigirSaldo(id){
 function openCorrigirFatura(cid){
   const c=creditCards().find(x=>x.id===cid); if(!c) return;
   sheet("Corrigir fatura · "+c.n,
-    '<div class="set"><div class="set-f"><label for="cfM">Fatura de</label><input id="cfM" type="month" value="'+S.ym+'"></div>'+
+    '<div class="set"><div class="set-f"><label for="cfM">Fatura que vence em</label><input id="cfM" type="month" value="'+S.ym+'"></div>'+
     '<div class="linkrow"><div class="m"><div class="t">A Caderneta soma</div><div class="s" id="cfS"></div></div><span class="row-v" id="cfCalc"></span></div>'+
     '<div class="set-f"><label for="cfV">Total do banco nesta fatura</label><input id="cfV" inputmode="decimal">'+
     '<span class="hint">Some, no resumo da fatura, as compras, tarifas e encargos do período — sem o saldo da fatura anterior e sem pagamentos. '+
     'A diferença entra na fatura como <b>Acerto da fatura</b>: conta como gasto daquele mês, ou abate, se o banco cobrou menos. Não mexe na conta corrente.</span></div>'+
     acertosDe(t=>t.card===cid&&t.k==="g")+'</div>',
     '<button class="btn danger" id="cfDel">Apagar esta fatura</button><button class="btn" id="cfOk">Corrigir</button>');
-  const atualiza=()=>{ const ym=$("#cfM").value||S.ym, inv=cardInvoice(cid,ym), n=comprasDaFatura(cid,ym).length;
+  const chaveEscolhida=()=>chaveDaFatura(c,$("#cfM").value||S.ym);
+  const atualiza=()=>{ const ym=chaveEscolhida(), inv=cardInvoice(cid,ym), n=comprasDaFatura(cid,ym).length;
     const del=$("#cfDel"); if(del){ delete del.dataset.certeza; del.textContent="Apagar esta fatura"; }
-    $("#cfS").textContent=n+(n===1?" lançamento":" lançamentos")+" na fatura de "+ymLabel(ym);
+    $("#cfS").textContent=n+(n===1?" lançamento":" lançamentos")+" na "+nomeFatura(c,ym);
     $("#cfCalc").textContent=fmtN(inv.total); $("#cfV").value=fmtN(inv.total); };
   $("#cfM").onchange=atualiza; atualiza();
   /* fatura importada no mês errado: apaga só os lançamentos dela (com as parcelas seguintes), sem tocar no pagamento */
-  $("#cfDel").onclick=async()=>{ const ym=$("#cfM").value||S.ym, L=comprasDaFatura(cid,ym);
+  $("#cfDel").onclick=async()=>{ const ym=chaveEscolhida(), L=comprasDaFatura(cid,ym);
     if(!L.length){ toast("Não há lançamentos nesta fatura."); return; }
     const del=$("#cfDel");
     if(!del.dataset.certeza){ del.dataset.certeza="1"; del.textContent="Apagar mesmo?";
-      toast(L.length+(L.length>1?" lançamentos":" lançamento")+" da fatura de "+ymLabel(ym)+(L.some(t=>t.plan)?", com as parcelas seguintes":"")+". Toque de novo para apagar."); return; }
+      toast(L.length+(L.length>1?" lançamentos":" lançamento")+" da "+nomeFatura(c,ym)+(L.some(t=>t.plan)?", com as parcelas seguintes":"")+". Toque de novo para apagar."); return; }
     const n=await apagarFatura(cid,ym);
     closeSheet(); render();
-    toast(n+(n>1?" lançamentos apagados":" lançamento apagado")+" da fatura de "+ymLabel(ym)+". Importe o arquivo de novo."); };
-  $("#cfOk").onclick=async()=>{ const ym=$("#cfM").value||S.ym, delta=await acertarFatura(cid,ym,toCents($("#cfV").value));
-    closeSheet(); render(); toast(delta?"Fatura de "+ymLabel(ym)+" corrigida em "+(delta>0?"+":"")+fmt(delta):"A fatura já batia"); }; }
+    toast(n+(n>1?" lançamentos apagados":" lançamento apagado")+" da "+nomeFatura(c,ym)+". Importe o arquivo de novo."); };
+  $("#cfOk").onclick=async()=>{ const ym=chaveEscolhida(), delta=await acertarFatura(cid,ym,toCents($("#cfV").value));
+    closeSheet(); render(); toast(delta?nomeFatura(c,ym,true)+" corrigida em "+(delta>0?"+":"")+fmt(delta):"A fatura já batia"); }; }
 
 /* apaga as compras de uma fatura para ela ser importada de novo. De uma compra parcelada saem esta parcela e as
    seguintes (a reimportação recoloca as que faltarem); as anteriores, de faturas já conferidas, ficam. O pagamento
@@ -2777,30 +2788,30 @@ async function ligarPagamento(t,cardId,ym){
 
 function openPay(cardId,ymAlvo){
   const c=S.cfg.cards.find(x=>x.id===cardId); if(!c) return;
-  const ym=ymAlvo||ym, inv=cardInvoice(cardId,ym), A=S.cfg.accounts||[];
+  const ym=ymAlvo||chaveDaFatura(c,S.ym), inv=cardInvoice(cardId,ym), A=S.cfg.accounts||[];
   if(!A.length){ toast("Cadastre uma conta antes."); return; }
   const ja=pagamentoJaLancado(cardId,ym,inv.open);
   sheet("Pagar fatura · "+c.n,
     '<div class="set">'+
     (ja?'<div class="note"><b>'+(ja.v<inv.open?"Uma parte desta fatura já parece ter saído da conta":"Esse pagamento já parece ter saído da conta")+'</b>'+fmt(ja.v)+' em '+diaMesAno(ja.d)+
       (semCartaoCerto(ja)?' · o extrato não disse de qual cartão era':(ja.card&&ja.card!==cardId?' · lançado no '+esc(cardName(ja.card)):''))+
-      (ja.ref&&ja.ref!==ym?' · como fatura de '+esc(ymLabel(ja.ref)):'')+
+      (ja.ref&&ja.ref!==ym?' · como '+esc(nomeFatura(cardId,ja.ref)):'')+
       ' · sai de '+esc(acctName(ja.acct||acctOf(ja.card)))+'. Se for desta fatura, use <b>É este pagamento</b>: '+
       (ja.v<inv.open?'ela fica com pagamento parcial de '+fmt(ja.v)+', faltando '+fmt(inv.open-ja.v)+', e o dinheiro não sai de novo da conta.'
         :'ela fica paga e o dinheiro não sai de novo da conta.')+'</div>':'')+
     '<div class="set-f"><label>Valor</label><input id="yV" inputmode="decimal" value="'+fmtN(inv.open)+'"></div>'+
     '<div class="two"><div class="set-f"><label>Sai de qual conta</label><select id="yA">'+optId(A,acctOf(cardId))+'</select></div>'+
     '<div class="set-f"><label>Quando</label><input id="yD" type="date" value="'+todayISO()+'"></div></div>'+
-    '<div class="note"><b>Isso não é um gasto novo</b>Tira o dinheiro da conta e abate a fatura de '+esc(ymLabel(ym))+
+    '<div class="note"><b>Isso não é um gasto novo</b>Tira o dinheiro da conta e abate a '+esc(nomeFatura(c,ym))+
     '. As compras já foram contadas no teto quando você comprou.</div></div>',
     (ja?'<button class="btn ghost" id="yJa">É este pagamento</button>':'<button class="btn ghost" id="yX">Cancelar</button>')+
     '<button class="btn" id="yOk">'+(ja?'Pagar mesmo assim':'Pagar')+'</button>');
   const x=$("#yX"); if(x) x.onclick=closeSheet;
   const j=$("#yJa"); if(j) j.onclick=async()=>{ await ligarPagamento(ja,cardId,ym); closeSheet(); render();
-    toast("Fatura de "+ymLabel(ym)+" marcada como paga pelo lançamento de "+diaMesAno(ja.d)+"."); };
+    toast(nomeFatura(c,ym,true)+" marcada como paga pelo lançamento de "+diaMesAno(ja.d)+"."); };
   $("#yOk").onclick=async()=>{ const v=toCents($("#yV").value);
     if(!v){ toast("Coloque o valor."); return; }
-    await commit({id:uid(),raw:"",v,desc:"Fatura "+c.n+" · "+ymLabel(ym),cat:"outros",method:"debito",
+    await commit({id:uid(),raw:"",v,desc:"Fatura "+c.n+" · "+ymLabel(mesDeVencimento(c,ym)),cat:"outros",method:"debito",
       cardId,acct:$("#yA").value,n:1,date:$("#yD").value||todayISO(),time:nowTime(),k:"p",ref:ym});
     closeSheet(); render(); toast("Fatura paga"); }; }
 
@@ -2884,8 +2895,9 @@ function htmlImportacoes(){
          mas não entra na conta do que falta enquanto você não importar a primeira */
       const cobra=ym<=cur&&(a.type==="corrente"||temImport(ex,a.id));
       out.push({lido:!!ex[a.id+"|"+ym], nome:a.n, quando:ex[a.id+"|"+ym], cobra, chave:"e|"+a.id+"|"+ym}); });
-    cartoes.forEach(c=>{ const d=desdeCartao[c.id]; if(!d||ym<d) return;
-      out.push({lido:!!fa[c.id+"|"+ym], nome:c.n, quando:fa[c.id+"|"+ym], cobra:ym<=cur, chave:"f|"+c.id+"|"+ym}); });
+    cartoes.forEach(c=>{ const d=desdeCartao[c.id]; if(!d||ym<mesDeVencimento(c,d)) return;
+      const kf=chaveDaFatura(c,ym);   /* a linha do mês mostra a fatura que vence nele */
+      out.push({lido:!!fa[c.id+"|"+kf], nome:c.n, quando:fa[c.id+"|"+kf], cobra:ym<=cur, chave:"f|"+c.id+"|"+kf}); });
     return out; };
   let faltam=0;
   const linhas=meses.map(ym=>{ const L=docsDoMes(ym); if(!L.length) return "";
@@ -3224,6 +3236,8 @@ const AJUDA=[
   c:"O app soma as partes: enquanto falta, mostra pagamento parcial de X em N vezes; quando fecha, paga em N pagamentos. Pedaços da mesma fatura não são tratados como repetidos.",a:"cartoes"},
  {g:"Cartões",t:"A fatura do app está maior que a do banco",
   c:"Costuma ser parcela reservada a mais. Importe a fatura do banco — o app acerta o valor e empurra a parcela que não veio — ou use Corrigir fatura → Apagar esta fatura e importe de novo.",a:"saldos"},
+ {g:"Cartões",t:"Por que a fatura do Mastercard é \u201cde outubro\u201d se fecha em setembro?",
+  c:"Porque o app dá à fatura o nome do mês em que ela vence, como o banco faz, e mostra a data do vencimento entre parênteses: a que fecha em 23/09 e vence em 05/10 é a fatura de out (05/10). No Visa e no Elo, que fecham no começo do mês e vencem no meio dele, o fechamento e o vencimento caem no mesmo mês. Com o mês de cima em outubro, cada cartão mostra a fatura que vence em outubro, e são essas que entram em Contas a pagar e no previsto do mês. As compras continuam contando como gasto no mês em que foram feitas.",a:"cartoes"},
  {g:"Cartões",t:"Importei a fatura no mês errado. E agora?",
   c:"Ajustes → Saldo de cada conta e cartão → Corrigir fatura → escolha o mês → Apagar esta fatura (dois toques). Depois importe o arquivo de novo. O pagamento não é apagado.",a:"saldos"},
  {g:"Cartões",t:"O que sai quando apago uma fatura?",
@@ -3376,7 +3390,7 @@ function renderAjustes(){
       '<button class="mini" data-acct="'+a.id+'">Editar</button></div></div>').join("")
       :'<div class="empty"><b>Nenhuma conta</b>Cadastre onde seu dinheiro fica.</div>')+
     creditCards().map(k=>'<div class="linkrow wrap"><div class="m"><div class="t">'+esc(k.n)+'</div><div class="s">'+
-      esc("Cartão de crédito · fatura de "+ymLabel(S.ym)+" "+fmtN(cardInvoice(k.id,S.ym).total))+'</div></div>'+
+      esc("Cartão de crédito · "+nomeFatura(k,chaveDaFatura(k,S.ym))+" "+fmtN(cardInvoice(k.id,chaveDaFatura(k,S.ym)).total))+'</div></div>'+
       '<div class="acts"><button class="mini" data-cfat="'+k.id+'">Corrigir fatura</button><button class="mini" data-card="'+k.id+'">Editar</button></div></div>').join("")+
     '</div></div>'+
 
@@ -4599,7 +4613,7 @@ function rascunhosDoc(r,op){
          se a fatura anterior está no app, ela já mostra isso como a pagar. */
       if(!credor&&cardInvoice(cardFat,ymShift(mesFat,-1)).total) r.anteriorNaApp=true;
       else extras.push({id:uid(), v:Math.abs(falta), ...(credor?{cred:1}:{}),
-        raw:"Fatura de "+ymLabel(mesFat)+" · "+(credor?"saldo a favor que sobrou da fatura anterior, abatido nesta":"o que faltou pagar da fatura anterior"),
+        raw:nomeFatura(cardFat,mesFat,true)+" · "+(credor?"saldo a favor que sobrou da fatura anterior, abatido nesta":"o que faltou pagar da fatura anterior"),
         desc:credor?"Saldo a favor da fatura anterior":"Saldo da fatura anterior", k:"g", n:1, i0:1,
         date:r.fechada||(mesFat+"-01"), time:"", msg:"", origem:"fatura",
         incluir:true, cardId:cardFat, method:"credito", ym:mesFat, cat:"outros"}); } }
@@ -4611,7 +4625,7 @@ function rascunhosDoc(r,op){
     const d={id:uid(), raw:"", v:Math.abs(l.v), desc:l.desc, k:l.k||"g", n:l.n||1, i0:l.i0||1, date:l.d||hoje, time:"", msg:"", origem:r.tipo, incluir:true};
     if(l.cred||l.v<0) d.cred=1;                       /* estorno: abate da fatura em vez de somar */
     if(r.tipo==="fatura"){ d.cardId=cardFat; d.method="credito"; d.ym=mesFat; d.porParcela=d.n>1;
-      d.raw="Fatura de "+ymLabel(d.ym)+(d.cred?" · estorno, abate da fatura":(d.i0>1?" · parcela "+d.i0+" de "+d.n+" — as seguintes já ficam reservadas":"")); }
+      d.raw=nomeFatura(cardFat,d.ym,true)+(d.cred?" · estorno, abate da fatura":(d.i0>1?" · parcela "+d.i0+" de "+d.n+" — as seguintes já ficam reservadas":"")); }
     else if(r.tipo==="extrato"){ const c=debitoDaConta(op.conta); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id;
       d.method=d.k==="e"?"pix":"debito"; d.acct=op.conta||acctOf(d.cardId); d.raw="Extrato";
       if(l.aplic) d.aplic=l.aplic;
@@ -4896,10 +4910,10 @@ function htmlPagamentos(ym,st){
   const por={}; st.gastos.forEach(t=>{ const k=t.card||t.method; por[k]=(por[k]||0)+t.v; });
   const tot=Object.keys(por).reduce((s,k)=>s+por[k],0), nome=k=>cardName(k)||METODOS[k]||(k==="folha"?"Desconto em folha":"Outro");
   const rows=Object.keys(por).map(k=>({label:nome(k),v:por[k],pct:tot?Math.round(por[k]/tot*100):0,tip:nome(k)+" — "+fmt(por[k]),id:k})).sort((a,b)=>b.v-a.v);
-  rows.forEach((r,i)=>{ const c=(S.cfg.cards||[]).find(x=>x.id===r.id), inv=c&&c.type==="credito"?cardInvoice(c.id,ym):null;
+  rows.forEach((r,i)=>{ const c=(S.cfg.cards||[]).find(x=>x.id===r.id), kf=c&&c.type==="credito"?chaveDaFatura(c,ym):"", inv=kf?cardInvoice(c.id,kf):null;
     r.leituraT=r.label;
     r.leitura=leituraFatia(r,tot,{de:"do que você gastou em "+ymLabel(ym), lugar:(i+1)+"ª forma mais usada no mês.",
-      extra:inv?("A fatura de "+ymLabel(ym)+" nesse cartão está em "+fmtN(inv.total||r.v)+
+      extra:inv?("A "+nomeFatura(c,kf)+" nesse cartão está em "+fmtN(inv.total||r.v)+
         (c.limit?"; do limite de "+fmtN(c.limit)+(c.limUnico?" (único, dividido com os outros cartões)":"")+", ainda cabem "+fmtN(livreDoCartao(c))+".":"."))
         :"Sai da conta na hora — não é crédito."}); });
   const cred=st.gastos.filter(t=>t.method==="credito").reduce((s,t)=>s+t.v,0);
@@ -5208,10 +5222,10 @@ function htmlExtrato(){
   const linhaSaldo=(rot,v,fim)=>'<div class="ext-h'+(fim?' fim':'')+'"><span>'+rot+'</span><b'+(v<0?' style="color:var(--bad)"':'')+'>'+fmtN(v)+'</b></div>';
   let corpo;
   if(cartao){
-    const cid=S.ext.slice(5), inv=cardInvoice(cid,ym);
-    const L=comprasDaFatura(cid,ym).sort((a,b)=>(a.d+(a.t||"")).localeCompare(b.d+(b.t||"")));
-    const pg=allTx().filter(t=>t.k==="p"&&t.card===cid&&t.ref===ym);
-    corpo=linhaSaldo("Fatura de "+esc(ymLabel(ym)),inv.total)+
+    const cid=S.ext.slice(5), kf=chaveDaFatura(cid,ym), inv=cardInvoice(cid,kf);
+    const L=comprasDaFatura(cid,kf).sort((a,b)=>(a.d+(a.t||"")).localeCompare(b.d+(b.t||"")));
+    const pg=allTx().filter(t=>t.k==="p"&&t.card===cid&&t.ref===kf);
+    corpo=linhaSaldo(esc(nomeFatura(cid,kf,true)),inv.total)+
       (L.length?L.map(t=>linhaExt(t,-t.v,null,hoje)).join(""):'<div class="empty" style="padding:14px">Nenhuma compra nesta fatura. A fatura se importa em Lançar.</div>')+
       pg.map(t=>linhaExt(t,t.v,null,hoje)).join("")+
       linhaSaldo(inv.open>0?(inv.paid>0?"Falta pagar (pago "+fmtN(inv.paid)+" em "+pg.length+(pg.length>1?" pagamentos)":" pagamento)"):"Falta pagar")
@@ -5332,7 +5346,7 @@ function openRepetido(pares,i,aoDiferentes){
   const par=pares[i], a=par[0], b=par[1];
   const linha=(rot,t)=>'<div class="dup-l"><b>'+rot+':</b> '+esc(t.desc)+' · '+diaMesAno(t.d)+' · '+fmtN(t.v)+' · '+esc(catLabel(t))+
     (t.card?' · '+esc(cardName(t.card)):'')+(t.n>1?' · parcela '+t.i+'/'+t.n:'')+
-    (t.k==="p"&&t.ref?' · abate a fatura de '+esc(ymLabel(t.ref)):'')+
+    (t.k==="p"&&t.ref?' · abate a '+esc(nomeFatura(t.card,t.ref)):'')+
     (t.raw?' · '+esc(t.raw.slice(0,60)):'')+'</div>';
   sheet("Parecem o mesmo lançamento ("+(i+1)+" de "+pares.length+")",
     '<div class="set"><div class="dup">'+linha("Primeiro",a)+linha("Segundo",b)+'</div>'+
@@ -5398,14 +5412,14 @@ function contasDoMes(ym){
     const d=diaDoMes(dv.dia);
     out.push({tipo:"folha", id:dv.id, nome:dv.nome, v:+dv.parcela||0, d, pago:d<=hoje, sub:"Descontado do salário"}); });
   creditCards().forEach(c=>{
-    const inv=cardInvoice(c.id,ym); if(!inv.total) return;
-    const outroMes=c.due&&(!c.closing||c.due<c.closing), prox=ymShift(ym,1);
-    const venc=outroMes?prox+"-"+pad(Math.min(c.due,daysIn(prox))):diaDoMes(c.due||dim);
+    /* a fatura que VENCE neste mês (o nome dela é este mês; por dentro, a chave é o mês do fechamento) */
+    const kf=chaveDaFatura(c,ym), inv=cardInvoice(c.id,kf); if(!inv.total) return;
+    const venc=vencimentoDe(c,kf)||diaDoMes(dim);
     /* sem a fatura do banco importada, o valor é só a previsão pelas compras e parcelas que o app conhece */
-    const prevista=!((S.cfg.faturasLidas||{})[c.id+"|"+ym]);
+    const prevista=!((S.cfg.faturasLidas||{})[c.id+"|"+kf]);
     out.push({tipo:"fatura", id:c.id, nome:"Fatura "+c.n, v:inv.open>0?inv.open:inv.total, d:venc, pago:inv.open<=0, prevista,
-      sub:"Fatura de "+ymLabel(ym)+(c.due?" · vence "+venc.slice(8,10)+"/"+venc.slice(5,7):" · sem data de vencimento")+
-        (inv.paid>0?(inv.open>0?" · pagamento parcial de "+fmtN(inv.paid)+(pagamentosDaFatura(c.id,ym).length>1?" em "+pagamentosDaFatura(c.id,ym).length+" vezes":""):" · paga"):"")+
+      sub:nomeFatura(c,kf,true)+(c.due?"":" · sem data de vencimento")+
+        (inv.paid>0?(inv.open>0?" · pagamento parcial de "+fmtN(inv.paid)+(pagamentosDaFatura(c.id,kf).length>1?" em "+pagamentosDaFatura(c.id,kf).length+" vezes":""):" · paga"):"")+
         (prevista?" · ainda sem a fatura do banco":"")}); });
   return out.sort((a,b)=>a.d.localeCompare(b.d)||b.v-a.v); }
 
@@ -5813,7 +5827,7 @@ function comprasSemDescricao(){
 function openSemDescricao(){
   const L=comprasSemDescricao();
   const linha=t=>'<div class="linkrow"><div class="m"><div class="t">'+fmtN(t.v)+' · '+esc(cardName(t.card)||"cartão")+'</div>'+
-    '<div class="s">'+diaMesAno(t.d)+' · fatura de '+esc(ymLabel(t.fat||t.ym))+'</div></div>'+
+    '<div class="s">'+diaMesAno(t.d)+' · '+esc(nomeFatura(t.card,t.fat||t.ym))+'</div></div>'+
     '<button class="mini del" data-sd="'+t.ym+'|'+t.id+'">Apagar</button></div>';
   sheet("Compras sem descrição",
     '<div class="set">'+
@@ -5905,7 +5919,7 @@ async function openRevisao(){
       tortas.length?"Da mais antiga para a mais nova: apague a fatura aqui e importe o PDF dela de novo"
         :"Cada fatura confere com o total impresso pelo banco e com o que saiu da conta","")+
     tortas.slice().sort((a,b)=>a.ym.localeCompare(b.ym)||cardName(a.card.id).localeCompare(cardName(b.card.id))).map(x=>
-      '<div class="linkrow"><div class="m"><div class="t">'+esc(cardName(x.card.id))+' de '+esc(ymLabel(x.ym))+'</div>'+
+      '<div class="linkrow"><div class="m"><div class="t">'+esc(cardName(x.card.id))+' · '+esc(nomeFatura(x.card,x.ym))+'</div>'+
       (x.pagamento?'<div class="s">o total bate com o banco ('+fmtN(x.total)+'), mas o pago não: '+fmtN(x.pago)+' — pagamento ligado à fatura errada</div></div>'+
         '<button class="mini" data-rvp="1">Conferir pagamentos</button></div>'
       :(x.apagada?'<div class="s"><b>falta importar o PDF desta fatura</b>'+(x.banco!=null?' · o banco diz '+fmtN(x.banco):' · pago '+fmtN(x.pago))+'</div></div></div>'
@@ -5935,9 +5949,9 @@ async function openRevisao(){
     toast(n?n+(n>1?" pagamentos foram para a fatura certa.":" pagamento foi para a fatura certa."):"Nenhum pagamento precisou mudar de lugar."); openRevisao(); });
   $$("[data-apf]").forEach(b=>b.onclick=async()=>{ const [cid,ym]=b.dataset.apf.split("|");
     if(!b.dataset.certeza){ b.dataset.certeza="1"; b.textContent="Apagar mesmo?";
-      toast("Apaga as compras da fatura "+cardName(cid)+" de "+ymLabel(ym)+" (o pagamento fica). Toque de novo."); return; }
+      toast("Apaga as compras da "+nomeFatura(cid,ym)+" do "+cardName(cid)+" (o pagamento fica). Toque de novo."); return; }
     const n=await apagarFatura(cid,ym); render();
-    toast(n+(n>1?" lançamentos apagados":" lançamento apagado")+". Agora importe o PDF da fatura "+cardName(cid)+" de "+ymLabel(ym)+" de novo.");
+    toast(n+(n>1?" lançamentos apagados":" lançamento apagado")+". Agora importe o PDF da "+nomeFatura(cid,ym)+" do "+cardName(cid)+" de novo.");
     openRevisao(); });
   const ap=$("#rvApagar"); if(ap) ap.onclick=async()=>{
     for(const t of fant) await removeTx(t.ym,t.id);
