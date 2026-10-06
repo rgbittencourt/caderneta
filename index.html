@@ -608,7 +608,8 @@ const EKW = {
   alug:"aluguel recebido inquilino locacao",
   venda:"venda vendi vendido",
   decimo:"decimo terceiro ferias bonus plr participacao",
-  emprest:"emprestimo consignado liberado"
+  /* "Contr BB Consig em Folha": o crédito do consignado. "folha" puxava para Salário e o empréstimo virava renda */
+  emprest:"emprestimo consignado consig consignacao liberado"
 };
 /* ---- contas e formas de pagamento ---- */
 const ACCTS = [
@@ -644,7 +645,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v82";
+const VERSAO_APP="caderneta-v83";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -3222,6 +3223,10 @@ const AJUDA=[
  /* dívidas */
  {g:"Dívidas",t:"Onde cadastro um consignado ou financiamento?",
   c:"Aba Lançar, no fim, em Dívidas e empréstimos. O acompanhamento (saldo, juros, quando termina) fica na aba Análises.",a:"dividas"},
+ {g:"Dívidas",t:"Como cadastro um consignado que já estou pagando?",
+  c:"Aba Lançar, no fim, Cadastrar dívida, tipo Consignado. Os números estão no contracheque: a linha do empréstimo traz o valor da parcela e o prazo. Preencha o valor da parcela, o valor do empréstimo, a data em que ele caiu na conta, o número total de parcelas, quantas já foram descontadas antes deste mês e, em Primeiro desconto no salário de, o mês em que caiu o primeiro salário já com o desconto. Se o dinheiro do empréstimo já veio no extrato, desmarque Lançar o depósito: senão ele entra duas vezes. Os salários que já estão no app ficam como estão; do próximo em diante, a parcela aparece em Dívidas e empréstimos.",a:"dividas"},
+ {g:"Dívidas",t:"O empréstimo apareceu como salário na minha renda",
+  c:"Acontecia com o crédito do consignado no extrato do Banco do Brasil (Contr BB Consig em Folha): a palavra folha puxava a categoria para Salário, e o dinheiro emprestado inflava a renda do mês nas análises e no plano. Agora ele entra como Empréstimo recebido, que soma no saldo da conta mas não conta como renda. Para corrigir o que já entrou: Ajustes, Dados, Revisar, e toque em Corrigir na linha dos empréstimos contados como salário.",a:"dividas"},
  {g:"Dívidas",t:"O desconto do consignado começou meses depois. Como informo?",
   c:"Na ficha da dívida há Primeiro desconto no salário de. A contagem das parcelas passa a valer desse mês. Se algumas já saíram antes deste mês, informe em Já descontadas antes deste mês.",a:"dividas"},
  {g:"Dívidas",t:"Quanto preciso para quitar hoje?",
@@ -5688,6 +5693,10 @@ function openSemDescricao(){
    aplicação automática (positivo, com a conta negativa): quem aceitou o acerto nessa leitura ficou com um
    lançamento grande que nunca existiu. O leitor já lê o saldo certo (v73);
    isto mostra os acertos antigos para o dono conferir e apagar o que não existiu. */
+/* crédito de consignado que entrou pelo extrato como Salário ("Contr BB Consig em Folha": a palavra "folha"
+   puxava a categoria): o empréstimo inflava a renda do mês nas análises e no plano */
+function emprestimosComoSalario(){
+  return allTx().filter(t=>t.k==="e"&&t.cat==="sal"&&/\bconsig|\bempr[eé]stimo/i.test(t.desc||"")).sort((a,b)=>a.d.localeCompare(b.d)); }
 function acertosDeSaldo(){
   return allTx().filter(t=>t.aj&&t.k==="t").sort((a,b)=>b.d.localeCompare(a.d)); }
 function openAcertos(){
@@ -5739,7 +5748,7 @@ function faturasQueNaoFecham(){
 async function openRevisao(){
   const fant=comprasSemDescricao();
   const semCartao=allTx().filter(t=>t.k==="p"&&semCartaoCerto(t));
-  const tortas=faturasQueNaoFecham(), acs=acertosDeSaldo();
+  const tortas=faturasQueNaoFecham(), acs=acertosDeSaldo(), empSal=emprestimosComoSalario();
   const bloco=(t,s,extra)=>'<div class="linkrow"><div class="m"><div class="t">'+t+'</div><div class="s">'+s+'</div></div>'+(extra||'')+'</div>';
   sheet("Revisão da Caderneta",
     '<div class="set">'+
@@ -5763,6 +5772,10 @@ async function openRevisao(){
         :'<div class="s">'+(x.banco!=null?'no app '+fmtN(x.total)+', o banco diz '+fmtN(x.banco)+' ('+fmtN(Math.abs(x.dif))+(x.dif>0?" a mais":" a menos")+')'
           :'fatura '+fmtN(x.total)+', pago '+fmtN(x.pago)+' ('+(x.dif>0?"falta ":"sobra ")+fmtN(Math.abs(x.dif))+')')+'</div></div>'+
         '<button class="mini del" data-apf="'+x.card.id+'|'+x.ym+'">Apagar fatura</button></div>'))).join("")+
+    bloco(empSal.length?empSal.length+(empSal.length>1?" empréstimos contados como salário":" empréstimo contado como salário"):"Nenhum empréstimo contado como renda",
+      empSal.length?empSal.map(t=>fmtN(t.v)+" em "+diaMesAno(t.d)).join(" · ")+" — dinheiro emprestado entra na conta, mas não é renda"
+        :"Os créditos de empréstimo estão em Empréstimo recebido",
+      empSal.length?'<button class="mini" id="rvEmp">Corrigir</button>':'')+
     bloco(acs.length?acs.length+(acs.length>1?" acertos de saldo lançados":" acerto de saldo lançado"):"Nenhum acerto de saldo",
       acs.length?"Somam "+fmtN(acs.reduce((s,t)=>s+(t.acct2?t.v:-t.v),0))+" no saldo das contas":"O saldo das suas contas é só a soma dos lançamentos",
       acs.length?'<button class="mini" id="rvAcs">Ver</button>':'')+
@@ -5773,6 +5786,10 @@ async function openRevisao(){
   $("#rvX").onclick=closeSheet;
   const ver=$("#rvVer"); if(ver) ver.onclick=openSemDescricao;
   const vac=$("#rvAcs"); if(vac) vac.onclick=openAcertos;
+  const ve=$("#rvEmp"); if(ve) ve.onclick=async()=>{ const meses=new Set();
+    for(const t of empSal){ const x=S.months[t.ym]&&S.months[t.ym].tx[t.id]; if(x){ x.cat="emprest"; x.u=Date.now(); meses.add(t.ym); } }
+    for(const ym of meses) await saveMonth(ym);
+    render(); toast(empSal.length+(empSal.length>1?" créditos foram para":" crédito foi para")+" Empréstimo recebido: não contam mais como renda."); openRevisao(); };
   $$("[data-rvp]").forEach(b=>b.onclick=async()=>{
     const n=(await religarPagamentos())+(await reapontarPagamentos()); render();
     toast(n?n+(n>1?" pagamentos foram para a fatura certa.":" pagamento foi para a fatura certa."):"Nenhum pagamento precisou mudar de lugar."); openRevisao(); });
