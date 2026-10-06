@@ -326,9 +326,9 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 <table>
   <tr><th>Parte</th><th>Como falar</th></tr>
   <tr><td>Valor</td><td>"vinte e três reais", "R$ 23", "35 reais e 90 centavos", "trinta e cinco e noventa", "R$ 35,90", "um real e cinquenta", "R$ 10 mil", "2 mil e 500"</td></tr>
-  <tr><td>Data</td><td>hoje, ontem, anteontem, amanhã, "sábado", "na segunda" (o último que passou), "próxima segunda", "dia 5", "dia primeiro", "5 de outubro", "5/10". Com verbo no passado (paguei, gastei), "dia 30" dito no começo do mês é o que passou; sem verbo, é o próximo — é assim que se agenda.</td></tr>
-  <tr><td>Forma de pagamento</td><td>crédito, débito, Pix, dinheiro, boleto, transferência</td></tr>
-  <tr><td>Cartão</td><td>pelo nome ou apelido: "no crédito Visa", "no Elo"</td></tr>
+  <tr><td>Data</td><td>hoje, ontem, anteontem, amanhã, "sábado", "na segunda" (o último que passou), "próxima segunda", "dia 5", "dia primeiro", "5 de outubro", "5 do 10", "cinco do dez", "5/10". Dito o mês, o ano é sempre o corrente; outro ano, só dizendo: "5 do 10 de 2025", "do ano passado". Sem o mês, com verbo no passado (paguei, gastei), "dia 30" dito no começo do mês é o que passou; sem verbo, é o próximo — é assim que se agenda.</td></tr>
+  <tr><td>Forma de pagamento</td><td>crédito, débito, Pix, dinheiro, boleto, transferência. <b>"No débito"</b> é dinheiro saindo direto da conta corrente — na conferência aparece <i>Débito · Conta corrente</i>.</td></tr>
+  <tr><td>Cartão</td><td>pelo nome ou apelido, ou só o começo do nome: "no Master" (acha o Mastercard), "no Visa", "no Elo". Débito e cartão de crédito na mesma frase: vale o débito.</td></tr>
   <tr><td>Parcelas</td><td>"em três vezes", "3x"</td></tr>
   <tr><td>Entrada</td><td>"caiu o salário", "recebi", "estorno", "rendimento"</td></tr>
   <tr><td>Para quem</td><td>"pra o João" — em Pix e transferência</td></tr>
@@ -346,6 +346,11 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 <div class="dica">
   <b>Confira antes de salvar</b>
   O que a fala gerou aparece na lista <i>Confira antes de salvar</i>. Ali dá para mudar valor, descrição, categoria, forma de pagamento, data e parcelas — e só então salvar.
+</div>
+
+<div class="dica">
+  <b>Trocar uma data: toque no campo e no dia</b>
+  Todo campo de data do app — na conferência, no <i>Pagar fatura</i>, ao editar um lançamento — mostra a data com um desenho de calendário (<i>05/10/2026 · seg</i>). Tocando nele, abre um calendário por cima da janela: toque no dia. As setas <b>‹ ›</b> mudam o mês e <b>« »</b> o ano; <b>Ontem</b> e <b>Hoje</b> marcam de uma vez. A janela de baixo continua aberta, com o resto do que você preencheu. Os campos de mês (como <i>Abate a fatura que vence em</i>) mostram os 12 meses do ano. Não precisa de teclado.
 </div>
 
 <h2 id="agendar">5. Agendar pagamentos</h2>
@@ -605,7 +610,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 <h3>Como o app trata o crédito</h3>
 <ul>
   <li>A compra conta no <b>mês em que foi feita</b>. A fatura em que ela será cobrada depende do dia do fechamento do cartão.</li>
-  <li><b>Pagar fatura:</b> antes de lançar, o app procura um pagamento do mesmo valor que já tenha saído da conta e oferece <b>É este pagamento</b> — assim o dinheiro não sai duas vezes. E se você pagou pelo botão e depois importou o extrato, o débito do banco é reconhecido sozinho como o mesmo pagamento (mesmo cartão, mesma fatura, mesmo valor): não entra de novo, e a data passa a ser a do banco.</li>
+  <li><b>Pagar fatura:</b> antes de lançar, o app procura um pagamento do mesmo valor que já tenha saído da conta e oferece <b>É este pagamento</b> — assim o dinheiro não sai duas vezes. E se você pagou pelo botão e depois importou o extrato, o débito do banco é reconhecido sozinho como o mesmo pagamento (mesmo cartão, mesma fatura, mesmo valor): não entra de novo, e a data passa a ser a do banco. O campo <b>Quando</b> vem com a data de hoje; se o banco descontou em outro dia, toque nele e escolha o dia no calendário.</li>
   <li><b>Fatura paga em pedaços:</b> quando o banco debita em partes, o app soma. Enquanto falta, mostra <i>pagamento parcial de X em N vezes</i>; quando fecha, <i>paga em N pagamentos</i>.</li>
   <li><b>Fatura prevista:</b> enquanto você não importa a fatura daquele mês, o valor é só a previsão pelas compras e parcelas conhecidas — ela aparece como <i>prevista</i>, nunca como atrasada.</li>
 </ul>

@@ -55,6 +55,8 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **Lançou por voz, depois importou:** a descrição falada não precisa bater com a do banco. O app casa pelo valor e pela data, reconhece o valor dito arredondado e o cartão trocado, e pergunta: *É o mesmo — corrigir pelo banco* (o lançamento fica com o valor, a data e o cartão do banco, e a descrição falada continua) ou *São diferentes — lançar* (duas compras iguais de verdade).
 
+**Datas sem teclado:** todo campo de data abre um calendário por cima da janela — toque no dia. Na fala, "5 do 10" é 05/10 do ano corrente; "no débito" sai da conta corrente; "no Master", "no Visa", "no Elo" é o cartão de crédito (basta o começo do nome).
+
 **Faturas e extratos fecham com o papel:** as 27 faturas de 2026 dos três cartões do autor e os 9 extratos do mesmo período fecham com o total e o saldo impressos pelo banco, centavo por centavo. Quando uma fatura não fechar, é leitura antiga: importe o mesmo PDF de novo, que a conferência deixa entrar só o que falta.
 
 **A fatura tem o nome do mês em que vence, como o banco faz:** a que fecha em 23/09 e vence em 05/10 é a "fatura de out (05/10)" — e a data do vencimento aparece entre parênteses em todo lugar. Com o mês de cima em outubro, cada cartão mostra a fatura que vence em outubro, e é ela que entra no previsto do mês. Se alguma fatura entrou errada, use Ajustes → *Corrigir fatura* (escolha o mês em que ela vence) → **Apagar esta fatura** e importe o arquivo de novo; o pagamento não é apagado.

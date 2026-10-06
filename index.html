@@ -487,6 +487,26 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .cal-d.on{background:var(--accent);border-color:var(--accent);color:var(--paper);font-weight:600}
 .cal-d.fora{color:var(--ink-3);background:var(--surface-2);cursor:default}
 .cal-r{display:flex;gap:6px;flex-wrap:wrap}
+/* campo de data: botão no lugar do type=date, que no celular às vezes não abria nada */
+.dt-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0;text-align:left;
+  background:var(--paper);border:1px solid var(--line);border-radius:var(--r-sm);color:var(--ink);cursor:pointer;
+  font-family:var(--f);font-variant-numeric:tabular-nums}
+.f .dt-btn{padding:7px 8px;font-size:14px}
+.f .dt-btn small{display:none}
+.dt-btn small{font-size:inherit;color:var(--ink-3)}
+.set-f .dt-btn{padding:9px 10px;font-size:15px}
+.dt-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dt-btn svg{flex:none;width:16px;height:16px;color:var(--ink-3)}
+.dt-btn:disabled{opacity:.55;cursor:default}
+.cal-ov{position:fixed;inset:0;z-index:55;background:rgba(15,23,42,.4);display:flex;align-items:center;
+  justify-content:center;padding:16px}
+.cal-ov[hidden]{display:none}
+.cal-box{background:var(--paper);border:1px solid var(--line);border-radius:14px;width:100%;max-width:384px;
+  padding:14px 14px 12px;box-shadow:0 12px 40px rgba(15,23,42,.25);display:grid;gap:10px;justify-items:center}
+.cal-tt{font-size:12.5px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
+.cal-g.meses{grid-template-columns:repeat(3,1fr)}
+.cal-a{display:flex;gap:8px;width:100%;max-width:352px}
+.cal-a .btn{flex:1;justify-content:center}
 
 /* ===== ficha ===== */
 .scrim{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;display:flex;align-items:flex-end;
@@ -666,7 +686,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v88";
+const VERSAO_APP="caderneta-v89";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -1068,7 +1088,7 @@ function askUpdate(w){
     setTimeout(()=>location.reload(),2500); }; }
 
 function boot(){
-  mountHeader(); registerSW(); setupPTT();
+  mountHeader(); registerSW(); setupPTT(); observarCamposData();
   if(CFG.googleClientId&&navigator.onLine) ensureGis().catch(()=>{});
   const id=lsGet(K.ativa), u=id&&knownUsers().find(x=>x.id===id);
   if(u){ S.user=u; loadLocal(); restoreToken(); S.mode=u.kind==="google"?"nuvem":"local"; hideGate(); render(); if(tokenOk()) syncNow(); }
@@ -1157,22 +1177,34 @@ function parseOne(raw,cfg){
     break; }
 
   /* cartão / bandeira */
+  /* "no master" acha o cartão Mastercard; "no elo", o Elo Grafite: basta o começo do nome ou do apelido.
+     O nome dito vale mais que uma palavra aprendida (kwCard), para "no master" nunca cair em outro cartão. */
   const aliasMap=[];
-  cfg.cards.forEach(c=>norm(c.alias+" "+c.n).split(" ").filter(w=>w.length>2).forEach(w=>aliasMap.push({w,id:c.id})));
-  Object.keys(cfg.kwCard||{}).forEach(w=>aliasMap.push({w:deacc(w), id:cfg.kwCard[w]}));
-  const hits={}, cardIdx=[];
+  cfg.cards.forEach(c=>norm(c.alias+" "+c.n).split(" ").filter(w=>w.length>2).forEach(w=>aliasMap.push({w,id:c.id,peso:2})));
+  Object.keys(cfg.kwCard||{}).forEach(w=>aliasMap.push({w:deacc(w), id:cfg.kwCard[w], peso:1}));
+  const casaNome=(a,w)=>a.w===w||(a.peso===2&&w.length>=4&&(a.w.length>w.length?a.w.startsWith(w):a.w.length>=4&&w.startsWith(a.w)));
+  const achados=[];
   for(let i=0;i<t.length;i++){
     if(used[i]||t[i].length<3) continue;
-    const m=aliasMap.filter(a=>a.w===t[i]); if(!m.length) continue;
-    m.forEach(a=>{ hits[a.id]=(hits[a.id]||0)+1; }); take(i,i+1); cardIdx.push(i);
+    let m=aliasMap.filter(a=>a.w===t[i]); if(!m.length) m=aliasMap.filter(a=>casaNome(a,t[i])); if(m.length) achados.push({i,m}); }
+  /* com o nome de um cartão dito, a palavra aprendida fica na descrição ("mercado 50 no master" continua Mercado) */
+  const temNome=achados.some(x=>x.m.some(a=>a.peso===2));
+  const hits={}, cardIdx=[];
+  for(const {i,m:m0} of achados){
+    const m=temNome?m0.filter(a=>a.peso===2):m0; if(!m.length) continue;
+    m.forEach(a=>{ hits[a.id]=(hits[a.id]||0)+a.peso; }); take(i,i+1); cardIdx.push(i);
     /* "no cartão Visa", "com o Elo": as palavras de ligação antes do nome do cartão também saem da descrição */
     let k=i-1; if(k>=0&&!used[k]&&/^(cartao|cartoes)$/.test(t[k])){ take(k,k+1); k--; }
     while(k>=0&&!used[k]&&/^(no|na|do|da|com|o|a|pelo|pela)$/.test(t[k])){ take(k,k+1); k--; } }
   const best=Object.keys(hits).sort((a,b)=>hits[b]-hits[a])[0];
-  if(best){ d.cardId=best; const c=cfg.cards.find(x=>x.id===best); if(c&&!d.method) d.method=c.type;
+  /* "no débito" é a conta corrente (pedido do dono, 06/10/2026): dito junto com o nome de um cartão de crédito,
+     vale o débito — o dinheiro sai da conta, não entra na fatura */
+  const doCredito=id=>{ const c=cfg.cards.find(x=>x.id===id); return !!c&&c.type==="credito"; };
+  if(best&&!(d.method==="debito"&&doCredito(best))){ d.cardId=best; const c=cfg.cards.find(x=>x.id===best); if(c&&!d.method) d.method=c.type;
     const nx=Math.max.apply(null,cardIdx)+1;
-    const ban=/^(credito|debito|dinheiro|especie|pix|boleto|cartao|cartoes|vezes|parcelas|reais?)$/;
-    if(nx<t.length&&!used[nx]&&t[nx].length>2&&!(t[nx] in NW)&&!(t[nx] in SC)&&!ban.test(t[nx])){
+    const ban=/^(credito|debito|dinheiro|especie|pix|boleto|cartao|cartoes|vezes|parcelas|reais?|hoje|ontem|anteontem|amanha|dia|depois|semana|passada|passado|proxima|proximo|feira)$/;
+    /* o apelido do cartão ("no Visa black") é uma palavra; "no visa ontem" é a data, não o apelido */
+    if(nx<t.length&&!used[nx]&&/^[a-z]{3,}$/.test(t[nx])&&!(t[nx] in NW)&&!(t[nx] in SC)&&!ban.test(t[nx])&&!(t[nx] in DIAS_SEMANA)&&!MESES_FALA[t[nx]]&&!STOP.test(t[nx])){
       let tail=true; for(let k=nx+1;k<t.length;k++) if(!used[k]&&t[k]){ tail=false; break; }
       if(tail){ take(nx,nx+1); d.alias=t[nx]; } } }
   if(!d.method) d.method = d.k==="e" ? "pix" : "credito";
@@ -1269,7 +1301,8 @@ function dataDaFala(t,orig,used,take){
   const monta=(dia,mes,ano)=>{
     let mo=mes||M, y=ano||Y;
     if(!mes){ if(passado){ if(dia>D) mo=M-1; } else if(dia<D-3) mo=M+1; }
-    else if(!ano&&mo<M&&!passado) y=Y+1;
+    /* com o mês dito e sem o ano, é sempre o ano corrente (regra do dono, 06/10/2026): antes, "dia 5 do 9"
+       sem verbo no passado ia para o ano seguinte */
     if(mo>12){ mo-=12; y++; } if(mo<1){ mo+=12; y--; }
     const dim=new Date(y,mo,0).getDate();
     return y+"-"+pad(mo)+"-"+pad(Math.min(Math.max(1,dia),dim)); };
@@ -1277,6 +1310,26 @@ function dataDaFala(t,orig,used,take){
     let dia=readDigits(t[k]), fim=k+1;
     if(dia===null){ const w=readWords(t,k); if(w&&w.v>=1&&w.v<=31){ dia=w.v; fim=w.end; } }
     return dia!==null&&dia>=1&&dia<=31&&dia===Math.round(dia)?{dia,fim}:null; };
+  /* o mês: pelo nome ("de outubro") ou, depois de "do"/"de", pelo número ("5 do 10", "cinco do dez") */
+  const mesDe=(j,porNumero,curto)=>{
+    if(j>=t.length||used[j]) return null;
+    /* "do dez" é outubro, não dezembro: falando, "dez" é o número */
+    if(MESES_FALA[t[j]]&&(curto||t[j].length>3)&&!(porNumero&&t[j] in NW)) return {mes:MESES_FALA[t[j]],fim:j+1};
+    if(!porNumero) return null;
+    let mes=null, fim=j+1;
+    const dg=readDigits(t[j]);
+    if(dg!==null){ if(/^\d{1,2}$/.test(t[j])) mes=dg; }
+    else { const w=readWords(t,j); if(w){ mes=w.v; fim=w.end; } }
+    if(!mes||mes<1||mes>12) return null;
+    if(MOEDA.test(t[fim]||"")||CENT.test(t[fim]||"")) return null;   /* "dia 5 de 10 reais": 10 é o valor */
+    return {mes,fim}; };
+  /* o ano, só quando dito: "de 2025", "de dois mil e vinte e cinco", "do ano passado" */
+  const anoDe=q=>{
+    if(t[q]==="de"||t[q]==="do") q++;
+    if(q>=t.length||used[q]) return null;
+    if(t[q]==="ano"&&/^(passado|anterior)$/.test(t[q+1]||"")) return {ano:Y-1,fim:q+2};
+    const dg=readDigits(t[q]); if(dg!==null) return /^\d{4}$/.test(t[q])&&dg>2000&&dg<2100?{ano:dg,fim:q+1}:null;
+    const w=readWords(t,q); return w&&w.v>2000&&w.v<2100?{ano:w.v,fim:w.end}:null; };
   for(let i=0;i<t.length;i++){
     if(used[i]) continue;
     if(t[i]==="hoje"){ take(i,i+1); return todayISO(); }
@@ -1302,23 +1355,22 @@ function dataDaFala(t,orig,used,take){
       let a0=i; if(a0>0&&t[a0-1]==="dia") a0--; if(a0>0&&/^(no|em)$/.test(t[a0-1])) a0--;
       take(a0,i+1); const a=mb[3]?(mb[3].length===2?2000+(+mb[3]):+mb[3]):0;
       return monta(+mb[1],+mb[2],a); }
-    /* "5 de outubro", "primeiro de outubro", sem a palavra "dia" */
+    /* "5 de outubro", "primeiro de outubro", "5 do 10", sem a palavra "dia" */
     if(t[i]!=="dia"&&t[i]!=="no"){
       const dd=diaDe(i);
-      if(dd){ let j=dd.fim; if(t[j]==="de"||t[j]==="do") j++;
-        if(MESES_FALA[t[j]]&&t[j].length>3){ let fim=j+1, ano=0, q=fim; if(t[q]==="de") q++;
-          const ay=readDigits(t[q]); if(ay&&ay>2000&&ay<2100){ ano=ay; fim=q+1; }
+      if(dd){ const con=t[dd.fim]; let j=dd.fim; if(con==="de"||con==="do") j++;
+        const mm=mesDe(j,con==="do",false);
+        if(mm){ let fim=mm.fim, ano=0; const ay=anoDe(fim); if(ay){ ano=ay.ano; fim=ay.fim; }
           let a=i; if(a>0&&/^(em|no|dia)$/.test(t[a-1])) a--;
-          take(a,fim); return monta(dd.dia,MESES_FALA[t[j]],ano); } } }
+          take(a,fim); return monta(dd.dia,mm.mes,ano); } } }
     if(t[i]!=="dia"&&t[i]!=="no") continue;
     let k=i+1; if(t[i]==="no"){ if(t[k]!=="dia") continue; k++; }
     const dd=diaDe(k); if(!dd) continue;
     let dia=dd.dia, fim=dd.fim;
     let mes=0, ano=0;
-    let j=fim; if(t[j]==="de"||t[j]==="do") j++;
-    if(MESES_FALA[t[j]]){ mes=MESES_FALA[t[j]]; fim=j+1;
-      let q=fim; if(t[q]==="de") q++;
-      const ay=readDigits(t[q]); if(ay&&ay>2000&&ay<2100){ ano=ay; fim=q+1; } }
+    let j=fim; const con=t[j]; if(con==="de"||con==="do") j++;
+    const mm=mesDe(j,con==="de"||con==="do",true);
+    if(mm){ mes=mm.mes; fim=mm.fim; const ay=anoDe(fim); if(ay){ ano=ay.ano; fim=ay.fim; } }
     else if((t[j]==="mes"||t[j]==="do"&&t[j+1]==="mes")&&/que/.test(t[j+1]+t[j+2])){ mes=M+1; fim=j+3; }
     take(i,fim);
     return monta(dia,mes,ano); }
@@ -2983,6 +3035,86 @@ function consultaAchados(c){
     ym=ymShift(ym,1); }
   out.sort((a,b)=>(b.d+(b.t||"")).localeCompare(a.d+(a.t||"")));
   return {de,ate,linhas:out}; }
+/* =================== campo de data com calendário ===================
+   Pedido do dono (06/10/2026): no celular, ao pagar a fatura, o campo de data não abria nada para trocar o dia
+   ("não me habilitava o teclado") e o pagamento ficou com a data de hoje. Todo campo type=date e type=month do
+   app vira um botão que abre um calendarinho POR CIMA da janela aberta, sem fechá-la. O campo original fica
+   lá, escondido, com o valor de sempre (2026-10-05, 2026-10): o resto do código lê e grava .value como antes,
+   e o botão acompanha. Quem liga os campos é o observador em boot(), para valer em toda tela. */
+const VALOR_INPUT=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value");
+const SEMANA_CURTA=["dom","seg","ter","qua","qui","sex","sáb"];
+const ICONE_CAL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
+function rotuloDoCampo(inp){
+  const v=VALOR_INPUT.get.call(inp);
+  if(inp.dataset.cal==="month") return /^\d{4}-\d{2}$/.test(v)?ymLabel(v):"Escolher o mês";
+  return /^\d{4}-\d{2}-\d{2}$/.test(v)?diaMesAno(v)+"|"+SEMANA_CURTA[new Date(v+"T12:00:00").getDay()]:"Escolher a data"; }
+function pintaCampo(inp){
+  const b=inp.nextElementSibling; if(!b||!b.classList.contains("dt-btn")) return;
+  const [data,sem]=rotuloDoCampo(inp).split("|");
+  b.innerHTML='<span>'+esc(data)+(sem?'<small> · '+esc(sem)+'</small>':'')+'</span>'+ICONE_CAL; b.disabled=inp.disabled; }
+function ligarCampoData(inp){
+  if(inp.dataset.cal) return;
+  inp.dataset.cal=inp.type; inp.type="hidden";
+  Object.defineProperty(inp,"value",{configurable:true,
+    get(){ return VALOR_INPUT.get.call(this); },
+    set(x){ VALOR_INPUT.set.call(this,x); pintaCampo(this); }});
+  const b=document.createElement("button"); b.type="button"; b.className="dt-btn";
+  const caixa=inp.closest(".f,.set-f"), rot=caixa&&caixa.querySelector("label");
+  b.setAttribute("aria-label",(rot?rot.textContent.trim()+": ":"")+"abrir o calendário");
+  inp.after(b); pintaCampo(inp);
+  b.onclick=()=>calendarioFlutuante({tipo:inp.dataset.cal, valor:inp.value, min:inp.getAttribute("min")||"", max:inp.getAttribute("max")||"",
+    titulo:rot?rot.textContent.trim():"",
+    onPick:v=>{ inp.value=v; inp.dispatchEvent(new Event("input",{bubbles:true})); inp.dispatchEvent(new Event("change",{bubbles:true})); }}); }
+function ligarCamposData(raiz){ (raiz||document).querySelectorAll('input[type="date"],input[type="month"]').forEach(ligarCampoData); }
+function observarCamposData(){
+  ligarCamposData();
+  new MutationObserver(ms=>{ for(const m of ms) for(const n of m.addedNodes){ if(n.nodeType!==1) continue;
+    if(n.matches('input[type="date"],input[type="month"]')) ligarCampoData(n); else ligarCamposData(n); } })
+    .observe(document.body,{childList:true,subtree:true}); }
+function fecharCalendario(){ const o=$("#calOv"); if(o){ o.hidden=true; o.innerHTML=""; } }
+/* o calendário em si: dia (type=date) ou mês (type=month). Fica por cima de tudo, até da janela aberta. */
+function calendarioFlutuante(op){
+  let ov=$("#calOv");
+  if(!ov){ ov=document.createElement("div"); ov.id="calOv"; ov.className="cal-ov"; document.body.appendChild(ov);
+    ov.addEventListener("click",e=>{ if(e.target===ov) fecharCalendario(); });
+    document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("#calOv").hidden) fecharCalendario(); }); }
+  const mes=op.tipo==="month", hoje=todayISO(), esteMes=ymOf(hoje), ontem=diaAnterior(hoje);
+  const st={ym:ymOf(op.valor||hoje), ano:+(op.valor||hoje).slice(0,4)};
+  const dentro=v=>(!op.min||v>=op.min)&&(!op.max||v<=op.max);
+  const escolhe=v=>{ fecharCalendario(); op.onPick(v); };
+  const nav=(n,rot)=>'<button class="icon-btn" data-cv="'+n+'" aria-label="'+rot+'">'+(n===-12?"«":n===-1?"‹":n===1?"›":"»")+'</button>';
+  ov.innerHTML='<div class="cal-box" role="dialog" aria-label="Calendário">'+
+    (op.titulo?'<div class="cal-tt">'+esc(op.titulo)+'</div>':'')+
+    '<div class="cal-h">'+(mes?nav(-1,"Ano anterior"):nav(-12,"Ano anterior")+nav(-1,"Mês anterior"))+
+    '<span class="cal-t" id="calOvT"></span>'+(mes?nav(1,"Ano seguinte"):nav(1,"Mês seguinte")+nav(12,"Ano seguinte"))+'</div>'+
+    (mes?'':'<div class="cal-s"><span>seg</span><span>ter</span><span>qua</span><span>qui</span><span>sex</span><span>sáb</span><span>dom</span></div>')+
+    '<div class="cal-g'+(mes?' meses':'')+'" id="calOvG"></div>'+
+    '<div class="cal-a">'+(mes
+      ?'<button class="btn ghost" data-ca="'+esteMes+'"'+(dentro(esteMes)?'':' disabled')+'>Este mês</button>'
+      :'<button class="btn ghost" data-ca="'+ontem+'"'+(dentro(ontem)?'':' disabled')+'>Ontem</button>'+
+       '<button class="btn ghost" data-ca="'+hoje+'"'+(dentro(hoje)?'':' disabled')+'>Hoje</button>')+
+    '<button class="btn ghost" id="calOvX">Fechar</button></div></div>';
+  const desenha=()=>{
+    let g="";
+    if(mes){
+      for(let m=1;m<=12;m++){ const v=st.ano+"-"+pad(m);
+        g+=dentro(v)?'<button class="cal-d'+(v===op.valor?" on":"")+(v===esteMes?" hoje":"")+'" data-v="'+v+'">'+MES[m-1]+'</button>'
+                    :'<span class="cal-d fora">'+MES[m-1]+'</span>'; }
+      $("#calOvT").textContent=st.ano; }
+    else {
+      const [Y,M]=st.ym.split("-").map(Number), vazias=(new Date(Y,M-1,1).getDay()+6)%7, nd=daysIn(st.ym);
+      for(let i=0;i<vazias;i++) g+='<span class="cal-d vazio"></span>';
+      for(let d=1;d<=nd;d++){ const v=st.ym+"-"+pad(d);
+        g+=dentro(v)?'<button class="cal-d'+(v===op.valor?" on":"")+(v===hoje?" hoje":"")+'" data-v="'+v+'">'+d+'</button>'
+                    :'<span class="cal-d fora">'+d+'</span>'; }
+      $("#calOvT").textContent=ymLabel(st.ym); }
+    $("#calOvG").innerHTML=g;
+    $$("#calOvG [data-v]").forEach(b=>b.onclick=()=>escolhe(b.dataset.v)); };
+  $$("#calOv [data-cv]").forEach(b=>b.onclick=()=>{ const n=+b.dataset.cv; if(mes) st.ano+=n; else st.ym=ymShift(st.ym,n); desenha(); });
+  $$("#calOv [data-ca]").forEach(b=>b.onclick=()=>escolhe(b.dataset.ca));
+  $("#calOvX").onclick=fecharCalendario;
+  ov.hidden=false; desenha(); }
+
 /* calendarinho: marca a data tocando no dia, sem digitar nada.
    (campo type=date obrigava a digitar o ano dígito a dígito e a tela se redesenhava no meio.) */
 function openCalendario(op){
@@ -3156,7 +3288,7 @@ const AJUDA=[
  {g:"Lançar",t:"Como lanço um gasto falando?",
   c:"Segure o botão redondo do microfone, no canto de baixo da tela (está em todas as abas), e fale enquanto segura: \"vinte e três reais, almoço no restaurante, cartão de crédito Visa\". Quando soltar, o app mostra o que entendeu em Confira antes de salvar, para você conferir e salvar. Também dá para tocar no microfone do teclado, na aba Lançar. Separe vários lançamentos com ponto final.",a:"fala"},
  {g:"Lançar",t:"Como agendo um pagamento para depois?",
-  c:"Diga quando: \"mil e duzentos reais, aluguel, dia 10\", \"internet amanhã\", \"dia 5 de outubro\". Sem dizer o mês, \"dia 10\" é o próximo dia 10. Fica com a marca agendado até chegar o dia.",a:"agendar"},
+  c:"Diga quando: \"mil e duzentos reais, aluguel, dia 10\", \"internet amanhã\", \"dia 5 de outubro\", \"5 do 11\". Sem dizer o mês, \"dia 10\" é o próximo dia 10; dito o mês, é sempre deste ano. Fica com a marca agendado até chegar o dia.",a:"agendar"},
  {g:"Lançar",t:"Li um boleto: dá para agendar o pagamento?",
   c:"Sim. No leitor do boleto há Quando pagar: No vencimento (agendar), que é o padrão, ou Hoje (já paguei).",a:"boleto"},
  {g:"Lançar",t:"A fala saiu repetida e o valor ficou gigante",
@@ -3186,7 +3318,11 @@ const AJUDA=[
  {g:"Lançar",t:"Falei e o texto saiu repetido, enorme",
   c:"Acontecia no celular Android: o reconhecimento de voz devolve a frase inteira de novo a cada palavra, e o app somava tudo. Agora o botão de segurar para falar ouve em trechos e junta sem repetir o que já tinha entendido; e o botão antigo de tocar para começar saiu.",a:"fala"},
  {g:"Lançar",t:"Que valores e datas o app entende na fala?",
-  c:"Valores: \"35 reais e 90 centavos\", \"trinta e cinco e noventa\", \"R$ 35,90\", \"um real e cinquenta\", \"R$ 10 mil\", \"2 mil e 500\", \"mil duzentos e cinquenta\". Datas: hoje, ontem, anteontem, amanhã, um dia da semana (\"sábado\", \"na segunda\" é o último que passou; \"próxima segunda\" é a que vem), \"dia 5\", \"dia primeiro\", \"5 de outubro\", \"5/10\". Com verbo no passado (paguei, gastei, comprei), \"dia 30\" dito no começo do mês é o dia 30 que passou; sem verbo, é o próximo dia 30 \u2014 é assim que se agenda falando.",a:"fala"},
+  c:"Valores: \"35 reais e 90 centavos\", \"trinta e cinco e noventa\", \"R$ 35,90\", \"um real e cinquenta\", \"R$ 10 mil\", \"2 mil e 500\", \"mil duzentos e cinquenta\". Datas: hoje, ontem, anteontem, amanhã, um dia da semana (\"sábado\", \"na segunda\" é o último que passou; \"próxima segunda\" é a que vem), \"dia 5\", \"dia primeiro\", \"5 de outubro\", \"5 do 10\", \"cinco do dez\", \"5/10\". Dito o mês, o ano é sempre o corrente: \"5 do 10\" é 05/10 deste ano; outro ano, só dizendo (\"5 do 10 de 2025\", \"5 do 10 do ano passado\"). Sem o mês, com verbo no passado (paguei, gastei, comprei), \"dia 30\" dito no começo do mês é o dia 30 que passou; sem verbo, é o próximo dia 30 \u2014 é assim que se agenda falando.",a:"fala"},
+ {g:"Lançar",t:"Como digo o cartão ou o débito na fala?",
+  c:"\"No débito\" é dinheiro saindo direto da conta corrente \u2014 na conferência aparece Débito · Conta corrente. \"No Master\", \"no Visa\", \"no Elo\" é o cartão de crédito com esse nome: basta o começo do nome que está em Ajustes (\"master\" acha o Mastercard). Se você disser débito e um cartão de crédito na mesma frase, vale o débito. Sem dizer nada, entra no primeiro cartão de crédito; confira em Pagamento antes de salvar.",a:"fala"},
+ {g:"Lançar",t:"O campo de data não abre o teclado no celular",
+  c:"Desde a versão 89 todo campo de data abre um calendário: toque no campo (ele mostra a data e um desenho de calendário) e toque no dia. As setas ‹ › mudam o mês e « » o ano; Ontem e Hoje marcam de uma vez. O calendário abre por cima da janela, sem fechá-la \u2014 no Pagar fatura, por exemplo, você troca o dia e continua ali para tocar em Pagar. Nos campos de mês (Abate a fatura que vence em, por exemplo), ele mostra os 12 meses do ano.",a:"fala"},
  {g:"Importar",t:"Como sei que o app leu a fatura certo?",
   c:"Ele confere sozinho, duas vezes, com o Total da fatura que o banco imprime no PDF. Logo depois de ler, a linha embaixo da conferência diz ✓ a leitura confere com o total impresso pelo banco — ou ⚠, com a diferença, e aí é para não salvar e mandar a amostra. Depois de salvar, ele soma a fatura como ela ficou no app (com o que já estava lançado antes) e abre uma janela — A fatura fecha com o banco, com ✓, ou A fatura não fechou com o banco, com ⚠ e os dois valores — que fica na tela até você tocar em Ok. Isso vale também quando não havia nada novo para lançar. O total do banco fica guardado: a Revisão confere essa fatura para sempre, paga ou não. Com os 27 PDFs de 2026 do autor, as 27 leituras e as 27 faturas batem no centavo.",a:"fatura"},
  {g:"No dia a dia",t:"O aviso embaixo da tela some antes de eu ler",
@@ -5795,7 +5931,9 @@ function camposDoRascunho(d){
     '<div class="f"><label>Vai para</label><select data-k="acct2">'+fora+optId(A,d.acct2||"")+'</select></div>';
   const cat='<div class="f"><label>Categoria</label><select data-k="cat">'+optId(d.k==="e"?(S.cfg.ecats||ECATS):S.cfg.cats,d.cat)+'</select></div>';
   if(d.k==="e") return cat+'<div class="f"><label>Cai em qual conta</label><select data-k="acct">'+optId(A,d.acct||acctOf(d.cardId))+'</select></div>';
-  return cat+'<div class="f"><label>Pagamento</label><select data-k="cardId">'+optId(S.cfg.cards,d.cardId)+'</select></div>'+
+  /* "Débito · Conta corrente": deixa claro que no débito o dinheiro sai direto da conta */
+  const formas=S.cfg.cards.map(c=>c.type==="debito"?Object.assign({},c,{n:c.n+" · "+((A.find(a=>a.id===acctOf(c.id))||{}).n||"conta")}):c);
+  return cat+'<div class="f"><label>Pagamento</label><select data-k="cardId">'+optId(formas,d.cardId)+'</select></div>'+
     (TEM_DESTINO[d.method]?'<div class="f"><label>Para quem</label><input data-k="to" value="'+esc(d.to||"")+'"></div>':'')+
     '<div class="f"><label>Parcelas</label><input inputmode="numeric" data-k="n" value="'+d.n+'"></div>'; }
 
