@@ -228,6 +228,25 @@ main{padding:0 16px calc(76px + env(safe-area-inset-bottom,0px));max-width:680px
 }
 .top-title{display:none}
 
+/* segure para falar: botão do microfone, em todas as abas */
+.ptt{position:fixed;right:16px;bottom:calc(74px + env(safe-area-inset-bottom,0px));z-index:35;width:62px;height:62px;
+  border-radius:50%;border:0;background:var(--accent);color:#fff;display:grid;place-items:center;cursor:pointer;
+  box-shadow:0 6px 18px rgba(0,0,0,.28);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+  transition:transform .12s ease,background .12s ease}
+.ptt svg{width:27px;height:27px;pointer-events:none}
+.ptt.ouvindo{background:var(--bad);transform:scale(1.14)}
+.ptt[hidden]{display:none}
+@media (min-width:960px){.ptt{right:28px;bottom:28px}}
+.ptt-ov{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom,0px));z-index:36;
+  width:min(520px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.3);padding:14px 16px;pointer-events:none}
+.ptt-ov[hidden]{display:none}
+@media (min-width:960px){.ptt-ov{bottom:104px}}
+.ptt-ov-t{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--bad)}
+.ptt-ov-t i{width:9px;height:9px;border-radius:50%;background:var(--bad);animation:pttPisca 1s infinite}
+@keyframes pttPisca{50%{opacity:.25}}
+.ptt-ov-x{margin-top:8px;font-size:16px;line-height:1.45;color:var(--ink);min-height:23px}
+.ptt-ov-x:empty::before{content:"Fale o lançamento…";color:var(--ink-3)}
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surface);
   border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
 .tabs-in{max-width:680px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr)}
@@ -519,6 +538,8 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 
 <nav class="tabs"><div class="tabs-in" id="tabsIn" role="tablist"></div></nav>
 <div class="scrim" id="scrim" hidden><div class="sheet" id="sheet"></div></div>
+<button class="ptt" id="pttBtn" type="button" aria-label="Segure e fale um lançamento" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+<div class="ptt-ov" id="pttOv" hidden><div class="ptt-ov-t"><i></i><span id="pttEst">Ouvindo — solte para terminar</span></div><div class="ptt-ov-x" id="pttTxt"></div></div>
 <div class="toast" id="toast" hidden></div>
 <div id="dica" hidden role="tooltip"></div>
 <script>
@@ -645,7 +666,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v83";
+const VERSAO_APP="caderneta-v84";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -1047,7 +1068,7 @@ function askUpdate(w){
     setTimeout(()=>location.reload(),2500); }; }
 
 function boot(){
-  mountHeader(); registerSW();
+  mountHeader(); registerSW(); setupPTT();
   if(CFG.googleClientId&&navigator.onLine) ensureGis().catch(()=>{});
   const id=lsGet(K.ativa), u=id&&knownUsers().find(x=>x.id===id);
   if(u){ S.user=u; loadLocal(); restoreToken(); S.mode=u.kind==="google"?"nuvem":"local"; hideGate(); render(); if(tokenOk()) syncNow(); }
@@ -1064,9 +1085,9 @@ const NW = {zero:0,um:1,uma:1,dois:2,duas:2,tres:3,quatro:4,cinco:5,seis:6,meia:
   quatrocentas:400,quinhentos:500,quinhentas:500,seiscentos:600,seiscentas:600,setecentos:700,setecentas:700,
   oitocentos:800,oitocentas:800,novecentos:900,novecentas:900};
 const SC = {mil:1000, milhao:1e6, milhoes:1e6};
-const MOEDA = /^(reais?|conto|contos|pila|pilas|mango|mangos|pratas)$/;
+const MOEDA = /^(reais|real|conto|contos|pila|pilas|mango|mangos|pratas)$/;   /* "real" faltava: "um real e cinquenta" dava 1,00 */
 const CENT  = /^(centavos?)$/;
-const STOP  = /^(ah|ai|ei|entao|tipo|assim|olha|opa|beleza|ok|e|de|do|da|no|na|em|com|pra|para|por|foi|um|uma|o|a|os|as|meu|minha|hoje|agora|paguei|gastei|comprei|foram|reais|real|deu|custou|ficou|la|aqui|que|se|ao|aos|recebi|recebido|recebida|caiu|entrou|depositei|ganhei|entrada)$/;
+const STOP  = /^(ah|ai|ei|entao|tipo|assim|olha|opa|beleza|ok|e|de|do|da|no|na|em|com|pra|para|por|foi|um|uma|o|a|os|as|meu|minha|hoje|agora|paguei|gastei|comprei|foram|reais|real|deu|custou|ficou|la|aqui|que|se|ao|aos|recebi|recebido|recebida|caiu|entrou|depositei|ganhei|entrada|vou|vamos|vai|pagar|pagarei|preciso|tenho|tive|lancar|lanca|anota|anotar|coloca|colocar)$/;
 const ENTRADA = /^(recebi|recebido|recebida|receber|caiu|entrou|entrada|depositei|deposito|ganhei|salario|holerite|contracheque|freela|freelance|bolsa|estagio|reembolso|estorno|restituicao|rendimento|rendimentos|dividendo|dividendos|vendi|adiantamento|decimo|prolabore|plr)$/;
 
 /* "trinta e nove" soma; "trinta e nove e noventa" não: em português a composição só desce
@@ -1090,13 +1111,18 @@ function parseOne(raw,cfg){
   const original = raw.trim();
   const prep = original.replace(/R\$/gi," R$ ").replace(/(\d)\s*[xX]\b/g,"$1 vezes ");
   const orig = prep.split(/\s+/).filter(Boolean);
-  const t = orig.map(w=>deacc(w.toLowerCase()).replace(/[^\w$]/g,""));
+  /* o número escrito pelo reconhecimento de voz ("35,90", "1.250", "1º") fica inteiro: tirando a pontuação de
+     tudo, "R$ 35,90" virava 3590 e o lançamento saía 100 vezes maior */
+  const tok=w=>{ const m=String(w).match(/^\(?(\d[\d.,]*\d|\d)(?:º|ª)?[).,;:!?]*$/); return m?m[1]:deacc(w.toLowerCase()).replace(/[^\w$]/g,""); };
+  const t = orig.map(tok);
   const used = new Array(t.length).fill(false);
   const take = (a,b)=>{ for(let k=a;k<b;k++) used[k]=true; };
   const d = {id:uid(), raw:original, v:0, desc:"", cat:"", method:"", cardId:"", n:1,
              date:todayISO(), time:nowTime(), msg:"", k:"g"};
 
-  for(let i=0;i<t.length;i++) if(ENTRADA.test(t[i])){ d.k="e"; break; }
+  /* "entrada do carro", "10 mil de entrada" é o sinal de uma compra (gasto), não dinheiro recebido */
+  const entradaDeCompra=i=>t[i]==="entrada"&&((i>0&&t[i-1]==="de")||/^(do|da|de|no|na|pra|para)$/.test(t[i+1]||""));
+  for(let i=0;i<t.length;i++) if(ENTRADA.test(t[i])&&!entradaDeCompra(i)){ d.k="e"; break; }
 
   /* parcelas */
   for(let i=0;i<t.length;i++){
@@ -1138,7 +1164,10 @@ function parseOne(raw,cfg){
   for(let i=0;i<t.length;i++){
     if(used[i]||t[i].length<3) continue;
     const m=aliasMap.filter(a=>a.w===t[i]); if(!m.length) continue;
-    m.forEach(a=>{ hits[a.id]=(hits[a.id]||0)+1; }); take(i,i+1); cardIdx.push(i); }
+    m.forEach(a=>{ hits[a.id]=(hits[a.id]||0)+1; }); take(i,i+1); cardIdx.push(i);
+    /* "no cartão Visa", "com o Elo": as palavras de ligação antes do nome do cartão também saem da descrição */
+    let k=i-1; if(k>=0&&!used[k]&&/^(cartao|cartoes)$/.test(t[k])){ take(k,k+1); k--; }
+    while(k>=0&&!used[k]&&/^(no|na|do|da|com|o|a|pelo|pela)$/.test(t[k])){ take(k,k+1); k--; } }
   const best=Object.keys(hits).sort((a,b)=>hits[b]-hits[a])[0];
   if(best){ d.cardId=best; const c=cfg.cards.find(x=>x.id===best); if(c&&!d.method) d.method=c.type;
     const nx=Math.max.apply(null,cardIdx)+1;
@@ -1165,7 +1194,12 @@ function parseOne(raw,cfg){
     if(used[i]) continue;
     let v=null,a=i,b=i;
     const dg=readDigits(t[i]);
-    if(dg!==null){ v=dg; b=i+1; } else { const w=readWords(t,i); if(w){ v=w.v; b=w.end; } }
+    if(dg!==null){ v=dg; b=i+1;
+      /* "R$ 10 mil", "2 mil e 500", "1,5 mil": o reconhecimento escreve o número e deixa "mil" por extenso */
+      if(t[b]&&(t[b] in SC)){ v*=SC[t[b]]; b++;
+        if(t[b]==="e"){ const r2=readDigits(t[b+1])!==null?{v:readDigits(t[b+1]),end:b+2}:readWords(t,b+1);
+          if(r2&&r2.v<1000&&!CENT.test(t[r2.end]||"")){ v+=r2.v; b=r2.end; } } } }
+    else { const w=readWords(t,i); if(w){ v=w.v; b=w.end; } }
     if(v===null) continue;
     let score=1,end=b;
     if(b<t.length&&MOEDA.test(t[b])){ score=10; end=b+1; }
@@ -1200,9 +1234,9 @@ function parseOne(raw,cfg){
   for(let i=0;i<orig.length;i++){
     if(used[i]) continue;
     const c=orig[i].replace(/^[,;:.\-]+|[,;:.\-]+$/g,""); if(!c) continue;
-    if(rest.length===0&&STOP.test(t[i])) continue;
+    if(rest.length===0&&STOP.test(t[i])&&!(t[i]==="entrada"&&d.k==="g")) continue;
     rest.push(c); }
-  while(rest.length&&STOP.test(deacc(rest[rest.length-1].toLowerCase()))) rest.pop();
+  while(rest.length&&STOP.test(deacc(rest[rest.length-1].toLowerCase()))&&!(d.k==="g"&&/^entrada$/i.test(rest[rest.length-1]))) rest.pop();
   d.desc=rest.join(" ").replace(/\s+([,;])/g,"$1").trim();
   if(d.desc) d.desc=d.desc.charAt(0).toUpperCase()+d.desc.slice(1);
   if(!d.desc&&d.to) d.desc=(d.method==="pix"?"Pix para ":"Transferência para ")+d.to;
@@ -1225,32 +1259,61 @@ function guessCat(text,cfg,kind){
    porque quem fala "dia 23" no dia 25 está lançando o que já aconteceu. */
 const MESES_FALA={janeiro:1,fevereiro:2,marco:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12,
   jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
+/* verbos no passado: "paguei 50 dia 2", dito no dia 6, é o dia 2 que passou — não o do mês que vem */
+const PASSADO=/^(gastei|paguei|comprei|foi|foram|custou|deu|ficou|recebi|caiu|entrou|almocei|jantei|lanchei|abasteci|tomei|fiz|comi|bebi|saquei|transferi|depositei|ganhei|pagou|gastou|comprou|usei|passei)$/;
+const DIAS_SEMANA={domingo:0,segunda:1,terca:2,quarta:3,quinta:4,sexta:5,sabado:6,segundafeira:1,tercafeira:2,quartafeira:3,quintafeira:4,sextafeira:5};
 function dataDaFala(t,orig,used,take){
   const h=new Date(), Y=h.getFullYear(), M=h.getMonth()+1, D=h.getDate();
   const dias=n=>{ const x=new Date(Date.parse(todayISO()+"T12:00:00")+n*86400000); return x.toISOString().slice(0,10); };
+  const passado=t.some(w=>PASSADO.test(w));
   const monta=(dia,mes,ano)=>{
     let mo=mes||M, y=ano||Y;
-    if(!mes){ if(dia<D-3) mo=M+1; }
-    else if(!ano&&mo<M) y=Y+1;
-    if(mo>12){ mo-=12; y++; }
+    if(!mes){ if(passado){ if(dia>D) mo=M-1; } else if(dia<D-3) mo=M+1; }
+    else if(!ano&&mo<M&&!passado) y=Y+1;
+    if(mo>12){ mo-=12; y++; } if(mo<1){ mo+=12; y--; }
     const dim=new Date(y,mo,0).getDate();
     return y+"-"+pad(mo)+"-"+pad(Math.min(Math.max(1,dia),dim)); };
+  const diaDe=k=>{ if(t[k]==="primeiro") return {dia:1,fim:k+1};
+    let dia=readDigits(t[k]), fim=k+1;
+    if(dia===null){ const w=readWords(t,k); if(w&&w.v>=1&&w.v<=31){ dia=w.v; fim=w.end; } }
+    return dia!==null&&dia>=1&&dia<=31&&dia===Math.round(dia)?{dia,fim}:null; };
   for(let i=0;i<t.length;i++){
     if(used[i]) continue;
     if(t[i]==="hoje"){ take(i,i+1); return todayISO(); }
     if(t[i]==="amanha"){ take(i,i+1); return dias(1); }
     if(t[i]==="ontem"){ take(i,i+1); return dias(-1); }
+    if(t[i]==="anteontem"){ take(i,i+1); return dias(-2); }
     if(t[i]==="depois"&&t[i+1]==="de"&&t[i+2]==="amanha"){ take(i,i+3); return dias(2); }
+    /* dia da semana: "sábado", "na sexta-feira", "segunda passada" é o último que passou (ou hoje);
+       "próxima segunda", "segunda que vem" é o seguinte. "Segunda parcela", "quinta vez" não são data. */
+    if(t[i] in DIAS_SEMANA&&!/^(parcela|parcelas|vez|vezes|via|mao|opcao|prestacao)$/.test(t[i+1]||"")){
+      let a=i, b=i+1; if(t[b]==="feira") b++;
+      let futuro=false;
+      if(a>0&&/^(proxima|proximo)$/.test(t[a-1])){ futuro=true; a--; }
+      if(t[b]==="que"&&t[b+1]==="vem"){ futuro=true; b+=2; }
+      else if(/^(passada|passado|retrasada)$/.test(t[b]||"")) b++;
+      if(a>0&&/^(na|no|nessa|nesta|neste|nesse|ultima|ultimo|essa|esta|de)$/.test(t[a-1])) a--;
+      const alvo=DIAS_SEMANA[t[i]], hojeDow=new Date(todayISO()+"T12:00:00").getDay();
+      let n=futuro?((alvo-hojeDow+7)%7||7):-((hojeDow-alvo+7)%7);
+      take(a,b); return dias(n); }
     /* 10/10 ou 10/10/2026 (o token normalizado perde a barra: vale o original) */
     const mb=String(orig[i]||"").match(/^(\d{1,2})[\/.](\d{1,2})(?:[\/.](\d{2,4}))?[.,;]?$/);
     if(mb&&+mb[1]>=1&&+mb[1]<=31&&+mb[2]>=1&&+mb[2]<=12){
-      take(i,i+1); const a=mb[3]?(mb[3].length===2?2000+(+mb[3]):+mb[3]):0;
+      let a0=i; if(a0>0&&t[a0-1]==="dia") a0--; if(a0>0&&/^(no|em)$/.test(t[a0-1])) a0--;
+      take(a0,i+1); const a=mb[3]?(mb[3].length===2?2000+(+mb[3]):+mb[3]):0;
       return monta(+mb[1],+mb[2],a); }
+    /* "5 de outubro", "primeiro de outubro", sem a palavra "dia" */
+    if(t[i]!=="dia"&&t[i]!=="no"){
+      const dd=diaDe(i);
+      if(dd){ let j=dd.fim; if(t[j]==="de"||t[j]==="do") j++;
+        if(MESES_FALA[t[j]]&&t[j].length>3){ let fim=j+1, ano=0, q=fim; if(t[q]==="de") q++;
+          const ay=readDigits(t[q]); if(ay&&ay>2000&&ay<2100){ ano=ay; fim=q+1; }
+          let a=i; if(a>0&&/^(em|no|dia)$/.test(t[a-1])) a--;
+          take(a,fim); return monta(dd.dia,MESES_FALA[t[j]],ano); } } }
     if(t[i]!=="dia"&&t[i]!=="no") continue;
     let k=i+1; if(t[i]==="no"){ if(t[k]!=="dia") continue; k++; }
-    let dia=readDigits(t[k]), fim=k+1;
-    if(dia===null){ const w=readWords(t,k); if(w&&w.v>=1&&w.v<=31){ dia=w.v; fim=w.end; } }
-    if(dia===null||dia<1||dia>31) continue;
+    const dd=diaDe(k); if(!dd) continue;
+    let dia=dd.dia, fim=dd.fim;
     let mes=0, ano=0;
     let j=fim; if(t[j]==="de"||t[j]==="do") j++;
     if(MESES_FALA[t[j]]){ mes=MESES_FALA[t[j]]; fim=j+1;
@@ -1262,7 +1325,11 @@ function dataDaFala(t,orig,used,take){
   return ""; }
 
 function splitUtterance(raw){
-  return raw.replace(/(\d)[.](\d)/g,"$1$2").split(/[.;\n]+/).map(s=>s.trim())
+  /* "35.90" é decimal (o reconhecimento às vezes escreve com ponto); "1.250" e "1.250.000" são milhar. Antes, todo
+     ponto entre números sumia, e "35.90" virava 3.590 */
+  let s=String(raw||"").replace(/(\d)\.(\d{1,2})(?!\d)/g,"$1,$2"), ant;
+  do{ ant=s; s=s.replace(/(\d)\.(\d{3})(?!\d)/g,"$1$2"); }while(s!==ant);
+  return s.split(/[.;\n]+/).map(s=>s.trim())
     .filter(s=>s.length>2&&/\d|\b(um|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|vinte|trinta|quarenta|cinquenta|sessenta|setenta|oitenta|noventa|cem|cento|duzentos|trezentos|quatrocentos|quinhentos|seiscentos|setecentos|oitocentos|novecentos|mil)\b/i.test(deacc(s))); }
 /* =================== gravação =================== */
 function txMonth(dateISO,cardId,offset){
@@ -1900,6 +1967,7 @@ function openMore(){
 
 function render(){
   garantirSalario();
+  { const b=$("#pttBtn"); if(b) b.hidden=!S.user; }
   renderNav(); renderSyncBadge();
   $("#mLbl").textContent=ymLabel(S.ym);
   $("#topTitle").textContent=(NAV.find(x=>x.id===S.view)||{n:""}).n;
@@ -2118,7 +2186,7 @@ function renderLancar(){
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Lançar por fala</h2>'+
     '<button class="sec-a" id="exBtn">Ver exemplo</button></div>'+
     '<div class="say-box"><textarea id="say" rows="3" placeholder="Fale ou escreva. Ex.: vinte e três reais, almoço no restaurante, cartão de crédito Visa."></textarea>'+
-    '<div class="say-bar"><span class="say-hint" id="sayHint">Toque no <kbd>🎤</kbd> do teclado e fale. Separe lançamentos com ponto final.</span>'+
+    '<div class="say-bar"><span class="say-hint" id="sayHint">Segure o botão redondo do microfone, no canto da tela, e fale; solte quando terminar. Ou toque no <kbd>🎤</kbd> do teclado. Separe lançamentos com ponto final.</span>'+
     '<button class="btn ghost sm" id="micBtn" hidden>Microfone</button>'+
     '<button class="btn ghost sm" id="aiBtn" hidden>Usar IA</button>'+
     '<button class="btn" id="readBtn">Ler</button></div></div>'+
@@ -3053,7 +3121,7 @@ const AJUDA=[
 
  /* lançar */
  {g:"Lançar",t:"Como lanço um gasto falando?",
-  c:"Aba Lançar, toque no microfone do teclado e fale: \"vinte e três reais, almoço no restaurante, cartão de crédito Visa\". Separe vários lançamentos com ponto final e confira antes de salvar.",a:"fala"},
+  c:"Segure o botão redondo do microfone, no canto de baixo da tela (está em todas as abas), e fale enquanto segura: \"vinte e três reais, almoço no restaurante, cartão de crédito Visa\". Quando soltar, o app mostra o que entendeu em Confira antes de salvar, para você conferir e salvar. Também dá para tocar no microfone do teclado, na aba Lançar. Separe vários lançamentos com ponto final.",a:"fala"},
  {g:"Lançar",t:"Como agendo um pagamento para depois?",
   c:"Diga quando: \"mil e duzentos reais, aluguel, dia 10\", \"internet amanhã\", \"dia 5 de outubro\". Sem dizer o mês, \"dia 10\" é o próximo dia 10. Fica com a marca agendado até chegar o dia.",a:"agendar"},
  {g:"Lançar",t:"Li um boleto: dá para agendar o pagamento?",
@@ -3082,6 +3150,10 @@ const AJUDA=[
   c:"O app mostra uma amostra sem os seus dados (números viram 9, nomes viram x). Copie e mande na conversa com o Claude para ele ajustar o leitor. Nunca mande o documento original.",a:"problemas"},
  {g:"Importar",t:"Escolhi o leitor errado (extrato no lugar da fatura)",
   c:"O app percebe e pergunta se quer ler no lugar certo, sem precisar escolher o arquivo de novo.",a:"extrato"},
+ {g:"Lançar",t:"Falei e o texto saiu repetido, enorme",
+  c:"Acontecia no celular Android: o reconhecimento de voz devolve a frase inteira de novo a cada palavra, e o app somava tudo. Agora o botão de segurar para falar ouve em trechos e junta sem repetir o que já tinha entendido; e o botão antigo de tocar para começar saiu.",a:"fala"},
+ {g:"Lançar",t:"Que valores e datas o app entende na fala?",
+  c:"Valores: \"35 reais e 90 centavos\", \"trinta e cinco e noventa\", \"R$ 35,90\", \"um real e cinquenta\", \"R$ 10 mil\", \"2 mil e 500\", \"mil duzentos e cinquenta\". Datas: hoje, ontem, anteontem, amanhã, um dia da semana (\"sábado\", \"na segunda\" é o último que passou; \"próxima segunda\" é a que vem), \"dia 5\", \"dia primeiro\", \"5 de outubro\", \"5/10\". Com verbo no passado (paguei, gastei, comprei), \"dia 30\" dito no começo do mês é o dia 30 que passou; sem verbo, é o próximo dia 30 \u2014 é assim que se agenda falando.",a:"fala"},
  {g:"Importar",t:"Como sei que o app leu a fatura certo?",
   c:"Ele confere sozinho, duas vezes, com o Total da fatura que o banco imprime no PDF. Logo depois de ler, a linha embaixo da conferência diz ✓ a leitura confere com o total impresso pelo banco — ou ⚠, com a diferença, e aí é para não salvar e mandar a amostra. Depois de salvar, ele soma a fatura como ela ficou no app (com o que já estava lançado antes) e abre uma janela — A fatura fecha com o banco, com ✓, ou A fatura não fechou com o banco, com ⚠ e os dois valores — que fica na tela até você tocar em Ok. Isso vale também quando não havia nada novo para lançar. O total do banco fica guardado: a Revisão confere essa fatura para sempre, paga ou não. Com os 27 PDFs de 2026 do autor, as 27 leituras e as 27 faturas batem no centavo.",a:"fatura"},
  {g:"No dia a dia",t:"O aviso embaixo da tela some antes de eu ler",
@@ -3683,20 +3755,88 @@ async function aiParse(){
 /* =================== microfone =================== */
 /* o ditado entrega a frase em pedaços, e cada navegador faz de um jeito: uns mandam só o trecho novo, outros
    repetem a frase inteira crescendo. Somar tudo virava "325 pago325 pago para325 pago para manutenção…". */
+/* junta um pedaço novo ao que já foi entendido, sem repetir. No Android o ditado devolve a frase inteira de novo
+   a cada palavra ("gastei", "gastei 35", "gastei 35 reais"…), às vezes com outra grafia ("35" e depois "R$ 35");
+   no computador ele manda só o trecho novo. Compara palavra por palavra, sem acento nem pontuação. */
+function juntarFala(acc,txt){
+  const W=x=>String(x||"").trim().split(/\s+/).filter(Boolean), N=x=>deacc(x.toLowerCase()).replace(/[^\w$,]/g,"");
+  const A=W(acc), B=W(txt); if(!B.length) return A.join(" "); if(!A.length) return B.join(" ");
+  const An=A.map(N).filter(Boolean), Bn=B.map(N).filter(Boolean);
+  if(Bn.length>=An.length&&An.every((x,i)=>x===Bn[i])) return B.join(" ");          /* repetiu tudo e cresceu */
+  if(Bn.join(" ")&&(" "+An.join(" ")+" ").includes(" "+Bn.join(" ")+" ")) return A.join(" ");   /* já estava */
+  for(let k=Math.min(An.length,Bn.length);k>0;k--){                                 /* o fim de um é o começo do outro */
+    if(k===1&&Bn[0].length<4) break;
+    let ok=true; for(let i=0;i<k;i++) if(An[An.length-k+i]!==Bn[i]){ ok=false; break; }
+    if(ok) return A.concat(B.slice(k)).join(" "); }
+  return A.concat(B).join(" "); }
+/* o texto de uma rodada do reconhecimento (uma fala só). No Android cada resultado já é a frase inteira até ali,
+   às vezes reescrita ("gastei 35" e depois "gastei R$ 35,90"): se começa igual, é a mesma frase de novo — fica a nova. */
 function textoDaFala(results){
-  const junta=(acc,txt)=>{ txt=String(txt||"").trim(); if(!txt) return acc; if(!acc) return txt;
-    if(txt.indexOf(acc)===0) return txt;                                   /* repetiu tudo e cresceu */
-    if(acc.length>=txt.length&&acc.slice(-txt.length)===txt) return acc;   /* repetiu o mesmo pedaço */
-    return acc+" "+txt; };
-  let fim="", parcial="";
-  for(let i=0;i<results.length;i++){ const r=results[i], t=r&&r[0]?r[0].transcript:"";
-    if(r.isFinal) fim=junta(fim,t); else parcial=t; }
-  return junta(fim,parcial); }
+  const N=x=>deacc(String(x||"").trim().split(/\s+/)[0]||"").toLowerCase().replace(/[^\w$,]/g,"");
+  let txt="";
+  for(let i=0;i<results.length;i++){ const r=results[i], t=String(r&&r[0]?r[0].transcript:"").trim(); if(!t) continue;
+    if(txt&&N(t)===N(txt)&&t.length>=txt.length*0.6) txt=t; else txt=juntarFala(txt,t); }
+  return txt; }
+
+/* =================== segure para falar ===================
+   Pedido do dono (06/10/2026): "um botão de fácil acesso no celular: aperto, falo enquanto seguro, e quando
+   solto ele mostra o que entendeu para eu aprovar". Cada rodada do reconhecimento ouve um trecho curto
+   (continuous=false, que no Android não repete a frase) e, enquanto o botão está apertado, começa outra;
+   os trechos se juntam com juntarFala. Ao soltar, o texto vai para Lançar e passa pela conferência de sempre. */
+function setupPTT(){
+  const btn=$("#pttBtn"), ov=$("#pttOv"), txtEl=$("#pttTxt"), est=$("#pttEst"); if(!btn||btn.dataset.ok) return;
+  btn.dataset.ok="1";
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  let rec=null, segurando=false, acc="", rodada="", inicio=0, erro="", sessao=0, reserva=0;
+  const mostra=()=>{ txtEl.textContent=juntarFala(acc,rodada); };
+  const vibra=ms=>{ try{ navigator.vibrate&&navigator.vibrate(ms); }catch(e){} };
+  const rodar=()=>{
+    try{
+      const minha=sessao;
+      rec=new SR(); rec.lang="pt-BR"; rec.continuous=false; rec.interimResults=true; rec.maxAlternatives=1;
+      rec.onresult=e=>{ if(minha!==sessao) return; rodada=textoDaFala(e.results); mostra(); };
+      rec.onerror=ev=>{ if(minha===sessao) erro=ev.error||""; };
+      rec.onend=()=>{ if(minha!==sessao) return; acc=juntarFala(acc,rodada); rodada=""; mostra();
+        if(segurando&&!/not-allowed|service-not-allowed|audio-capture/.test(erro)){ erro=""; rodar(); }
+        else terminar(); };
+      rec.start();
+    }catch(e){ erro="start"; terminar(); } };
+  let terminado=true;
+  const terminar=()=>{
+    if(terminado) return; terminado=true;
+    btn.classList.remove("ouvindo"); ov.hidden=true; vibra(15);
+    const texto=juntarFala(acc,rodada).trim();
+    if(/not-allowed|service-not-allowed/.test(erro)){ toast("O microfone está bloqueado para a Caderneta. Libere nas permissões do navegador e segure de novo."); return; }
+    if(Date.now()-inicio<500&&!texto){ toast("Segure o botão enquanto fala, e solte quando terminar."); return; }
+    if(!texto){ toast("Não ouvi nada. Segure o botão e fale perto do celular."); return; }
+    if(S.view!=="lancar") setView("lancar");
+    setTimeout(()=>{ const say=$("#say"); if(!say) return; say.value=texto; readInput(); },60); };
+  const comecar=e=>{
+    e.preventDefault();
+    if(!SR){ setView("lancar"); setTimeout(()=>{ const say=$("#say"); if(say) say.focus(); },80);
+      toast("Este navegador não reconhece fala. Toque no microfone do teclado e fale."); return; }
+    if(!terminado) return;
+    try{ btn.setPointerCapture(e.pointerId); }catch(_){}
+    clearTimeout(reserva); sessao++;
+    segurando=true; terminado=false; acc=""; rodada=""; erro=""; inicio=Date.now();
+    btn.classList.add("ouvindo"); est.textContent="Ouvindo — solte para terminar"; txtEl.textContent=""; ov.hidden=false; vibra(25);
+    rodar(); };
+  const soltar=()=>{ if(!segurando) return; segurando=false; est.textContent="Entendendo…";
+    try{ rec&&rec.stop(); }catch(e){ terminar(); }
+    const minha=sessao; reserva=setTimeout(()=>{ if(minha===sessao&&!terminado) terminar(); },2500); };
+  btn.addEventListener("pointerdown",comecar);
+  btn.addEventListener("pointerup",soltar);
+  btn.addEventListener("pointercancel",soltar);
+  btn.addEventListener("contextmenu",e=>e.preventDefault());
+  /* teclado: espaço ou Enter seguram e soltam, como o dedo */
+  btn.addEventListener("keydown",e=>{ if((e.key===" "||e.key==="Enter")&&!e.repeat&&terminado){ comecar(Object.assign(e,{pointerId:0})); } });
+  btn.addEventListener("keyup",e=>{ if(e.key===" "||e.key==="Enter") soltar(); }); }
 
 function setupMic(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   const btn=$("#micBtn"); if(!SR||!btn) return;
-  btn.hidden=false;
+  /* o botão de tocar para começar e tocar para parar deu lugar ao "segure para falar" (#pttBtn), em todas as abas */
+  return;
   let rec=null,on=false;
   btn.onclick=()=>{
     if(on&&rec){ rec.stop(); return; }
