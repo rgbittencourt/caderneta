@@ -418,6 +418,9 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .cardbox-n{font-size:14.5px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cardbox-v{font-family:var(--f-m);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
 .cardbox-s{font-size:11.5px;color:var(--ink-3);margin:3px 0 12px}
+.cardbox-alerta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 12px;padding:8px 10px;border-radius:9px;
+  background:color-mix(in srgb,var(--warn) 12%,transparent);color:var(--ink);font-size:12.5px}
+.cardbox-nota{font-size:11.5px;color:var(--ink-3);margin:6px 0 0}
 .cardbox-a{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap}
 
 /* ===== ajustes ===== */
@@ -641,7 +644,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v81";
+const VERSAO_APP="caderneta-v82";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -1346,6 +1349,11 @@ function balanceOf(acctId,upto){
     else if(t.method!=="credito"&&t.method!=="folha") bal-=t.v; });   /* desconto em folha não sai da conta */
   return bal; }
 const totalBalance=upto=>(S.cfg.accounts||[]).reduce((s,a)=>s+balanceOf(a.id,upto),0);
+/* dia em que vence a fatura do mês ym: no mês dela quando vence depois do fechamento, senão no mês seguinte */
+function vencimentoDe(c,ym){
+  if(!c||!c.due) return "";
+  const m=c.closing&&c.due<=c.closing?ymShift(ym,1):ym;
+  return m+"-"+pad(Math.min(c.due,daysIn(m))); }
 /* a fatura de uma compra no crédito; lançamento antigo, sem "fat", está guardado no mês da própria fatura */
 const faturaDe=t=>t.fat||t.ym;
 function cardOwed(cardId){ let o=0, inicio="";
@@ -1354,6 +1362,12 @@ function cardOwed(cardId){ let o=0, inicio="";
     if(t.k==="g"&&t.method==="credito") o+=t.v;
     else if(t.k==="p"&&!(t.ref&&(!inicio||t.ref<inicio))) o-=t.v; });   /* pagamento de fatura de antes do começo dos lançamentos não mexe no limite */
   return o; }
+/* o que pesa no limite do cartão: o próprio saldo devedor, ou — com limite único, que o banco divide entre vários
+   cartões — o de todos os cartões marcados assim */
+function usadoNoLimite(c){
+  const L=c&&c.limUnico?creditCards().filter(x=>x.limUnico):[c];
+  return L.reduce((s,x)=>s+Math.max(0,cardOwed(x.id)),0); }
+const livreDoCartao=c=>c&&c.limit?Math.max(0,c.limit-usadoNoLimite(c)):null;
 function cardInvoice(cardId,ym){ let total=0,paid=0;
   allTx().forEach(t=>{ if(t.card!==cardId) return;
     if(t.k==="g"&&t.method==="credito"&&faturaDe(t)===ym) total+=t.v;
@@ -1915,7 +1929,7 @@ function prazoCartao(c,hoje){
   return {fecha,paga,dias,exata,fat:fy+"-"+pad(fm),melhor:(c.melhorDia&&c.melhorDia>=hoje)?c.melhorDia:""}; }
 function melhoresCartoes(){
   const hoje=todayISO();
-  return creditCards().map(c=>{ const p=prazoCartao(c,hoje), livre=c.limit?Math.max(0,c.limit-cardOwed(c.id)):null;
+  return creditCards().map(c=>{ const p=prazoCartao(c,hoje), livre=livreDoCartao(c);
     return {c,p,livre}; })
     .sort((a,b)=>{ const fa=a.livre!==null&&a.livre<=0, fb=b.livre!==null&&b.livre<=0;
       if(fa!==fb) return fa?1:-1;
@@ -1964,7 +1978,7 @@ function htmlBancoCartoes(){
     '<span class="tile-v" style="font-size:30px">'+fmt(totalFat)+'</span>'+
     '<div class="tile-s" style="margin-bottom:8px">Compra no crédito só sai da conta quando a fatura é paga.</div>'+
     (C.length?C.map(x=>linha(x.c.n,x.fat,
-      "em aberto "+fmtN(x.devo)+(x.c.limit?" · livre "+fmtN(Math.max(0,x.c.limit-x.devo)):""),
+      "em aberto "+fmtN(x.devo)+(x.c.limit?" · livre "+fmtN(livreDoCartao(x.c)):""),
       ' data-irext="card:'+x.c.id+'"')).join("")
       :'<div class="empty" style="padding:14px">Cadastre seus cartões em Ajustes.</div>')+
     '</div></div></div>'; }
@@ -2359,7 +2373,14 @@ function renderContas(){
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Cartões de crédito</h2></div><div class="grid g2">'+
     (creditCards().length?creditCards().map(c=>{
       const inv=cardInvoice(c.id,S.ym), owed=cardOwed(c.id), lim=c.limit||0;
-      const p=lim>0?Math.min(100,owed/lim*100):0;
+      /* limite único: o banco divide um limite só entre os cartões marcados; o livre desconta todos */
+      const grupo=c.limUnico?creditCards().filter(x=>x.limUnico):[c], usadoLim=usadoNoLimite(c);
+      const p=lim>0?Math.min(100,usadoLim/lim*100):0;
+      /* fatura de meses anteriores ainda sem pagamento no app: a que vence agora não pode ficar escondida
+         dentro do "em aberto" (o dono estranhou o Mastercard: 11 mil em aberto e só a fatura do mês à vista) */
+      const antigas=[]; for(let k=1;k<=3;k++){ const ym=ymShift(S.ym,-k), i=cardInvoice(c.id,ym);
+        if(i.total>0&&i.open>100) antigas.push({ym,open:i.open,venc:vencimentoDe(c,ym)}); }
+      const futuras=allTx().filter(t=>t.card===c.id&&t.k==="g"&&t.method==="credito"&&faturaDe(t)>S.ym).reduce((s,t)=>s+t.v,0);
       const bits=[c.closing>0?"fecha dia "+c.closing:"sem fechamento"];
       if(c.due>0) bits.push("vence dia "+c.due);
       if(inv.paid>0){ const np=pagamentosDaFatura(c.id,S.ym).length;
@@ -2367,16 +2388,21 @@ function renderContas(){
       return '<div class="cardbox"><div class="cardbox-h"><span class="cardbox-n">'+esc(c.n)+'</span>'+
         '<span class="cardbox-v">'+fmtN(Math.max(0,inv.open))+'</span></div>'+
         '<div class="cardbox-s">Fatura de '+esc(ymLabel(S.ym))+' · '+esc(bits.join(" · "))+'</div>'+
-        (lim>0?'<div class="meter"><i class="'+(p>85?"bad":p>65?"warn":"")+'" style="width:'+p+'%"></i></div>'+
-          '<div class="meter-s"><span>usado '+fmtN(owed)+'</span><span>livre '+fmtN(Math.max(0,lim-owed))+' de '+fmtN(lim)+'</span></div>'
-          :'<div class="meter-s"><span>Limite não informado</span><span>em aberto '+fmtN(owed)+'</span></div>')+
+        antigas.map(a=>'<div class="cardbox-alerta"><span>⚠ Fatura de '+esc(ymLabel(a.ym))+' ainda sem pagamento no app: <b>'+fmtN(a.open)+'</b>'+
+          (a.venc?' · '+(a.venc<todayISO()?'venceu':a.venc===todayISO()?'vence hoje,':'vence')+' '+diaMesAno(a.venc):'')+'. Se o banco já debitou, ela fica paga quando você importar o extrato.</span>'+
+          '<button class="mini" data-pay="'+c.id+'" data-payym="'+a.ym+'">Pagar</button></div>').join("")+
+        (lim>0?'<div class="meter"><i class="'+(p>85?"bad":p>65?"warn":"")+'" style="width:'+p+'%"></i></div>':'')+
+        '<div class="meter-s"><span>a pagar no total '+fmtN(owed)+'</span>'+
+          (lim>0?'<span>livre '+fmtN(Math.max(0,lim-usadoLim))+' de '+fmtN(lim)+'</span>':'<span>limite não informado</span>')+'</div>'+
+        '<div class="cardbox-nota">'+(owed>0?(futuras>0?'o total inclui '+fmtN(futuras)+' de parcelas dos próximos meses':'sem parcelas para os próximos meses'):'nada a pagar')+
+          (c.limUnico&&grupo.length>1?' · limite único com '+esc(grupo.filter(x=>x.id!==c.id).map(x=>x.n).join(" e ")):'')+'</div>'+
         '<div class="cardbox-a">'+(inv.open>0?'<button class="btn sm" data-pay="'+c.id+'">Pagar fatura</button>':'')+
         '<button class="btn ghost sm" data-verext="card:'+c.id+'">Ver fatura</button></div></div>'; }).join("")
       :'<div class="empty"><b>Nenhum cartão de crédito</b>Cadastre em Ajustes para acompanhar fatura e limite.</div>')+
     '</div></div>';
   $("#p-contas").insertAdjacentHTML("beforeend",htmlExtrato());
   $$("[data-verext]").forEach(b=>b.onclick=()=>{ S.ext=b.dataset.verext; renderContas(); const x=$("#extSec"); if(x) x.scrollIntoView({behavior:"smooth",block:"start"}); });
-  $$("[data-pay]").forEach(b=>b.onclick=()=>openPay(b.dataset.pay));
+  $$("[data-pay]").forEach(b=>b.onclick=()=>openPay(b.dataset.pay,b.dataset.payym));
   bindExtrato(); }
 
 /* =================== futuro =================== */
@@ -2680,33 +2706,33 @@ async function ligarPagamento(t,cardId,ym){
   Object.assign(m.tx[t.id],{card:cardId, ref:ym, raw:"Extrato · pagamento de fatura", u:Date.now()});
   await saveMonth(t.ym); }
 
-function openPay(cardId){
+function openPay(cardId,ymAlvo){
   const c=S.cfg.cards.find(x=>x.id===cardId); if(!c) return;
-  const inv=cardInvoice(cardId,S.ym), A=S.cfg.accounts||[];
+  const ym=ymAlvo||ym, inv=cardInvoice(cardId,ym), A=S.cfg.accounts||[];
   if(!A.length){ toast("Cadastre uma conta antes."); return; }
-  const ja=pagamentoJaLancado(cardId,S.ym,inv.open);
+  const ja=pagamentoJaLancado(cardId,ym,inv.open);
   sheet("Pagar fatura · "+c.n,
     '<div class="set">'+
     (ja?'<div class="note"><b>'+(ja.v<inv.open?"Uma parte desta fatura já parece ter saído da conta":"Esse pagamento já parece ter saído da conta")+'</b>'+fmt(ja.v)+' em '+diaMesAno(ja.d)+
       (semCartaoCerto(ja)?' · o extrato não disse de qual cartão era':(ja.card&&ja.card!==cardId?' · lançado no '+esc(cardName(ja.card)):''))+
-      (ja.ref&&ja.ref!==S.ym?' · como fatura de '+esc(ymLabel(ja.ref)):'')+
+      (ja.ref&&ja.ref!==ym?' · como fatura de '+esc(ymLabel(ja.ref)):'')+
       ' · sai de '+esc(acctName(ja.acct||acctOf(ja.card)))+'. Se for desta fatura, use <b>É este pagamento</b>: '+
       (ja.v<inv.open?'ela fica com pagamento parcial de '+fmt(ja.v)+', faltando '+fmt(inv.open-ja.v)+', e o dinheiro não sai de novo da conta.'
         :'ela fica paga e o dinheiro não sai de novo da conta.')+'</div>':'')+
     '<div class="set-f"><label>Valor</label><input id="yV" inputmode="decimal" value="'+fmtN(inv.open)+'"></div>'+
     '<div class="two"><div class="set-f"><label>Sai de qual conta</label><select id="yA">'+optId(A,acctOf(cardId))+'</select></div>'+
     '<div class="set-f"><label>Quando</label><input id="yD" type="date" value="'+todayISO()+'"></div></div>'+
-    '<div class="note"><b>Isso não é um gasto novo</b>Tira o dinheiro da conta e abate a fatura de '+esc(ymLabel(S.ym))+
+    '<div class="note"><b>Isso não é um gasto novo</b>Tira o dinheiro da conta e abate a fatura de '+esc(ymLabel(ym))+
     '. As compras já foram contadas no teto quando você comprou.</div></div>',
     (ja?'<button class="btn ghost" id="yJa">É este pagamento</button>':'<button class="btn ghost" id="yX">Cancelar</button>')+
     '<button class="btn" id="yOk">'+(ja?'Pagar mesmo assim':'Pagar')+'</button>');
   const x=$("#yX"); if(x) x.onclick=closeSheet;
-  const j=$("#yJa"); if(j) j.onclick=async()=>{ await ligarPagamento(ja,cardId,S.ym); closeSheet(); render();
-    toast("Fatura de "+ymLabel(S.ym)+" marcada como paga pelo lançamento de "+diaMesAno(ja.d)+"."); };
+  const j=$("#yJa"); if(j) j.onclick=async()=>{ await ligarPagamento(ja,cardId,ym); closeSheet(); render();
+    toast("Fatura de "+ymLabel(ym)+" marcada como paga pelo lançamento de "+diaMesAno(ja.d)+"."); };
   $("#yOk").onclick=async()=>{ const v=toCents($("#yV").value);
     if(!v){ toast("Coloque o valor."); return; }
-    await commit({id:uid(),raw:"",v,desc:"Fatura "+c.n+" · "+ymLabel(S.ym),cat:"outros",method:"debito",
-      cardId,acct:$("#yA").value,n:1,date:$("#yD").value||todayISO(),time:nowTime(),k:"p",ref:S.ym});
+    await commit({id:uid(),raw:"",v,desc:"Fatura "+c.n+" · "+ymLabel(ym),cat:"outros",method:"debito",
+      cardId,acct:$("#yA").value,n:1,date:$("#yD").value||todayISO(),time:nowTime(),k:"p",ref:ym});
     closeSheet(); render(); toast("Fatura paga"); }; }
 
 function openTransfer(){
@@ -3090,7 +3116,9 @@ const AJUDA=[
 
  /* cartões */
  {g:"Cartões",t:"Quanto já gastei em cada cartão?",
-  c:"No Painel, em Lançado nos cartões: a fatura do mês de cada cartão, o total em aberto (com as parcelas futuras) e o limite livre. Em Contas, Ver fatura mostra compra por compra.",a:"painel"},
+  c:"Em Contas, cada cartão mostra a fatura do mês escolhido no alto; embaixo, a pagar no total (todas as faturas ainda sem pagamento, mais as parcelas dos próximos meses, com quanto é de parcelas) e o limite livre. Se uma fatura de mês anterior ainda não tem pagamento no app, aparece um aviso com o valor, o vencimento e o botão Pagar — se o banco já debitou, ela fica paga quando você importar o extrato. Ver fatura mostra compra por compra.",a:"painel"},
+ {g:"Cartões",t:"Meus cartões dividem o mesmo limite. O app entende?",
+  c:"Entende. No Banco do Brasil a fatura diz Limite único: um limite só para todos os cartões do banco. O app lê isso na fatura e marca sozinho o cartão; dá também para marcar à mão, na ficha do cartão em Ajustes, em Limite único, dividido com outros cartões. O livre passa a descontar o que está em aberto em todos os cartões marcados — por isso aparece o mesmo livre em todos eles — e em Análises eles aparecem juntos, numa barra só.",a:"cartoes"},
  {g:"Cartões",t:"Qual cartão é melhor usar hoje?",
   c:"O app calcula e mostra no alto do Painel e da aba Lançar: é o cartão cuja compra de hoje demora mais para ser cobrada. Ele diz em que fatura a compra entra, quando essa fatura fecha, quando vence e quantos dias faltam até o dinheiro sair da conta — e lista os outros cartões em ordem.",a:"cartoes"},
  {g:"Cartões",t:"O app diz \"falta o fechamento\" nos cartões",
@@ -3403,6 +3431,8 @@ function openCard(id){
     '<div class="set-f"><label>Dia do fechamento</label><input id="cF" inputmode="numeric" value="'+(c.closing||"")+'" placeholder="0 = não usar"></div></div>'+
     '<div class="two"><div class="set-f"><label>Dia do vencimento</label><input id="cV" inputmode="numeric" value="'+(c.due||"")+'" placeholder="0 = não usar"></div>'+
     '<div class="set-f"><label>Limite</label><input id="cL" inputmode="decimal" value="'+(c.limit?fmtN(c.limit):"")+'" placeholder="0,00"></div></div>'+
+    '<div class="set-f"><label style="display:flex;align-items:center;gap:9px;font-weight:500;color:var(--ink)"><input type="checkbox" id="cU" style="width:20px;height:20px"'+(c.limUnico?" checked":"")+'> Limite único, dividido com outros cartões</label>'+
+    '<span class="hint">Marque em todos os cartões do mesmo banco que dividem um limite só (no Banco do Brasil, a fatura diz <i>Limite único</i>). O livre passa a descontar o que está em aberto em todos eles. O app marca sozinho quando lê isso na fatura.</span></div>'+
     '<div class="set-f"><label>Sai de qual conta</label><select id="cC">'+optId(S.cfg.accounts||[],c.acct||acctOf(c.id))+'</select>'+
     '<span class="hint">No crédito é a conta de onde sai o pagamento da fatura. No débito, pix, transferência ou dinheiro é a conta que o gasto tira na hora.</span></div>'+
     '<div class="set-f"><label>Como você chama falando</label><input id="cA" value="'+esc(c.alias)+'" placeholder="elo nubank roxinho">'+
@@ -3414,9 +3444,11 @@ function openCard(id){
     const obj={id:c.id,n,type:$("#cT").value,
       closing:Math.max(0,Math.min(31,parseInt($("#cF").value)||0)),
       due:Math.max(0,Math.min(31,parseInt($("#cV").value)||0)),
-      limit:toCents($("#cL").value), acct:$("#cC").value, alias:$("#cA").value.trim()||norm(n)};
+      limit:toCents($("#cL").value), limUnico:!!($("#cU")&&$("#cU").checked), acct:$("#cC").value, alias:$("#cA").value.trim()||norm(n)};
     const i=S.cfg.cards.findIndex(x=>x.id===c.id);
-    if(i<0) S.cfg.cards.push(obj); else S.cfg.cards[i]=obj;
+    /* junta com o que já estava no cartão: as datas aprendidas das faturas (fatLida, proxFecha, melhorDia) se
+       perdiam a cada vez que o cartão era editado */
+    if(i<0) S.cfg.cards.push(obj); else S.cfg.cards[i]=Object.assign({},S.cfg.cards[i],obj);
     saveCfg(); closeSheet(); render(); toast("Salvo"); };
   const k=$("#cKill");
   if(k) k.onclick=()=>{ S.cfg.cards=S.cfg.cards.filter(x=>x.id!==c.id); saveCfg(); closeSheet(); render(); toast("Excluído"); }; }
@@ -4362,6 +4394,7 @@ function mostrarLidos(r,op,anexar){
     (r.desfeitos?" · "+r.desfeitos+(r.desfeitos>1?" débitos que o banco desfez no mesmo dia ficaram":" débito que o banco desfez no mesmo dia ficou")+" de fora, com o estorno":"")+
     (S.contaCriada?" · criei a conta "+S.contaCriada+" para o dinheiro aplicado":"")+
     (S.fechamentoAprendido?" · anotei que o "+S.fechamentoAprendido:"")+
+    (S.limiteAprendido?" · anotei que o "+S.limiteAprendido:"")+
     (r.anteriorFalta>0?" · faltaram "+fmt(r.anteriorFalta)+" da fatura anterior"+(r.anteriorNaApp?", que já aparecem nela como a pagar":", lançados nesta fatura"):"")+
     (r.anteriorFalta<0?" · sobraram "+fmt(-r.anteriorFalta)+" a seu favor na fatura anterior"+(r.anteriorNaApp?", que já aparecem nela":", abatidos desta fatura"):"")+
     (r.cartaoDoc?" · cartão no documento: "+r.cartaoDoc:"")+
@@ -4372,7 +4405,7 @@ function mostrarLidos(r,op,anexar){
   if(r.tipo==="fatura"||r.tipo==="extrato"){ const b=document.createElement("button"); b.className="mini"; b.style.marginLeft="8px";
     const cam=op.box?$(".docCam",op.box):null;
     if(cam){ b.textContent="Fotografar mais uma página"; b.onclick=()=>{ S.docMais=true; cam.click(); }; st.appendChild(b); } }
-  S.contaCriada=""; S.fechamentoAprendido="";
+  S.contaCriada=""; S.fechamentoAprendido=""; S.limiteAprendido="";
   renderDrafts(); $("#draftSec").scrollIntoView({behavior:"smooth",block:"start"}); }
 
 function rascunhosDoc(r,op){
@@ -4402,6 +4435,11 @@ function rascunhosDoc(r,op){
       if(r.proxFechamento&&r.proxFechamento>todayISO()){ c.proxFecha=r.proxFechamento; mudou=true; }
       if(r.melhorCompra&&r.melhorCompra>todayISO()){ c.melhorDia=r.melhorCompra; mudou=true; }
       if(mudou){ S.fechamentoAprendido=c.n+" fecha dia "+c.closing+(c.due?" e vence dia "+c.due:""); saveCfg(); } } }
+  /* "Limite único R$ 50.000,00" na fatura: o banco divide um limite só entre os cartões dele. Anota no cartão,
+     e o painel passa a descontar desse limite o que está em aberto em todos os cartões marcados assim. */
+  if(r.tipo==="fatura"&&cardFat&&r.limiteUnico>0){
+    const c=creditCards().find(x=>x.id===cardFat);
+    if(c&&(c.limit!==r.limiteUnico||!c.limUnico)){ c.limit=r.limiteUnico; c.limUnico=true; S.limiteAprendido=c.n+" divide o limite único de "+fmt(r.limiteUnico); saveCfg(); } }
   /* o saldo que a fatura anterior deixou volta nesta: o que faltou pagar vem cobrado de novo e, quando a anterior
      fechou a favor do dono (saldo credor, estorno maior que as compras), o banco abate esse crédito aqui.
      Só entra quando a fatura anterior não está no app — se estiver, ela mesma já mostra esse saldo,
@@ -4694,8 +4732,10 @@ function diagnostico(ym){
     [{rotulo:"Marcar como fixo",fn:()=>tornarFixo(r.t)}]));
   const ass=st.byCat.assin||0;
   if(ass>0) add("","Assinaturas e telefone: "+fmt(ass*12)+" por ano","<b>"+fmt(ass)+"</b> neste mês. Vale revisar o que não usa.");
-  creditCards().forEach(c=>{ if(c.limit>0){ const o=cardOwed(c.id), u=o/c.limit;
-    if(u>0.8) add(u>0.95?"bad":"warn",c.n+" com "+Math.round(u*100)+"% do limite usado","Livre: <b>"+fmt(Math.max(0,c.limit-o))+"</b>, já contando as parcelas futuras."); } });
+  const vistosLim=new Set();
+  creditCards().forEach(c=>{ if(c.limit>0){ if(c.limUnico){ if(vistosLim.has("u")) return; vistosLim.add("u"); }
+    const o=usadoNoLimite(c), u=o/c.limit, nome=c.limUnico&&creditCards().filter(x=>x.limUnico).length>1?"O limite único dos cartões":c.n;
+    if(u>0.8) add(u>0.95?"bad":"warn",nome+" com "+Math.round(u*100)+"% do limite usado","Livre: <b>"+fmt(Math.max(0,c.limit-o))+"</b>, já contando as parcelas futuras."); } });
   const ds=(S.cfg.dividas||[]).map(dv=>({dv,e:estadoDivida(dv)})).filter(x=>x.e.n>0&&x.e.i>0).sort((a,b)=>b.e.i-a.e.i);
   if(ds.length){ const x=ds[0], sim=simulacao(x.e);
     add(x.e.i>=0.08?"bad":x.e.i>=0.03?"warn":"",x.dv.nome+": juros de "+pctBR(x.e.i)+" ao mês",
@@ -4715,16 +4755,20 @@ function htmlPagamentos(ym,st){
     r.leituraT=r.label;
     r.leitura=leituraFatia(r,tot,{de:"do que você gastou em "+ymLabel(ym), lugar:(i+1)+"ª forma mais usada no mês.",
       extra:inv?("A fatura de "+ymLabel(ym)+" nesse cartão está em "+fmtN(inv.total||r.v)+
-        (c.limit?"; do limite de "+fmtN(c.limit)+", ainda cabem "+fmtN(Math.max(0,c.limit-cardOwed(c.id)))+".":"."))
+        (c.limit?"; do limite de "+fmtN(c.limit)+(c.limUnico?" (único, dividido com os outros cartões)":"")+", ainda cabem "+fmtN(livreDoCartao(c))+".":"."))
         :"Sai da conta na hora — não é crédito."}); });
-  const cred=st.gastos.filter(t=>t.method==="credito").reduce((s,t)=>s+t.v,0), cartoes=creditCards().filter(c=>c.limit>0);
+  const cred=st.gastos.filter(t=>t.method==="credito").reduce((s,t)=>s+t.v,0);
+  /* cartões com limite único aparecem uma vez só, juntos: o limite é um só */
+  const unicos=creditCards().filter(c=>c.limit>0&&c.limUnico);
+  const cartoes=creditCards().filter(c=>c.limit>0&&!c.limUnico)
+    .concat(unicos.length?[Object.assign({},unicos[0],{n:unicos.length>1?"Limite único · "+unicos.map(c=>c.n).join(", "):unicos[0].n})]:[]);
   return '<div class="sec"><div class="sec-h"><h2 class="sec-t">Por cartão e forma de pagamento</h2><span class="day-t">'+(tot?fmt(tot):"")+'</span></div>'+
     '<div class="grid g2"><div class="card pad chart"><div class="ch-s">'+(tot?Math.round(cred/tot*100)+"% dos gastos de "+esc(ymLabel(ym))+" foram no crédito.":"Nada lançado neste mês.")+'</div>'+
     chartBarsH(rows,{alt:"Gastos por forma de pagamento"})+
     resumoFatias(rows,tot,{de:"do mês",fim:cred?("No crédito foram "+fmtN(cred)+", que só saem da conta quando a fatura for paga."):""})+
     tableView(["Forma","Valor","%"],rows.map(r=>[r.label,fmtN(r.v),r.pct+"%"]))+'</div>'+
     '<div class="card pad"><div class="tile-l" style="margin-bottom:10px">Limite dos cartões, já contando as parcelas futuras</div>'+
-    (cartoes.length?cartoes.map(c=>{ const o=cardOwed(c.id), p=Math.min(100,o/c.limit*100);
+    (cartoes.length?cartoes.map(c=>{ const o=usadoNoLimite(c), p=Math.min(100,o/c.limit*100);
       return '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;gap:10px"><span style="font-weight:600">'+esc(c.n)+'</span>'+
         '<span style="font-family:var(--f-m);font-variant-numeric:tabular-nums">'+fmtN(o)+' <span style="color:var(--ink-3)">de '+fmtN(c.limit)+'</span></span></div>'+
         '<div class="meter" style="margin-top:6px"><i class="'+(p>95?"bad":p>80?"warn":"")+'" style="width:'+p+'%"></i></div>'+

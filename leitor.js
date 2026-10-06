@@ -212,7 +212,7 @@ function lerLancamentos(texto,tipo,mes){
   if(tipo==="extrato"&&ehExtratoEmBlocos(texto)) return lerExtratoEmBlocos(texto);
   let ref=(mes||mesDeHoje()).split("-").map(Number);
   const fatura=tipo!=="extrato";
-  const linhas=[], creditos=[]; let ignoradas=0, estornos=0, anulados=0, dataDoDia=null, saldoAnterior=0, pagoAnterior=0, totalImpresso=null;
+  const linhas=[], creditos=[]; let ignoradas=0, estornos=0, anulados=0, dataDoDia=null, saldoAnterior=0, pagoAnterior=0, totalImpresso=null, limiteUnico=0;
   let brutas=String(texto||"").split(/\r?\n/), fechada="", cartao="", vencimento="", proxFechamento="", melhorCompra="";
   if(fatura){
     /* a data de fechamento diz o ano das compras sem ano ("22/12" numa fatura fechada em 23/12/2025) */
@@ -234,6 +234,9 @@ function lerLancamentos(texto,tipo,mes){
     /* o total que o banco imprime: serve para o app conferir a própria leitura ("Total da Fatura R$ -45,90") */
     const tots=[...sem2.matchAll(/total\s+(?:da\s+fatura|desta\s+fatura|a\s+pagar)\D{0,12}?(-?\s?[\d.]+,\d{2})/gi)];
     if(tots.length){ const t=tots[tots.length-1][1].replace(/\s/g,""); totalImpresso=Math.round(parseFloat(t.replace(/\./g,"").replace(",","."))*100); }
+    /* "Limite único R$ 50.000,00": o banco divide um limite só entre todos os cartões dele */
+    const lu=sem2.match(/limite unico\s+(?:R\$\s*)?([\d.]+,\d{2})/i);
+    if(lu) limiteUnico=Math.round(parseFloat(lu[1].replace(/\./g,"").replace(",","."))*100);
     /* só a tabela de lançamentos, quando ela tem cabeçalho: o resto da fatura é resumo, juros e avisos */
     const ini=brutas.findIndex(l=>/^\s*data\s+descri/i.test(semAcento(l)));
     if(ini>=0) brutas=brutas.slice(ini+1); }
@@ -297,7 +300,7 @@ function lerLancamentos(texto,tipo,mes){
     else abertos.push({d:c.d, desc:(/estorno|devolu|cancel/i.test(c.desc||"")?c.desc:"Estorno · "+(c.desc||"compra")), v:-c.v, k:"g", i0:1, n:1, cred:1}); });
   abertos.forEach(c=>linhas.push(c));
   return {linhas, ignoradas, estornos, anulados, estornosAbertos:abertos.length,
-    fechada, cartao, vencimento, proxFechamento, melhorCompra, saldoAnterior, pagoAnterior, totalImpresso}; }
+    fechada, cartao, vencimento, proxFechamento, melhorCompra, saldoAnterior, pagoAnterior, totalImpresso, limiteUnico}; }
 
 /* ---- saldo que o próprio banco imprime: serve para acertar a conta ---- */
 function saldosDoExtrato(texto,mes){
