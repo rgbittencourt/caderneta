@@ -666,7 +666,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v87";
+const VERSAO_APP="caderneta-v88";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -1087,7 +1087,7 @@ const NW = {zero:0,um:1,uma:1,dois:2,duas:2,tres:3,quatro:4,cinco:5,seis:6,meia:
 const SC = {mil:1000, milhao:1e6, milhoes:1e6};
 const MOEDA = /^(reais|real|conto|contos|pila|pilas|mango|mangos|pratas)$/;   /* "real" faltava: "um real e cinquenta" dava 1,00 */
 const CENT  = /^(centavos?)$/;
-const STOP  = /^(ah|ai|ei|entao|tipo|assim|olha|opa|beleza|ok|e|de|do|da|no|na|em|com|pra|para|por|foi|um|uma|o|a|os|as|meu|minha|hoje|agora|paguei|gastei|comprei|foram|reais|real|deu|custou|ficou|la|aqui|que|se|ao|aos|recebi|recebido|recebida|caiu|entrou|depositei|ganhei|entrada|vou|vamos|vai|pagar|pagarei|preciso|tenho|tive|lancar|lanca|anota|anotar|coloca|colocar)$/;
+const STOP  = /^(ah|ai|ei|entao|tipo|assim|olha|opa|beleza|ok|e|de|do|da|no|na|em|com|pra|para|por|foi|um|uma|o|a|os|as|meu|minha|hoje|agora|paguei|gastei|comprei|foram|reais|real|deu|custou|ficou|la|aqui|que|se|ao|aos|recebi|recebido|recebida|caiu|entrou|depositei|ganhei|entrada|vou|vamos|vai|pagar|pagarei|preciso|tenho|tive|lancar|lanca|anota|anotar|coloca|colocar|mais|outro|outra)$/;
 const ENTRADA = /^(recebi|recebido|recebida|receber|caiu|entrou|entrada|depositei|deposito|ganhei|salario|holerite|contracheque|freela|freelance|bolsa|estagio|reembolso|estorno|restituicao|rendimento|rendimentos|dividendo|dividendos|vendi|adiantamento|decimo|prolabore|plr)$/;
 
 /* "trinta e nove" soma; "trinta e nove e noventa" não: em português a composição só desce
@@ -2296,6 +2296,18 @@ function readInput(){
 async function saveDrafts(){
   const ok=S.drafts.filter(d=>d.v&&d.incluir!==false); let fixos=0, acertadas=0, empurradas=0;
   for(const d of S.drafts) if(d.dupAuto&&d.dup&&(d.ajustarValor||d.moverPara)){ await ajustarParcelaReservada(d); acertadas++; }
+  let corrigidos=0;
+  for(const d of S.drafts) if(d.corrigir&&d.incluir===false){
+    const m=S.months[d.corrigir.ym], t=m&&m.tx&&m.tx[d.corrigir.id]; if(!t||t.del) continue;
+    const novo=Object.assign({},t,{v:d.cred?-d.v:d.v, d:d.date, u:Date.now()});
+    if(d.corrigir.trocaCartao&&d.cardId){ novo.card=d.cardId; novo.method=d.method||novo.method; novo.acct=d.method==="credito"?acctOf(d.cardId):(d.acct||acctOf(d.cardId)); }
+    if(novo.method==="credito"&&d.origem==="fatura"&&d.ym) novo.fat=d.ym; else if(novo.method!=="credito") delete novo.fat;
+    let ymNovo=ymOf(d.date); if(novo.fat&&ymNovo>novo.fat) ymNovo=novo.fat;
+    if(ymNovo!==d.corrigir.ym){ m.tx[d.corrigir.id]={del:1,u:Date.now()};
+      if(!S.months[ymNovo]) S.months[ymNovo]={tx:{}}; if(!S.months[ymNovo].tx) S.months[ymNovo].tx={};
+      S.months[ymNovo].tx[d.corrigir.id]=novo; await saveMonth(ymNovo); }
+    else m.tx[d.corrigir.id]=novo;
+    await saveMonth(d.corrigir.ym); corrigidos++; }
   for(const d of S.drafts) if(d.pagoAntes&&d.alinhar&&d.incluir===false){
     const m=S.months[d.alinhar.ym], t=m&&m.tx&&m.tx[d.alinhar.id];
     if(t&&!t.del&&ymOf(d.date)===d.alinhar.ym&&t.d!==d.date){ t.d=d.date; t.raw="Extrato · pagamento de fatura"; t.u=Date.now(); await saveMonth(d.alinhar.ym); } }
@@ -2307,7 +2319,8 @@ async function saveDrafts(){
   const conferir=()=>[...new Set(S.drafts.filter(d=>d.origem==="fatura"&&d.cardId&&d.ym&&d.totalDoc!=null).map(d=>d.cardId+"|"+d.ym))]
     .map(k=>{ const [cid,ym]=k.split("|"), tb=(S.cfg.totaisBanco||{})[k], tot=cardInvoice(cid,ym).total; return {cid,ym,tb,tot,ok:Math.abs(tot-tb)<=1}; });
   if(!ok.length){ const conf=conferir(); S.drafts=[]; render();
-    toast(acertadas?acertadas+(acertadas>1?" parcelas acertadas":" parcela acertada")+" pelo valor da fatura; nada novo para lançar.":"Nada novo para lançar: tudo já estava lançado.");
+    toast((acertadas?acertadas+(acertadas>1?" parcelas acertadas":" parcela acertada")+" pelo valor da fatura; nada novo para lançar.":"Nada novo para lançar: tudo já estava lançado.")+
+      (corrigidos?" "+corrigidos+(corrigidos>1?" lançamentos de voz corrigidos":" lançamento de voz corrigido")+" pelo banco.":""));
     if(conf.length) mostrarConferencia(conf);
     /* extrato importado de novo: mesmo sem nada novo, confere o saldo com o banco */
     const sd0=S.docSaldo; S.docSaldo=null;
@@ -2323,7 +2336,8 @@ async function saveDrafts(){
   toast(ok.length+(ok.length>1?" lançamentos salvos":" lançamento salvo")+(fixos?" · "+fixos+" como fixo todo mês":"")+
     (acertadas?" · "+acertadas+(acertadas>1?" parcelas acertadas":" parcela acertada")+" pelo valor da fatura":"")+
     (empurradas?" · "+empurradas+(empurradas>1?" parcelas ainda não cobradas foram":" parcela ainda não cobrada foi")+" para a fatura seguinte":"")+
-    (religados?" · "+religados+(religados>1?" pagamentos do extrato ligados ao cartão":" pagamento do extrato ligado ao cartão"):""));
+    (religados?" · "+religados+(religados>1?" pagamentos do extrato ligados ao cartão":" pagamento do extrato ligado ao cartão"):"")+
+    (corrigidos?" · "+corrigidos+(corrigidos>1?" lançamentos de voz corrigidos":" lançamento de voz corrigido")+" pelo banco":""));
   /* aplicação automática: quando o banco resgata mais do que aplicou, a diferença é o rendimento */
   const invs=[...new Set(ok.filter(d=>d.k==="t").map(d=>d.acct).concat(ok.filter(d=>d.k==="t").map(d=>d.acct2)))]
     .filter(id=>id&&((S.cfg.accounts||[]).find(a=>a.id===id)||{}).type==="invest");
@@ -3156,7 +3170,7 @@ const AJUDA=[
  {g:"Importar",t:"Onde importo a fatura do cartão?",
   c:"Aba Lançar, em Importar fatura do cartão, canhoto ou boleto. O mês não se escolhe: vale o fechamento impresso na fatura.",a:"fatura"},
  {g:"Importar",t:"Se eu lançar por voz e depois importar, vai duplicar?",
-  c:"Não. Cada linha do documento é comparada com o que já existe: mesmo tipo, valor (até um centavo) e data (até três dias). O que já está lançado vem desmarcado, com os dois lado a lado. Mesmo que você tenha dito o cartão errado, ele reconhece quando a descrição bate.",a:"conferencia"},
+  c:"Não deveria. Ao importar, cada linha do banco é comparada com o que já está lançado, pelo valor e pela data (até três dias), e cada lançamento seu responde por uma linha só: dois cafés de 7,00 no mesmo dia casam com as duas linhas do banco; se o banco tiver uma terceira, ela entra como nova. Como a descrição falada nunca é igual à do banco, o app não depende dela. Desde a versão 88 ele reconhece também o valor dito arredondado (você falou telefone 90 e o banco cobrou 89,90: até 3% ou R$ 1 de diferença, com até dois dias) e o cartão ou a forma de pagamento ditos errados (mesmo valor, até um dia). Em todos os casos ele pergunta Isto já está lançado? e você escolhe: É o mesmo — corrigir pelo banco (não entra de novo; o seu lançamento fica com o valor, a data e o cartão do banco, e a descrição que você falou continua) ou São diferentes — lançar (entram os dois, para quando foram mesmo duas compras iguais, no mesmo dia e no mesmo valor). O que fugir disso — valor muito diferente ou data distante — entra como novo: toque no lançamento que sobrou e exclua.",a:"conferencia"},
  {g:"Importar",t:"Importo extrato e fatura: o gasto conta duas vezes?",
   c:"Não. As compras vêm da fatura e não tiram dinheiro da conta; o pagamento da fatura vem do extrato, sai da conta e não conta como gasto. Pode importar todos os extratos primeiro e as faturas depois.",a:"carregar"},
  {g:"Importar",t:"Como sei quais extratos e faturas já importei?",
@@ -4667,6 +4681,17 @@ function rascunhosDoc(r,op){
              o dono respondeu "são diferentes" em todas e cada fatura reimportada dobrou (05/10/2026). */
           if(d.origem==="fatura"&&doBanco.has(rep.id)&&rep.card===d.cardId&&faturaDe(rep)===d.ym&&Math.abs(rep.v)===d.v
             &&(rep.d===d.date||norm(rep.desc||"")===norm(d.desc||""))){ d.dupResp=1; d.dupAuto=1; d.mesmaLinha=1; }
+          /* era um lançamento de voz ou à mão: sendo o mesmo, ele fica com o que o banco diz (valor, data, cartão),
+             e a descrição que o dono falou continua */
+          if((d.origem==="fatura"||d.origem==="extrato")&&!/^(Fatura de|Extrato)/.test(rep.raw||"")&&!doBanco.has(rep.id)&&!rep.plan&&d.k!=="p"){
+            const difs=[], vRep=Math.abs(rep.v);
+            if(Math.abs(vRep-d.v)>1) difs.push("valor "+fmtN(d.v)+" (você lançou "+fmtN(vRep)+")");
+            if(rep.d!==d.date) difs.push("data "+diaMesAno(d.date)+" (você lançou "+diaMesAno(rep.d)+")");
+            /* o cartão só vale pela fatura; no extrato, só quando o lançamento estava no crédito e o banco tirou da conta */
+            const trocaCartao=d.origem==="fatura"?(d.cardId&&rep.card!==d.cardId):(rep.method==="credito");
+            if(trocaCartao) difs.push(d.origem==="fatura"?"cartão "+cardName(d.cardId)+" (você lançou "+(cardName(rep.card)||METODOS[rep.method]||rep.method)+")"
+              :"saiu da conta, não do cartão (você lançou "+(cardName(rep.card)||"crédito")+")");
+            if(difs.length) d.corrigir={ym:rep.ym,id:rep.id,difs,trocaCartao}; }
           /* pagamento de fatura que o dono já tinha lançado pelo botão Pagar fatura: o débito do banco é o mesmo
              (mesmo cartão, mesma fatura, mesmo valor, poucos dias de diferença). Não pergunta — respondendo "são
              diferentes", o pagamento entrava duas vezes — e a data do lançamento passa a ser a do banco. */
@@ -4825,7 +4850,24 @@ function pareceRepetido(d,usados,doBanco){
      linha tomava o lançamento que era da outra, e a que ficava sem par entrava de novo — ao reimportar a mesma
      fatura para recuperar o que faltava, ela fechava centavos acima da do banco. */
   cand.sort((a,b)=>(a.dv-b.dv)||(a.dd-b.dd));
-  return cand.length?cand[0].t:null; }
+  if(cand.length) return cand[0].t;
+  /* nada igual. Na importação, procura um lançamento feito POR VOZ OU À MÃO que seja a mesma compra dita de outro
+     jeito (pedido do dono, 06/10/2026: "vamos lançar muito por voz"): valor falado arredondado ("telefone 90"
+     contra 89,90 do banco), ou o cartão ou a forma de pagamento ditos errados (disse um cartão, e o banco cobrou
+     em outro). Só pergunta — "é o mesmo" corrige o lançamento pelo banco; "são diferentes" lança os dois. */
+  if(d.origem!=="fatura"&&d.origem!=="extrato") return null;
+  const deVozOuMao=t=>!/^(Fatura de|Extrato)/.test(t.raw||"")&&!(doBanco&&doBanco.has(t.id))&&!t.aj&&!t.auto&&!t.cons;
+  const contaDe=x=>x.acct||acctOf(x.card||x.cardId);
+  const perto=[];
+  for(const ym of meses) for(const t of txOf(ym)){
+    if(t.k!==d.k||(usados&&usados[t.id])||!deVozOuMao(t)) continue;
+    if(t.plan&&(+d.n||1)<=1) continue;
+    const dv=Math.abs(t.v-vd), dd=Math.abs(dia(t.d)-dia(d.date))/86400000;
+    const mesmoLugar=d.method==="credito"?(t.method==="credito"&&t.card===d.cardId):(t.method!=="credito"&&contaDe(t)===contaDe(d));
+    if(mesmoLugar&&dv<=Math.max(100,Math.round(Math.abs(vd)*0.03))&&dd<=2) perto.push({t,dv,dd});
+    else if(!mesmoLugar&&dv<=1&&dd<=1) perto.push({t,dv,dd:dd+0.5}); }
+  perto.sort((a,b)=>(a.dv-b.dv)||(a.dd-b.dd));
+  return perto.length?perto[0].t:null; }
 
 function openLinhaBoleto(erro){
   sheet("Linha digitável do boleto",
@@ -5328,12 +5370,13 @@ function openAcerto(acctId,s,depois){
 function dupHTML(d,i){
   if(!d.dup) return "";
   const t=d.dup;
-  if(d.dupResp) return '<div class="dup ok">'+(d.pagoAntes&&!d.incluir?"Você já tinha lançado este pagamento pelo botão Pagar fatura: não vai entrar de novo, e a data dele passa a ser a do banco.":d.mesmaLinha&&!d.incluir?"Já lançado por "+(d.origem==="extrato"?"este mesmo extrato":"esta mesma fatura")+": não vai entrar de novo.":d.dupAuto&&!d.incluir?"Parcela "+d.i0+"/"+d.n+" já reservada pela fatura em que a compra começou: não vai entrar de novo.":d.incluir?"Você disse que são dois lançamentos diferentes: este vai entrar.":"Você disse que é o mesmo: este não vai entrar.")+
+  if(d.dupResp) return '<div class="dup ok">'+(d.corrigir&&!d.incluir?"Você disse que é o mesmo: não entra de novo, e o seu lançamento fica com o que o banco diz ("+esc(d.corrigir.difs.join(", "))+").":d.pagoAntes&&!d.incluir?"Você já tinha lançado este pagamento pelo botão Pagar fatura: não vai entrar de novo, e a data dele passa a ser a do banco.":d.mesmaLinha&&!d.incluir?"Já lançado por "+(d.origem==="extrato"?"este mesmo extrato":"esta mesma fatura")+": não vai entrar de novo.":d.dupAuto&&!d.incluir?"Parcela "+d.i0+"/"+d.n+" já reservada pela fatura em que a compra começou: não vai entrar de novo.":d.incluir?"Você disse que são dois lançamentos diferentes: este vai entrar.":"Você disse que é o mesmo: este não vai entrar.")+
     ' <button class="mini" data-dupv="'+i+'">mudar</button></div>';
   return '<div class="dup"><b>Isto já está lançado?</b>'+
     '<div class="dup-l">Na Caderneta: <b>'+esc(t.desc)+'</b> · '+diaMesAno(t.d)+' · '+fmtN(t.v)+(t.card?' · '+esc(cardName(t.card)):'')+'</div>'+
-    '<div class="dup-l">No documento: <b>'+esc(d.desc)+'</b> · '+diaMesAno(d.date)+' · '+fmtN(d.v)+'</div>'+
-    '<div class="ins-a"><button class="mini" data-dupm="'+i+'">É o mesmo — não lançar</button>'+
+    '<div class="dup-l">No documento: <b>'+esc(d.desc)+'</b> · '+diaMesAno(d.date)+' · '+fmtN(d.v)+(d.cardId?' · '+esc(cardName(d.cardId)||METODOS[d.method]||""):'')+'</div>'+
+    (d.corrigir?'<div class="dup-l" style="color:var(--ink-2)">Sendo o mesmo, o seu lançamento fica com o que o banco diz: '+esc(d.corrigir.difs.join(", "))+'. A descrição que você deu continua.</div>':'')+
+    '<div class="ins-a"><button class="mini" data-dupm="'+i+'">'+(d.corrigir?'É o mesmo — corrigir pelo banco':'É o mesmo — não lançar')+'</button>'+
     '<button class="mini" data-dupd="'+i+'">São diferentes — lançar</button></div></div>'; }
 
 /* já lançados: dois iguais no mesmo lugar, com até 3 dias de diferença */

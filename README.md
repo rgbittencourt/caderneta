@@ -53,6 +53,8 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **Reimportar a mesma fatura conserta e não duplica:** quando uma fatura não fecha, é leitura antiga — importe o mesmo PDF outra vez, que a conferência deixa entrar só o que falta. Cada lançamento guardado responde por uma linha só (duas compras iguais no mesmo dia continuam sendo duas), o estorno não entra de novo, e a parcela que faltava entra na compra parcelada que já está no app, sem repetir as seguintes.
 
+**Lançou por voz, depois importou:** a descrição falada não precisa bater com a do banco. O app casa pelo valor e pela data, reconhece o valor dito arredondado e o cartão trocado, e pergunta: *É o mesmo — corrigir pelo banco* (o lançamento fica com o valor, a data e o cartão do banco, e a descrição falada continua) ou *São diferentes — lançar* (duas compras iguais de verdade).
+
 **Faturas e extratos fecham com o papel:** as 27 faturas de 2026 dos três cartões do autor e os 9 extratos do mesmo período fecham com o total e o saldo impressos pelo banco, centavo por centavo. Quando uma fatura não fechar, é leitura antiga: importe o mesmo PDF de novo, que a conferência deixa entrar só o que falta.
 
 **A fatura tem o nome do mês em que vence, como o banco faz:** a que fecha em 23/09 e vence em 05/10 é a "fatura de out (05/10)" — e a data do vencimento aparece entre parênteses em todo lugar. Com o mês de cima em outubro, cada cartão mostra a fatura que vence em outubro, e é ela que entra no previsto do mês. Se alguma fatura entrou errada, use Ajustes → *Corrigir fatura* (escolha o mês em que ela vence) → **Apagar esta fatura** e importe o arquivo de novo; o pagamento não é apagado.

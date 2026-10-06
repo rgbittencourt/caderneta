@@ -495,7 +495,21 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <li><b>Data</b> com folga de três dias — seis, no pagamento de fatura.</li>
   <li>No crédito, reconhece mesmo que você tenha dito o <b>cartão errado</b>, quando a descrição bate.</li>
   <li><b>Parcelas</b> têm regra própria: a parcela 02/06 é reconhecida mesmo com os centavos diferentes.</li>
+  <li><b>Um para um:</b> cada lançamento seu responde por uma linha só do banco. Dois cafés iguais no mesmo dia casam com as duas linhas; uma terceira entra como nova.</li>
 </ul>
+
+<h3>O que você lançou por voz</h3>
+<p>A descrição falada quase nunca é igual à do banco (<i>"academia"</i> contra <i>"PAG*ACADEMIAXYZ"</i>), então o app não depende dela. Além do valor e da data exatos, ele também reconhece o jeito de falar:</p>
+<ul>
+  <li><b>Valor arredondado:</b> você disse <i>"telefone 90"</i> e o banco cobrou 89,90 — até 3% ou R$ 1 de diferença, com até dois dias entre as datas.</li>
+  <li><b>Cartão ou forma trocados:</b> você disse um cartão e a compra saiu em outro, ou disse débito e foi no crédito — mesmo valor, até um dia.</li>
+</ul>
+<p>Nesses casos a pergunta mostra o que muda: <i>"se é o mesmo: valor 89,90 (você lançou 90,00)"</i>. Você escolhe:</p>
+<ul>
+  <li><b>É o mesmo — corrigir pelo banco:</b> não entra de novo, e o seu lançamento fica com o valor, a data e o cartão do banco. A descrição que você falou continua.</li>
+  <li><b>São diferentes — lançar:</b> entram os dois. Use quando foram mesmo duas compras iguais, no mesmo dia, no mesmo valor e até com o mesmo nome.</li>
+</ul>
+<p>O que fugir disso — valor muito diferente, data distante — entra como novo. Aí é só tocar no lançamento que sobrou e escolher <b>Excluir</b>.</p>
 
 <p>Depois de salvar, ainda existe o <b>Repetidos</b>, no alto do extrato (aba Contas): ele procura dois lançamentos iguais já gravados, mostra de cada lado qual fatura abate e de onde veio, e deixa você escolher — <i>São diferentes</i>, <i>Apagar o primeiro</i> ou <i>Apagar o segundo</i>.</p>
 
