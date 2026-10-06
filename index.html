@@ -666,7 +666,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v85";
+const VERSAO_APP="caderneta-v86";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -2467,6 +2467,10 @@ function renderContas(){
       return '<div class="cardbox"><div class="cardbox-h"><span class="cardbox-n">'+esc(c.n)+'</span>'+
         '<span class="cardbox-v">'+fmtN(Math.max(0,inv.open))+'</span></div>'+
         '<div class="cardbox-s">'+esc(nomeFatura(c,kf,true))+' · '+esc(bits.join(" · "))+'</div>'+
+        /* a fatura do mês já venceu e o pagamento ainda não chegou ao app (o extrato do mês não foi importado):
+           avisa antes que o dono pague de novo — com débito automático, o banco já tirou da conta */
+        (inv.open>100&&vencimentoDe(c,kf)&&vencimentoDe(c,kf)<todayISO()?'<div class="cardbox-alerta"><span>⚠ Venceu em '+diaMesAno(vencimentoDe(c,kf))+
+          ' e ainda não tem pagamento no app. Se o banco já debitou, ela fica paga quando você importar o extrato — não pague de novo.</span></div>':'')+
         antigas.map(a=>'<div class="cardbox-alerta"><span>⚠ '+esc(nomeFatura(c,a.ym,true))+' ainda sem pagamento no app: <b>'+fmtN(a.open)+'</b>'+
           (a.venc?' · '+(a.venc<todayISO()?'venceu':a.venc===todayISO()?'vence hoje,':'vence')+' '+diaMesAno(a.venc):'')+'. Se o banco já debitou, ela fica paga quando você importar o extrato.</span>'+
           '<button class="mini" data-pay="'+c.id+'" data-payym="'+a.ym+'">Pagar</button></div>').join("")+
