@@ -502,6 +502,7 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .bol-ov.achou .bol-mira{border-color:#22c55e}
 .bol-ov.achou .bol-mira::after{background:#22c55e}
 .bol-dica{padding:12px 16px 10px;font-size:14px;line-height:1.45;text-align:center;color:#e5e7eb}
+.bol-diag{padding:0 14px 8px;font-size:10.5px;line-height:1.4;text-align:center;color:#9ca3af;font-family:var(--f-m);word-break:break-word}
 .bol-acts{display:flex;gap:8px;padding:0 14px calc(16px + env(safe-area-inset-bottom,0px));flex-wrap:wrap}
 .bol-acts .btn{flex:1;justify-content:center;min-width:110px;background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.3)}
 .bol-acts .btn[hidden]{display:none}
@@ -704,7 +705,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v91";
+const VERSAO_APP="caderneta-v92";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -3312,7 +3313,7 @@ const AJUDA=[
  {g:"Lançar",t:"Como lanço uma conta pelo código de barras?",
   c:"Aba Lançar, na caixa de fala: toque em Código de barras, ao lado do Ler. A câmera abre; aponte para o código de barras da conta ou do boleto, a um palmo de distância, inteiro dentro do retângulo. Não precisa apertar nada: ele lê sozinho em um ou dois segundos (desde a versão 91, em qualquer celular, iPhone também). Quando ler, o celular vibra e o app mostra o valor e o vencimento. Escolha Já paguei hoje ou Pagar no vencimento, e o lançamento aparece em Confira antes de salvar, pago com Boleto, que sai da conta corrente; ali dá para trocar a descrição (o código traz o banco ou o tipo de conta, como Energia ou gás, não o nome da loja) e salvar. Na primeira vez o navegador pergunta se o app pode usar a câmera: permita. A imagem não sai do celular.",a:"boleto"},
  {g:"Lançar",t:"A câmera não lê o código de barras",
-  c:"O que mais atrapalha é a imagem embaçada: perto demais o celular não foca. Segure a um palmo, com o código inteiro no retângulo, sem cortar as pontas; a câmera já começa com um pouco de zoom para isso, e o botão Zoom muda (1x, 1,5x, 2,5x). No escuro, Lanterna. Deitar o celular ajuda nos códigos compridos. Papel amassado ou código apagado: enquadre os números da linha digitável (acima do código) e toque em Tirar foto. Na primeira vez o leitor é baixado da internet; sem internet nessa hora, só Tirar foto e Digitar a linha funcionam. Se nada der certo, Digitar a linha: são 47 números nos boletos e 48 nas contas de luz, água e telefone, e no app do banco dá para copiar e colar.",a:"boleto"},
+  c:"O que mais atrapalha é a imagem embaçada: perto demais o celular não foca. Segure a um palmo, com o código inteiro no retângulo, sem cortar as pontas; a câmera já começa com um pouco de zoom para isso, e o botão Zoom muda (1x, 1,5x, 2,5x). No escuro, Lanterna. Deitar o celular ajuda nos códigos compridos. Papel amassado ou código apagado: enquadre os números da linha digitável (acima do código) e toque em Tirar foto. Na primeira vez o leitor é baixado da internet; sem internet nessa hora, só Tirar foto e Digitar a linha funcionam. Embaixo da câmera há uma linha miúda de diagnóstico (versão, leitores, câmera, tentativas, códigos vistos): se não ler, mande um print dela. Se nada der certo, Digitar a linha: são 47 números nos boletos e 48 nas contas de luz, água e telefone, e no app do banco dá para copiar e colar.",a:"boleto"},
  {g:"Lançar",t:"Li um boleto: dá para agendar o pagamento?",
   c:"Sim. Pela câmera, depois de ler, o app pergunta: Já paguei hoje ou Pagar no vencimento. No leitor de documentos há Quando pagar: No vencimento (agendar), que é o padrão, ou Hoje (já paguei). Conta de luz, água e telefone muitas vezes não traz o vencimento no código: entra com a data de hoje, e você troca no calendário antes de salvar.",a:"boleto"},
  {g:"Lançar",t:"A fala saiu repetida e o valor ficou gigante",
@@ -5074,9 +5075,11 @@ function quadroInteiro(video,cv){
   const w=video.videoWidth, h=video.videoHeight; if(!w||!h) return null;
   cv.width=w; cv.height=h; const g=cv.getContext("2d",{willReadFrequently:true}); g.drawImage(video,0,0,w,h);
   return g.getImageData(0,0,w,h); }
+/* promessa com prazo: em alguns celulares o leitor do aparelho nunca responde, e a leitura parava ali (v92) */
+const comPrazo=(p,ms)=>Promise.race([p,new Promise((_,no)=>setTimeout(()=>no(new Error("sem resposta em "+String(ms/1000).replace(".",",")+" s")),ms))]);
 async function detectorDeBoleto(){
   if(!("BarcodeDetector" in window)) return null;
-  try{ const f=await window.BarcodeDetector.getSupportedFormats(); return f.indexOf("itf")>=0?new window.BarcodeDetector({formats:["itf"]}):null; }
+  try{ const f=await comPrazo(window.BarcodeDetector.getSupportedFormats(),1500); return f.indexOf("itf")>=0?new window.BarcodeDetector({formats:["itf"]}):null; }
   catch(e){ return null; } }
 /* pago: a forma de pagamento já escolhida no leitor de documentos; pelo botão da fala, vazio = Boleto (sai da conta) */
 async function abrirLeitorBoleto(pago){
@@ -5086,7 +5089,7 @@ async function abrirLeitorBoleto(pago){
   if(!ov){ ov=document.createElement("div"); ov.id="bolOv"; ov.className="bol-ov"; ov.setAttribute("role","dialog"); ov.setAttribute("aria-label","Ler código de barras"); document.body.appendChild(ov); }
   ov.innerHTML='<div class="bol-top"><span>Código de barras da conta</span><button id="bolX" aria-label="Fechar">✕</button></div>'+
     '<div class="bol-vid"><video id="bolVid" playsinline muted autoplay></video><div class="bol-mira"></div></div>'+
-    '<div class="bol-dica" id="bolDica">Abrindo a câmera…</div>'+
+    '<div class="bol-dica" id="bolDica">Abrindo a câmera…</div><div class="bol-diag" id="bolDiag"></div>'+
     '<div class="bol-acts"><button class="btn" id="bolLuz" hidden>Lanterna</button><button class="btn" id="bolZoom" hidden>Aproximar</button><button class="btn" id="bolFoto">Tirar foto</button><button class="btn" id="bolLinha">Digitar a linha</button></div>';
   ov.hidden=false; ov.classList.remove("achou");
   const L=leitorBoleto, video=$("#bolVid"), dica=$("#bolDica");
@@ -5113,29 +5116,46 @@ async function abrirLeitorBoleto(pago){
     /* zoom da própria câmera: perto demais o celular não foca. Começa com 1,5x, para a pessoa segurar o celular mais
        longe (onde o foco acerta) e o código continuar grande; o botão alterna para 1x e para 2x */
     if(cap.zoom&&cap.zoom.max>=1.5){ const b=$("#bolZoom"), z0=Math.max(1,cap.zoom.min||1), zs=[1.5,z0,Math.min(2.5,cap.zoom.max)];
-      let i=0; const aplica=()=>{ trilha.applyConstraints({advanced:[{zoom:zs[i]}]}).catch(()=>{}); b.textContent="Zoom "+String(zs[(i+1)%3]).replace(".",",")+"x"; };
+      let i=0; const aplica=()=>{ trilha.applyConstraints({advanced:[{zoom:zs[i]}]}).catch(()=>{}); b.textContent="Zoom "+String(zs[(i+1)%3]).replace(".",",")+"x";
+        b.dataset.atual="zoom "+String(zs[i]).replace(".",",")+"x"; };
       b.hidden=false; aplica(); b.onclick=()=>{ i=(i+1)%3; aplica(); }; } }catch(e){}
-  const det=await detectorDeBoleto(), zx=await zxing;
-  if(!L.vivo) return;
-  if(!det&&!zx){ dica.textContent="Não consegui carregar o leitor de código de barras (precisa de internet na primeira vez). Enquadre os números da linha digitável e toque em Tirar foto, ou use Digitar a linha."; return; }
+  /* os dois leitores trabalham por conta própria: o do aparelho (quando tem) e o zxing, que entra assim que baixar.
+     Um não espera o outro; o do aparelho sai de cena se falhar ou demorar três vezes seguidas. */
+  const D={aparelho:"verificando", zxing:"baixando", tent:0, vistos:0, ultimo:"", erro:""};
+  const diag=()=>{ const el=$("#bolDiag"); if(!el) return; const zm=$("#bolZoom");
+    el.textContent=VERSAO_APP.replace("caderneta-","")+" · aparelho: "+D.aparelho+" · zxing: "+D.zxing+
+      " · câmera "+video.videoWidth+"×"+video.videoHeight+(zm&&!zm.hidden?" · "+zm.dataset.atual:"")+
+      " · "+D.tent+" tentativas · "+D.vistos+" códigos vistos"+(D.ultimo?" (último: "+D.ultimo+")":"")+(D.erro?" · erro: "+D.erro:""); };
+  let det=null, zx=null, falhasDet=0;
+  detectorDeBoleto().then(d=>{ det=d; D.aparelho=d?"sim":"não tem"; diag(); });
+  zxing.then(z=>{ if(!z){ D.zxing="não baixou"; diag(); return; }
+    /* o .wasm vem agora, e não na primeira leitura: erro de download aparece no diagnóstico */
+    comPrazo(z.getZXingModule(),30000).then(()=>{ zx=z; D.zxing="pronto"; diag(); },e=>{ D.zxing="falhou"; D.erro=String(e&&e.message||e).slice(0,80); diag(); }); });
   dica.textContent="Aponte para o código de barras, a um palmo de distância, inteiro dentro do retângulo. Ele lê sozinho.";
-  const cv=document.createElement("canvas"), contagem={}, inicio=Date.now(); let vez=0, avisou=false;
+  const cv=document.createElement("canvas"), contagem={}, inicio=Date.now(); let vez=0, avisou=false, avisouPedaco=false;
   /* o mesmo código lido duas vezes (por qualquer um dos dois leitores) e com os dígitos de conferência certos */
-  const aceita=lidos=>{ for(const raw of lidos){ const c=String(raw||"").replace(/\D/g,""); if(c.length!==44) continue;
-      const r=Leitor.lerBoleto(c); if(!r.linhas.length) continue;
+  const aceita=lidos=>{ for(const raw of lidos){ const c=String(raw||"").replace(/\D/g,""); if(!c) continue;
+      D.vistos++; D.ultimo=c.length+" números";
+      if(c.length!==44){ if(!avisouPedaco&&c.length>=6){ avisouPedaco=true; dica.textContent="Está lendo só um pedaço do código. Afaste um pouco para ele caber inteiro no retângulo."; } continue; }
+      const r=Leitor.lerBoleto(c); if(!r.linhas.length){ D.ultimo="44 números, conferência não bateu"; continue; }
       contagem[c]=(contagem[c]||0)+1; if(contagem[c]>=2){ boletoLido(r); return true; } } return false; };
   const procura=async()=>{
     if(!L.vivo) return;
-    try{ if(video.readyState>=2&&video.videoWidth){
-      if(det){ const a=await det.detect(video); if(aceita(a.map(x=>x.rawValue))) return; }
-      if(zx&&L.vivo){ vez++; const img=vez%2?recorteDaMira(video,cv):quadroInteiro(video,cv);
-        if(img&&aceita(await lerComZxing(img))) return; } } }catch(e){ console.warn("boleto",e); }
+    if(video.readyState>=2&&video.videoWidth&&(det||zx)){
+      D.tent++;
+      if(det){ try{ const a=await comPrazo(det.detect(video),500); falhasDet=0; if(aceita(a.map(x=>x.rawValue))) return; }
+        catch(e){ if(++falhasDet>=3){ det=null; D.aparelho="falhou ("+String(e&&e.message||e).slice(0,40)+")"; } } }
+      if(zx&&L.vivo){ try{ vez++; const img=vez%2?recorteDaMira(video,cv):quadroInteiro(video,cv);
+        if(img&&aceita(await lerComZxing(img))) return; }catch(e){ D.erro=String(e&&e.message||e).slice(0,80); } } }
     if(!L.vivo) return;
+    if(Date.now()-(D.pintou||0)>700){ D.pintou=Date.now(); diag(); }
     if(!avisou&&Date.now()-inicio>9000){ avisou=true;
-      dica.textContent="Ainda não leu? Deixe o código ocupar a largura do retângulo, com o papel reto e bem iluminado"+($("#bolLuz").hidden?"":" (Lanterna)")+
-        ". Se estiver embaçado, afaste um pouco"+($("#bolZoom").hidden?"":" (o botão Zoom aproxima a imagem)")+"; deitar o celular também ajuda."; }
-    L.timer=setTimeout(procura,100); };
-  procura(); }
+      dica.textContent=(det||zx)
+        ?"Ainda não leu? Deixe o código ocupar a largura do retângulo, com o papel reto e bem iluminado"+($("#bolLuz").hidden?"":" (Lanterna)")+
+          ". Se estiver embaçado, afaste um pouco"+($("#bolZoom").hidden?"":" (o botão Zoom aproxima a imagem)")+"; deitar o celular também ajuda."
+        :"O leitor de código de barras não carregou (precisa de internet na primeira vez). Use Tirar foto ou Digitar a linha."; }
+    L.timer=setTimeout(procura,det||zx?100:400); };
+  diag(); procura(); }
 /* sem detector ao vivo: o quadro da câmera vira foto e passa pelo leitor de sempre (código de barras ou números) */
 async function fotoDoBoleto(video){
   const dica=$("#bolDica"), w=video.videoWidth, h=video.videoHeight;
