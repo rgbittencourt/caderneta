@@ -704,7 +704,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v90";
+const VERSAO_APP="caderneta-v91";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -3310,9 +3310,9 @@ const AJUDA=[
  {g:"Lançar",t:"Como agendo um pagamento para depois?",
   c:"Diga quando: \"mil e duzentos reais, aluguel, dia 10\", \"internet amanhã\", \"dia 5 de outubro\", \"5 do 11\". Sem dizer o mês, \"dia 10\" é o próximo dia 10; dito o mês, é sempre deste ano. Fica com a marca agendado até chegar o dia.",a:"agendar"},
  {g:"Lançar",t:"Como lanço uma conta pelo código de barras?",
-  c:"Aba Lançar, na caixa de fala: toque em Código de barras, ao lado do Ler. A câmera abre; aponte para o código de barras da conta ou do boleto, inteiro dentro do retângulo (se não ler, deite o celular ou aproxime um pouco; no escuro, toque em Lanterna). Quando ler, o celular vibra e o app mostra o valor e o vencimento. Escolha Já paguei hoje ou Pagar no vencimento, e o lançamento aparece em Confira antes de salvar, pago com Boleto, que sai da conta corrente; ali dá para trocar a descrição (o código traz o banco ou o tipo de conta, como Energia ou gás, não o nome da loja) e salvar. Na primeira vez o navegador pergunta se o app pode usar a câmera: permita. A imagem não sai do celular.",a:"boleto"},
+  c:"Aba Lançar, na caixa de fala: toque em Código de barras, ao lado do Ler. A câmera abre; aponte para o código de barras da conta ou do boleto, a um palmo de distância, inteiro dentro do retângulo. Não precisa apertar nada: ele lê sozinho em um ou dois segundos (desde a versão 91, em qualquer celular, iPhone também). Quando ler, o celular vibra e o app mostra o valor e o vencimento. Escolha Já paguei hoje ou Pagar no vencimento, e o lançamento aparece em Confira antes de salvar, pago com Boleto, que sai da conta corrente; ali dá para trocar a descrição (o código traz o banco ou o tipo de conta, como Energia ou gás, não o nome da loja) e salvar. Na primeira vez o navegador pergunta se o app pode usar a câmera: permita. A imagem não sai do celular.",a:"boleto"},
  {g:"Lançar",t:"A câmera não lê o código de barras",
-  c:"Tente com mais luz (botão Lanterna), o papel reto e o código inteiro no retângulo, sem cortar as pontas; deitar o celular ajuda nos códigos compridos. Alguns celulares, como o iPhone, não leem o código de barras ao vivo: aí enquadre os números da linha digitável (acima do código) e toque em Tirar foto. Se nada der certo, Digitar a linha: são 47 números nos boletos e 48 nas contas de luz, água e telefone, e no app do banco dá para copiar e colar.",a:"boleto"},
+  c:"O que mais atrapalha é a imagem embaçada: perto demais o celular não foca. Segure a um palmo, com o código inteiro no retângulo, sem cortar as pontas; a câmera já começa com um pouco de zoom para isso, e o botão Zoom muda (1x, 1,5x, 2,5x). No escuro, Lanterna. Deitar o celular ajuda nos códigos compridos. Papel amassado ou código apagado: enquadre os números da linha digitável (acima do código) e toque em Tirar foto. Na primeira vez o leitor é baixado da internet; sem internet nessa hora, só Tirar foto e Digitar a linha funcionam. Se nada der certo, Digitar a linha: são 47 números nos boletos e 48 nas contas de luz, água e telefone, e no app do banco dá para copiar e colar.",a:"boleto"},
  {g:"Lançar",t:"Li um boleto: dá para agendar o pagamento?",
   c:"Sim. Pela câmera, depois de ler, o app pergunta: Já paguei hoje ou Pagar no vencimento. No leitor de documentos há Quando pagar: No vencimento (agendar), que é o padrão, ou Hoje (já paguei). Conta de luz, água e telefone muitas vezes não traz o vencimento no código: entra com a data de hoje, e você troca no calendário antes de salvar.",a:"boleto"},
  {g:"Lançar",t:"A fala saiu repetida e o valor ficou gigante",
@@ -5031,11 +5031,13 @@ function pareceRepetido(d,usados,doBanco){
 
 /* =================== conta pelo código de barras, com a câmera ===================
    Pedido do dono (08/10/2026): lançar o pagamento de uma conta lendo o código de barras com a câmera, por um botão
-   ao lado do Ler, na caixa de fala. A câmera abre ao vivo e o BarcodeDetector (Chrome no Android) procura o código
-   ITF de 44 números a cada quadro; vale quando o mesmo código sai duas vezes seguidas e passa nos dígitos de
-   conferência (Leitor.lerBoleto). Onde não há detector (iPhone), Tirar foto lê os números da linha digitável na
-   foto; e sempre há Digitar a linha. O lido vai para Confira antes de salvar, como os outros documentos: pago
-   com o Boleto, que sai da conta corrente. */
+   ao lado do Ler, na caixa de fala. A câmera abre ao vivo e lê sozinha, sem botão (v91 — na v90 o dono não
+   conseguiu ler e pediu "focou no código de barra e já traz"): a cada quadro, o BarcodeDetector do aparelho
+   (quando tem ITF) e o zxing-cpp em WebAssembly (funciona em qualquer celular, iPhone incluído; baixado na primeira
+   vez e guardado pelo sw.js) procuram o código ITF de 44 números — o zxing alterna entre o recorte da mira, em
+   resolução cheia, e o quadro inteiro girando (para o celular deitado). Vale quando o mesmo código sai duas vezes
+   e passa nos dígitos de conferência (Leitor.lerBoleto). Tirar foto e Digitar a linha ficam de reserva. O lido vai
+   para Confira antes de salvar, como os outros documentos: pago com o Boleto, que sai da conta corrente. */
 const ICONE_CAMERA='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
 const leitorBoleto={stream:null, timer:0, vivo:false, pago:""};
 function fecharLeitorBoleto(){
@@ -5043,6 +5045,35 @@ function fecharLeitorBoleto(){
   if(L.stream){ L.stream.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} }); L.stream=null; }
   const ov=$("#bolOv"); if(ov){ ov.hidden=true; ov.classList.remove("achou"); ov.innerHTML=""; } }
 document.addEventListener("visibilitychange",()=>{ if(document.hidden&&leitorBoleto.vivo) fecharLeitorBoleto(); });
+/* zxing-cpp (WebAssembly): lê ITF em qualquer navegador. Versão fixa; o .wasm vem do cdn.jsdelivr.net, que o
+   sw.js guarda depois da primeira vez. */
+const ZXING_JS="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/dist/iife/reader/index.js";
+const ZXING_WASM="https://cdn.jsdelivr.net/npm/zxing-wasm@3.1.5/dist/reader/zxing_reader.wasm";
+let zxingPronto=null;
+function carregarZxing(){
+  return zxingPronto||(zxingPronto=new Promise((ok,no)=>{
+    const pronto=()=>{ try{ window.ZXingWASM.prepareZXingModule({overrides:{locateFile:(p,pre)=>/\.wasm$/.test(p)?ZXING_WASM:pre+p}}); ok(window.ZXingWASM); }catch(e){ no(e); } };
+    if(window.ZXingWASM) return pronto();
+    const sc=document.createElement("script"); sc.src=ZXING_JS; sc.async=true; sc.crossOrigin="anonymous";
+    sc.onload=pronto; sc.onerror=()=>{ zxingPronto=null; no(new Error("sem internet")); };
+    document.head.appendChild(sc); })); }
+async function lerComZxing(img){
+  const rs=await window.ZXingWASM.readBarcodes(img,{formats:["ITF"],tryHarder:true,tryRotate:true,tryInvert:false,tryDownscale:true,maxNumberOfSymbols:2});
+  return rs.filter(x=>x.isValid).map(x=>x.text); }
+/* o pedaço do quadro que está dentro da mira (com folga), na resolução da câmera — o vídeo na tela é "cover" */
+function recorteDaMira(video,cv){
+  const vw=video.videoWidth, vh=video.videoHeight, mira=$("#bolOv .bol-mira"); if(!vw||!vh||!mira) return null;
+  const el=video.getBoundingClientRect(), m=mira.getBoundingClientRect();
+  const k=Math.max(el.width/vw,el.height/vh), ox=(el.width-vw*k)/2, oy=(el.height-vh*k)/2;
+  let x0=(m.left-el.left-ox)/k, x1=(m.right-el.left-ox)/k, y0=(m.top-el.top-oy)/k, y1=(m.bottom-el.top-oy)/k;
+  const fy=(y1-y0)*0.3, fx=(x1-x0)*0.06; x0=Math.max(0,x0-fx); x1=Math.min(vw,x1+fx); y0=Math.max(0,y0-fy); y1=Math.min(vh,y1+fy);
+  const w=Math.round(x1-x0), h=Math.round(y1-y0); if(w<20||h<20) return null;
+  cv.width=w; cv.height=h; const g=cv.getContext("2d",{willReadFrequently:true}); g.drawImage(video,x0,y0,w,h,0,0,w,h);
+  return g.getImageData(0,0,w,h); }
+function quadroInteiro(video,cv){
+  const w=video.videoWidth, h=video.videoHeight; if(!w||!h) return null;
+  cv.width=w; cv.height=h; const g=cv.getContext("2d",{willReadFrequently:true}); g.drawImage(video,0,0,w,h);
+  return g.getImageData(0,0,w,h); }
 async function detectorDeBoleto(){
   if(!("BarcodeDetector" in window)) return null;
   try{ const f=await window.BarcodeDetector.getSupportedFormats(); return f.indexOf("itf")>=0?new window.BarcodeDetector({formats:["itf"]}):null; }
@@ -5056,12 +5087,13 @@ async function abrirLeitorBoleto(pago){
   ov.innerHTML='<div class="bol-top"><span>Código de barras da conta</span><button id="bolX" aria-label="Fechar">✕</button></div>'+
     '<div class="bol-vid"><video id="bolVid" playsinline muted autoplay></video><div class="bol-mira"></div></div>'+
     '<div class="bol-dica" id="bolDica">Abrindo a câmera…</div>'+
-    '<div class="bol-acts"><button class="btn" id="bolLuz" hidden>Lanterna</button><button class="btn" id="bolFoto">Tirar foto</button><button class="btn" id="bolLinha">Digitar a linha</button></div>';
+    '<div class="bol-acts"><button class="btn" id="bolLuz" hidden>Lanterna</button><button class="btn" id="bolZoom" hidden>Aproximar</button><button class="btn" id="bolFoto">Tirar foto</button><button class="btn" id="bolLinha">Digitar a linha</button></div>';
   ov.hidden=false; ov.classList.remove("achou");
   const L=leitorBoleto, video=$("#bolVid"), dica=$("#bolDica");
   $("#bolX").onclick=fecharLeitorBoleto;
   $("#bolLinha").onclick=()=>{ fecharLeitorBoleto(); openLinhaBoleto("",leitorBoleto.pago); };
   $("#bolFoto").onclick=()=>fotoDoBoleto(video);
+  const zxing=carregarZxing().catch(()=>null);   /* baixa enquanto a câmera abre */
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
     dica.textContent="Este navegador não abre a câmera aqui. Use Digitar a linha, ou Importar fatura, canhoto ou boleto → Escolher arquivo."; $("#bolFoto").hidden=true; return; }
   try{
@@ -5077,28 +5109,41 @@ async function abrirLeitorBoleto(pago){
   try{ trilha.applyConstraints({advanced:[{focusMode:"continuous"}]}).catch(()=>{}); }catch(e){}
   try{ const cap=trilha.getCapabilities?trilha.getCapabilities():{};
     if(cap.torch){ let luz=false; const b=$("#bolLuz"); b.hidden=false;
-      b.onclick=()=>{ luz=!luz; trilha.applyConstraints({advanced:[{torch:luz}]}).catch(()=>{}); b.textContent=luz?"Apagar lanterna":"Lanterna"; }; } }catch(e){}
-  const det=await detectorDeBoleto();
-  if(!det){ dica.textContent="Este celular não lê o código de barras ao vivo. Enquadre os números da linha digitável (acima do código) e toque em Tirar foto."; return; }
-  dica.textContent="Aponte para o código de barras, inteiro dentro do retângulo. Se não ler, deite o celular ou aproxime um pouco.";
-  let ultimo="", vezes=0;
+      b.onclick=()=>{ luz=!luz; trilha.applyConstraints({advanced:[{torch:luz}]}).catch(()=>{}); b.textContent=luz?"Apagar lanterna":"Lanterna"; }; }
+    /* zoom da própria câmera: perto demais o celular não foca. Começa com 1,5x, para a pessoa segurar o celular mais
+       longe (onde o foco acerta) e o código continuar grande; o botão alterna para 1x e para 2x */
+    if(cap.zoom&&cap.zoom.max>=1.5){ const b=$("#bolZoom"), z0=Math.max(1,cap.zoom.min||1), zs=[1.5,z0,Math.min(2.5,cap.zoom.max)];
+      let i=0; const aplica=()=>{ trilha.applyConstraints({advanced:[{zoom:zs[i]}]}).catch(()=>{}); b.textContent="Zoom "+String(zs[(i+1)%3]).replace(".",",")+"x"; };
+      b.hidden=false; aplica(); b.onclick=()=>{ i=(i+1)%3; aplica(); }; } }catch(e){}
+  const det=await detectorDeBoleto(), zx=await zxing;
+  if(!L.vivo) return;
+  if(!det&&!zx){ dica.textContent="Não consegui carregar o leitor de código de barras (precisa de internet na primeira vez). Enquadre os números da linha digitável e toque em Tirar foto, ou use Digitar a linha."; return; }
+  dica.textContent="Aponte para o código de barras, a um palmo de distância, inteiro dentro do retângulo. Ele lê sozinho.";
+  const cv=document.createElement("canvas"), contagem={}, inicio=Date.now(); let vez=0, avisou=false;
+  /* o mesmo código lido duas vezes (por qualquer um dos dois leitores) e com os dígitos de conferência certos */
+  const aceita=lidos=>{ for(const raw of lidos){ const c=String(raw||"").replace(/\D/g,""); if(c.length!==44) continue;
+      const r=Leitor.lerBoleto(c); if(!r.linhas.length) continue;
+      contagem[c]=(contagem[c]||0)+1; if(contagem[c]>=2){ boletoLido(r); return true; } } return false; };
   const procura=async()=>{
     if(!L.vivo) return;
-    try{ if(video.readyState>=2){
-      const achados=await det.detect(video);
-      for(const a of achados){ const c=String(a.rawValue||"").replace(/\D/g,""); if(c.length!==44) continue;
-        const r=Leitor.lerBoleto(c); if(!r.linhas.length) continue;
-        if(c===ultimo) vezes++; else { ultimo=c; vezes=1; }
-        if(vezes>=2){ boletoLido(r); return; } } } }catch(e){}
-    L.timer=setTimeout(procura,180); };
+    try{ if(video.readyState>=2&&video.videoWidth){
+      if(det){ const a=await det.detect(video); if(aceita(a.map(x=>x.rawValue))) return; }
+      if(zx&&L.vivo){ vez++; const img=vez%2?recorteDaMira(video,cv):quadroInteiro(video,cv);
+        if(img&&aceita(await lerComZxing(img))) return; } } }catch(e){ console.warn("boleto",e); }
+    if(!L.vivo) return;
+    if(!avisou&&Date.now()-inicio>9000){ avisou=true;
+      dica.textContent="Ainda não leu? Deixe o código ocupar a largura do retângulo, com o papel reto e bem iluminado"+($("#bolLuz").hidden?"":" (Lanterna)")+
+        ". Se estiver embaçado, afaste um pouco"+($("#bolZoom").hidden?"":" (o botão Zoom aproxima a imagem)")+"; deitar o celular também ajuda."; }
+    L.timer=setTimeout(procura,100); };
   procura(); }
 /* sem detector ao vivo: o quadro da câmera vira foto e passa pelo leitor de sempre (código de barras ou números) */
 async function fotoDoBoleto(video){
   const dica=$("#bolDica"), w=video.videoWidth, h=video.videoHeight;
   if(!w||!h){ dica.textContent="A câmera ainda não abriu. Espere um instante e toque de novo."; return; }
-  const cv=document.createElement("canvas"); cv.width=w; cv.height=h; cv.getContext("2d").drawImage(video,0,0,w,h);
+  const cv=document.createElement("canvas"), quadro=quadroInteiro(video,cv);
   const blob=await new Promise(ok=>cv.toBlob(ok,"image/jpeg",0.92));
   fecharLeitorBoleto();
+  try{ if(await carregarZxing()) for(const c of await lerComZxing(quadro)){ const r=Leitor.lerBoleto(c); if(r.linhas.length){ boletoLido(r); return; } } }catch(e){}
   const st=$("#parseStatus"); if(st){ st.hidden=false; st.textContent="lendo a foto do boleto…"; }
   let r=null;
   try{ r=await Leitor.ler(new File([blob],"boleto.jpg",{type:"image/jpeg"}),{tipo:"boleto",mes:S.ym,

@@ -57,7 +57,7 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **Datas sem teclado:** todo campo de data abre um calendário por cima da janela — toque no dia. Na fala, "5 do 10" é 05/10 do ano corrente; "no débito" sai da conta corrente; "no Master", "no Visa", "no Elo" é o cartão de crédito (basta o começo do nome).
 
-**Conta pelo código de barras:** na caixa de fala, *Código de barras* abre a câmera ao vivo; lido o código, o app pergunta se já pagou ou se paga no vencimento e lança como Boleto, saindo da conta corrente. No iPhone, *Tirar foto* lê os números da linha digitável.
+**Conta pelo código de barras:** na caixa de fala, *Código de barras* abre a câmera ao vivo e lê sozinho, em qualquer celular (zxing-cpp em WebAssembly, além do leitor do aparelho); lido o código, o app pergunta se já pagou ou se paga no vencimento e lança como Boleto, saindo da conta corrente. *Tirar foto* e *Digitar a linha* ficam de reserva.
 
 **Faturas e extratos fecham com o papel:** as 27 faturas de 2026 dos três cartões do autor e os 9 extratos do mesmo período fecham com o total e o saldo impressos pelo banco, centavo por centavo. Quando uma fatura não fechar, é leitura antiga: importe o mesmo PDF de novo, que a conferência deixa entrar só o que falta.
 
