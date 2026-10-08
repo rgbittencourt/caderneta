@@ -487,6 +487,24 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .cal-d.on{background:var(--accent);border-color:var(--accent);color:var(--paper);font-weight:600}
 .cal-d.fora{color:var(--ink-3);background:var(--surface-2);cursor:default}
 .cal-r{display:flex;gap:6px;flex-wrap:wrap}
+/* leitor de boleto ao vivo: a câmera ocupa a tela, com uma mira larga para o código de barras */
+.bol-ov{position:fixed;inset:0;z-index:57;background:#000;display:flex;flex-direction:column;color:#fff}
+.bol-ov[hidden]{display:none}
+.bol-top{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;font-size:16px;font-weight:600}
+.bol-top button{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;border-radius:var(--r-sm);
+  width:38px;height:38px;font-size:17px;cursor:pointer}
+.bol-vid{position:relative;flex:1;min-height:0;overflow:hidden;background:#111}
+.bol-vid video{width:100%;height:100%;object-fit:cover;display:block}
+.bol-mira{position:absolute;left:5%;right:5%;top:34%;height:32%;border:2px solid rgba(255,255,255,.9);border-radius:10px;
+  box-shadow:0 0 0 9999px rgba(0,0,0,.45)}
+.bol-mira::after{content:"";position:absolute;left:3%;right:3%;top:50%;height:2px;background:#ef4444;opacity:.9}
+.bol-ov.achou .bol-mira{border-color:#22c55e}
+.bol-ov.achou .bol-mira::after{background:#22c55e}
+.bol-dica{padding:12px 16px 10px;font-size:14px;line-height:1.45;text-align:center;color:#e5e7eb}
+.bol-acts{display:flex;gap:8px;padding:0 14px calc(16px + env(safe-area-inset-bottom,0px));flex-wrap:wrap}
+.bol-acts .btn{flex:1;justify-content:center;min-width:110px;background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.3)}
+.bol-acts .btn[hidden]{display:none}
 /* campo de data: botão no lugar do type=date, que no celular às vezes não abria nada */
 .dt-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0;text-align:left;
   background:var(--paper);border:1px solid var(--line);border-radius:var(--r-sm);color:var(--ink);cursor:pointer;
@@ -686,7 +704,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v89";
+const VERSAO_APP="caderneta-v90";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -2251,6 +2269,7 @@ function renderLancar(){
     '<div class="say-bar"><span class="say-hint" id="sayHint">Segure o botão redondo do microfone, no canto da tela, e fale; solte quando terminar. Ou toque no <kbd>🎤</kbd> do teclado. Separe lançamentos com ponto final.</span>'+
     '<button class="btn ghost sm" id="micBtn" hidden>Microfone</button>'+
     '<button class="btn ghost sm" id="aiBtn" hidden>Usar IA</button>'+
+    '<button class="btn ghost sm" id="bolBtn" aria-label="Ler o código de barras de uma conta com a câmera">'+ICONE_CAMERA+'Código de barras</button>'+
     '<button class="btn" id="readBtn">Ler</button></div></div>'+
     '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'+
     '<button class="btn good" id="entBtn">+ Entrada (salário, freela…)</button>'+
@@ -2268,6 +2287,7 @@ function renderLancar(){
     '</div>';
   bindRows($("#p-lancar"));
   $("#readBtn").onclick=readInput;
+  $("#bolBtn").onclick=()=>abrirLeitorBoleto("");
   $("#dSave").onclick=saveDrafts;
   $("#dCancel").onclick=()=>{ S.drafts=[]; render(); };
   $("#entBtn").onclick=()=>openManual("e");
@@ -3289,8 +3309,12 @@ const AJUDA=[
   c:"Segure o botão redondo do microfone, no canto de baixo da tela (está em todas as abas), e fale enquanto segura: \"vinte e três reais, almoço no restaurante, cartão de crédito Visa\". Quando soltar, o app mostra o que entendeu em Confira antes de salvar, para você conferir e salvar. Também dá para tocar no microfone do teclado, na aba Lançar. Separe vários lançamentos com ponto final.",a:"fala"},
  {g:"Lançar",t:"Como agendo um pagamento para depois?",
   c:"Diga quando: \"mil e duzentos reais, aluguel, dia 10\", \"internet amanhã\", \"dia 5 de outubro\", \"5 do 11\". Sem dizer o mês, \"dia 10\" é o próximo dia 10; dito o mês, é sempre deste ano. Fica com a marca agendado até chegar o dia.",a:"agendar"},
+ {g:"Lançar",t:"Como lanço uma conta pelo código de barras?",
+  c:"Aba Lançar, na caixa de fala: toque em Código de barras, ao lado do Ler. A câmera abre; aponte para o código de barras da conta ou do boleto, inteiro dentro do retângulo (se não ler, deite o celular ou aproxime um pouco; no escuro, toque em Lanterna). Quando ler, o celular vibra e o app mostra o valor e o vencimento. Escolha Já paguei hoje ou Pagar no vencimento, e o lançamento aparece em Confira antes de salvar, pago com Boleto, que sai da conta corrente; ali dá para trocar a descrição (o código traz o banco ou o tipo de conta, como Energia ou gás, não o nome da loja) e salvar. Na primeira vez o navegador pergunta se o app pode usar a câmera: permita. A imagem não sai do celular.",a:"boleto"},
+ {g:"Lançar",t:"A câmera não lê o código de barras",
+  c:"Tente com mais luz (botão Lanterna), o papel reto e o código inteiro no retângulo, sem cortar as pontas; deitar o celular ajuda nos códigos compridos. Alguns celulares, como o iPhone, não leem o código de barras ao vivo: aí enquadre os números da linha digitável (acima do código) e toque em Tirar foto. Se nada der certo, Digitar a linha: são 47 números nos boletos e 48 nas contas de luz, água e telefone, e no app do banco dá para copiar e colar.",a:"boleto"},
  {g:"Lançar",t:"Li um boleto: dá para agendar o pagamento?",
-  c:"Sim. No leitor do boleto há Quando pagar: No vencimento (agendar), que é o padrão, ou Hoje (já paguei).",a:"boleto"},
+  c:"Sim. Pela câmera, depois de ler, o app pergunta: Já paguei hoje ou Pagar no vencimento. No leitor de documentos há Quando pagar: No vencimento (agendar), que é o padrão, ou Hoje (já paguei). Conta de luz, água e telefone muitas vezes não traz o vencimento no código: entra com a data de hoje, e você troca no calendário antes de salvar.",a:"boleto"},
  {g:"Lançar",t:"A fala saiu repetida e o valor ficou gigante",
   c:"Isso era um erro do ditado, corrigido na versão 27: o app somava os pedaços em vez de substituir. Atualize o app e refaça o lançamento.",a:"fala"},
  {g:"Lançar",t:"O app botou a categoria errada",
@@ -4601,7 +4625,7 @@ function montarLeitorDoc(){
       pago:extrato?"":(($(".docPago",box)||{}).value||""),
       quando:extrato?"":(($(".docQuando",box)||{}).value||"venc")});
     $(".docArqBtn",box).onclick=()=>arq.click();
-    $(".docCamBtn",box).onclick=()=>cam.click();
+    $(".docCamBtn",box).onclick=()=>{ if(!extrato&&$(".docTipo",box).value==="boleto") abrirLeitorBoleto(S.docPago||""); else cam.click(); };
     arq.onchange=cam.onchange=async e=>{ const fs=[...(e.target.files||[])]; e.target.value=""; const mais=!!S.docMais; S.docMais=false;
       for(let i=0;i<fs.length;i++) await lerDoc(fs[i],Object.assign(opcoes(),{anexar:mais||i>0})); };
     const lb=$(".docLinhaBtn",box); if(lb) lb.onclick=()=>openLinhaBoleto("");
@@ -5005,7 +5029,105 @@ function pareceRepetido(d,usados,doBanco){
   perto.sort((a,b)=>(a.dv-b.dv)||(a.dd-b.dd));
   return perto.length?perto[0].t:null; }
 
-function openLinhaBoleto(erro){
+/* =================== conta pelo código de barras, com a câmera ===================
+   Pedido do dono (08/10/2026): lançar o pagamento de uma conta lendo o código de barras com a câmera, por um botão
+   ao lado do Ler, na caixa de fala. A câmera abre ao vivo e o BarcodeDetector (Chrome no Android) procura o código
+   ITF de 44 números a cada quadro; vale quando o mesmo código sai duas vezes seguidas e passa nos dígitos de
+   conferência (Leitor.lerBoleto). Onde não há detector (iPhone), Tirar foto lê os números da linha digitável na
+   foto; e sempre há Digitar a linha. O lido vai para Confira antes de salvar, como os outros documentos: pago
+   com o Boleto, que sai da conta corrente. */
+const ICONE_CAMERA='<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
+const leitorBoleto={stream:null, timer:0, vivo:false, pago:""};
+function fecharLeitorBoleto(){
+  const L=leitorBoleto; L.vivo=false; clearTimeout(L.timer);
+  if(L.stream){ L.stream.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} }); L.stream=null; }
+  const ov=$("#bolOv"); if(ov){ ov.hidden=true; ov.classList.remove("achou"); ov.innerHTML=""; } }
+document.addEventListener("visibilitychange",()=>{ if(document.hidden&&leitorBoleto.vivo) fecharLeitorBoleto(); });
+async function detectorDeBoleto(){
+  if(!("BarcodeDetector" in window)) return null;
+  try{ const f=await window.BarcodeDetector.getSupportedFormats(); return f.indexOf("itf")>=0?new window.BarcodeDetector({formats:["itf"]}):null; }
+  catch(e){ return null; } }
+/* pago: a forma de pagamento já escolhida no leitor de documentos; pelo botão da fala, vazio = Boleto (sai da conta) */
+async function abrirLeitorBoleto(pago){
+  leitorBoleto.pago=pago||"";
+  if(S.view!=="lancar") setView("lancar");   /* Confira antes de salvar fica na aba Lançar */
+  let ov=$("#bolOv");
+  if(!ov){ ov=document.createElement("div"); ov.id="bolOv"; ov.className="bol-ov"; ov.setAttribute("role","dialog"); ov.setAttribute("aria-label","Ler código de barras"); document.body.appendChild(ov); }
+  ov.innerHTML='<div class="bol-top"><span>Código de barras da conta</span><button id="bolX" aria-label="Fechar">✕</button></div>'+
+    '<div class="bol-vid"><video id="bolVid" playsinline muted autoplay></video><div class="bol-mira"></div></div>'+
+    '<div class="bol-dica" id="bolDica">Abrindo a câmera…</div>'+
+    '<div class="bol-acts"><button class="btn" id="bolLuz" hidden>Lanterna</button><button class="btn" id="bolFoto">Tirar foto</button><button class="btn" id="bolLinha">Digitar a linha</button></div>';
+  ov.hidden=false; ov.classList.remove("achou");
+  const L=leitorBoleto, video=$("#bolVid"), dica=$("#bolDica");
+  $("#bolX").onclick=fecharLeitorBoleto;
+  $("#bolLinha").onclick=()=>{ fecharLeitorBoleto(); openLinhaBoleto("",leitorBoleto.pago); };
+  $("#bolFoto").onclick=()=>fotoDoBoleto(video);
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    dica.textContent="Este navegador não abre a câmera aqui. Use Digitar a linha, ou Importar fatura, canhoto ou boleto → Escolher arquivo."; $("#bolFoto").hidden=true; return; }
+  try{
+    L.stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}});
+  }catch(e){
+    dica.textContent=(e&&e.name==="NotAllowedError")
+      ?"O app não tem permissão para usar a câmera. Libere a câmera para este site nas configurações do navegador, ou use Digitar a linha."
+      :"Não consegui abrir a câmera. Use Digitar a linha.";
+    $("#bolFoto").hidden=true; return; }
+  if($("#bolOv").hidden){ fecharLeitorBoleto(); return; }   /* fechou enquanto a câmera abria */
+  L.vivo=true; video.srcObject=L.stream; try{ await video.play(); }catch(e){}
+  const trilha=L.stream.getVideoTracks()[0];
+  try{ trilha.applyConstraints({advanced:[{focusMode:"continuous"}]}).catch(()=>{}); }catch(e){}
+  try{ const cap=trilha.getCapabilities?trilha.getCapabilities():{};
+    if(cap.torch){ let luz=false; const b=$("#bolLuz"); b.hidden=false;
+      b.onclick=()=>{ luz=!luz; trilha.applyConstraints({advanced:[{torch:luz}]}).catch(()=>{}); b.textContent=luz?"Apagar lanterna":"Lanterna"; }; } }catch(e){}
+  const det=await detectorDeBoleto();
+  if(!det){ dica.textContent="Este celular não lê o código de barras ao vivo. Enquadre os números da linha digitável (acima do código) e toque em Tirar foto."; return; }
+  dica.textContent="Aponte para o código de barras, inteiro dentro do retângulo. Se não ler, deite o celular ou aproxime um pouco.";
+  let ultimo="", vezes=0;
+  const procura=async()=>{
+    if(!L.vivo) return;
+    try{ if(video.readyState>=2){
+      const achados=await det.detect(video);
+      for(const a of achados){ const c=String(a.rawValue||"").replace(/\D/g,""); if(c.length!==44) continue;
+        const r=Leitor.lerBoleto(c); if(!r.linhas.length) continue;
+        if(c===ultimo) vezes++; else { ultimo=c; vezes=1; }
+        if(vezes>=2){ boletoLido(r); return; } } } }catch(e){}
+    L.timer=setTimeout(procura,180); };
+  procura(); }
+/* sem detector ao vivo: o quadro da câmera vira foto e passa pelo leitor de sempre (código de barras ou números) */
+async function fotoDoBoleto(video){
+  const dica=$("#bolDica"), w=video.videoWidth, h=video.videoHeight;
+  if(!w||!h){ dica.textContent="A câmera ainda não abriu. Espere um instante e toque de novo."; return; }
+  const cv=document.createElement("canvas"); cv.width=w; cv.height=h; cv.getContext("2d").drawImage(video,0,0,w,h);
+  const blob=await new Promise(ok=>cv.toBlob(ok,"image/jpeg",0.92));
+  fecharLeitorBoleto();
+  const st=$("#parseStatus"); if(st){ st.hidden=false; st.textContent="lendo a foto do boleto…"; }
+  let r=null;
+  try{ r=await Leitor.ler(new File([blob],"boleto.jpg",{type:"image/jpeg"}),{tipo:"boleto",mes:S.ym,
+    onProgress:(p,etapa)=>{ if(st) st.textContent=(etapa||"lendo")+(p?" "+p+"%":""); }}); }catch(e){ console.warn(e); }
+  if(st) st.hidden=true;
+  if(r&&r.linhas&&r.linhas.length){ boletoLido(r); return; }
+  openLinhaBoleto((r&&r.erro)||"Não consegui ler os números nessa foto.",leitorBoleto.pago); }
+/* achou: diz o que leu e pergunta quando foi (ou vai ser) pago; daí vai para a conferência */
+function boletoLido(r){
+  if(navigator.vibrate) try{ navigator.vibrate(60); }catch(e){}
+  const ov=$("#bolOv"); if(ov) ov.classList.add("achou");
+  setTimeout(()=>{
+    fecharLeitorBoleto(); r.tipo="boleto";
+    const l=r.linhas[0], hoje=todayISO(), box=$('[data-leitor="gastos"]');
+    const pago=leitorBoleto.pago, forma=S.cfg.cards.find(c=>c.id===pago)||S.cfg.cards.find(c=>c.type==="boleto");
+    const conta=((S.cfg.accounts||[]).find(a=>a.id===acctOf(forma&&forma.id))||{}).n||"conta";
+    const sai=forma&&forma.type==="credito"?"Pago com o "+forma.n+".":"Sai da "+conta+".";
+    const vai=quando=>{ closeSheet(); mostrarLidos(r,{mes:S.ym,pago,quando,box}); };
+    if(!(l.vencimento&&l.vencimento>hoje)){ vai("hoje"); return; }
+    const sem=SEMANA_CURTA[new Date(l.vencimento+"T12:00:00").getDay()];
+    sheet("Código lido",
+      '<div class="set"><div class="note"><b>'+(l.v?fmt(l.v)+" · ":"")+esc(l.desc)+'</b>Vence em '+diaMesAno(l.vencimento)+' ('+sem+'). '+
+      esc(sai)+'</div>'+
+      '<div class="set-f"><span class="hint">Já pagou ou vai pagar no vencimento? Depois disso ele aparece em Confira antes de salvar, onde dá para trocar a descrição e a categoria.</span></div></div>',
+      '<button class="btn ghost" id="blHoje">Já paguei hoje</button><button class="btn" id="blVenc">Pagar em '+diaMesAno(l.vencimento).slice(0,5)+'</button>');
+    $("#blHoje").onclick=()=>vai("hoje");
+    $("#blVenc").onclick=()=>vai("venc"); },350); }
+
+function openLinhaBoleto(erro,pago){
   sheet("Linha digitável do boleto",
     '<div class="set">'+(erro?'<div class="note"><b>Não consegui ler o código pela foto</b>'+esc(erro)+'</div>':'')+
     '<div class="set-f"><label>Digite ou cole os números</label><input id="lbT" inputmode="numeric" autocomplete="off" placeholder="34191.79001 01043.510047 …">'+
@@ -5016,7 +5138,8 @@ function openLinhaBoleto(erro){
     if(!r.linhas.length){ toast(r.erro); return; }
     const box=$('[data-leitor="gastos"]');
     r.tipo="boleto"; closeSheet();
-    mostrarLidos(r,{mes:S.ym,pago:S.docPago||"",quando:box?(($(".docQuando",box)||{}).value||"venc"):"venc",box}); }; }
+    if(S.view!=="lancar") setView("lancar");
+    mostrarLidos(r,{mes:S.ym,pago:(pago!==undefined?pago:S.docPago)||"",quando:box?(($(".docQuando",box)||{}).value||"venc"):"venc",box}); }; }
 
 /* =================== análises =================== */
 let ACOES={};
@@ -5931,8 +6054,8 @@ function camposDoRascunho(d){
     '<div class="f"><label>Vai para</label><select data-k="acct2">'+fora+optId(A,d.acct2||"")+'</select></div>';
   const cat='<div class="f"><label>Categoria</label><select data-k="cat">'+optId(d.k==="e"?(S.cfg.ecats||ECATS):S.cfg.cats,d.cat)+'</select></div>';
   if(d.k==="e") return cat+'<div class="f"><label>Cai em qual conta</label><select data-k="acct">'+optId(A,d.acct||acctOf(d.cardId))+'</select></div>';
-  /* "Débito · Conta corrente": deixa claro que no débito o dinheiro sai direto da conta */
-  const formas=S.cfg.cards.map(c=>c.type==="debito"?Object.assign({},c,{n:c.n+" · "+((A.find(a=>a.id===acctOf(c.id))||{}).n||"conta")}):c);
+  /* "Débito · Conta corrente", "Boleto · Conta corrente": deixa claro de que conta o dinheiro sai */
+  const formas=S.cfg.cards.map(c=>/^(debito|boleto|pix)$/.test(c.type)?Object.assign({},c,{n:c.n+" · "+((A.find(a=>a.id===acctOf(c.id))||{}).n||"conta")}):c);
   return cat+'<div class="f"><label>Pagamento</label><select data-k="cardId">'+optId(formas,d.cardId)+'</select></div>'+
     (TEM_DESTINO[d.method]?'<div class="f"><label>Para quem</label><input data-k="to" value="'+esc(d.to||"")+'"></div>':'')+
     '<div class="f"><label>Parcelas</label><input inputmode="numeric" data-k="n" value="'+d.n+'"></div>'; }
