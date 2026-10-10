@@ -705,7 +705,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v92";
+const VERSAO_APP="caderneta-v93";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -1196,7 +1196,7 @@ function parseOne(raw,cfg){
     break; }
 
   /* cartão / bandeira */
-  /* "no master" acha o cartão Mastercard; "no elo", o Elo Grafite: basta o começo do nome ou do apelido.
+  /* "no master" acha o cartão Mastercard; "no elo", o cartão Elo: basta o começo do nome ou do apelido.
      O nome dito vale mais que uma palavra aprendida (kwCard), para "no master" nunca cair em outro cartão. */
   const aliasMap=[];
   cfg.cards.forEach(c=>norm(c.alias+" "+c.n).split(" ").filter(w=>w.length>2).forEach(w=>aliasMap.push({w,id:c.id,peso:2})));
@@ -3331,7 +3331,7 @@ const AJUDA=[
  {g:"Importar",t:"Importo extrato e fatura: o gasto conta duas vezes?",
   c:"Não. As compras vêm da fatura e não tiram dinheiro da conta; o pagamento da fatura vem do extrato, sai da conta e não conta como gasto. Pode importar todos os extratos primeiro e as faturas depois.",a:"carregar"},
  {g:"Importar",t:"Como sei quais extratos e faturas já importei?",
-  c:"Em Ajustes, no quadro O que já foi importado: cada mês mostra o extrato de cada conta e a fatura de cada cartão — verde é o que já entrou, cinza é o que falta. No alto aparece quantos documentos ainda faltam. A lista é do ano corrente; em janeiro, o ano anterior continua à vista, e de fevereiro em diante fica só o ano novo — o que ficou faltando de anos anteriores aparece resumido no rodapé e pode ser importado a qualquer momento. O que você importou antes de o quadro existir também aparece: o app reconhece pelos lançamentos que vieram do documento. E dá para <b>tocar num selo</b> para marcar ou desmarcar à mão, quando você sabe que já leu aquele documento.",a:"carregar"},
+  c:"Em Ajustes, no quadro O que já foi importado: cada mês mostra o extrato de cada conta e a fatura de cada cartão — verde é o que já entrou, cinza é o que falta. No alto aparece quantos documentos ainda faltam. A lista é do ano corrente; em janeiro, o ano anterior continua à vista, e de fevereiro em diante fica só o ano novo — o que ficou faltando de anos anteriores aparece resumido no rodapé e pode ser importado a qualquer momento. O que você importou antes de o quadro existir também aparece: o app reconhece pelos lançamentos que vieram do documento. E dá para tocar num selo para marcar ou desmarcar à mão, quando você sabe que já leu aquele documento.",a:"carregar"},
  {g:"Importar",t:"Importei a fatura e o mês continua cinza",
   c:"Isso acontecia quando a importação não acrescentava nada — tudo já estava lançado, ou a fatura só trazia parcelas que o app já tinha reservado. A partir da versão 44 o documento fica registrado mesmo assim. Nos meses antigos, toque no selo para marcar à mão.",a:"carregar"},
  {g:"Importar",t:"O quadro conta o que lancei por voz?",
@@ -3391,11 +3391,13 @@ const AJUDA=[
  {g:"Cartões",t:"O app diz \"falta o fechamento\" nos cartões",
   c:"Informe o dia de fechamento e o de vencimento de cada cartão em Ajustes → Formas de pagamento. Sem eles, o app não tem como calcular o prazo. Ao importar uma fatura, ele aprende essas datas sozinho.",a:"cartoes"},
  {g:"Cartões",t:"As datas do cartão mudam de um mês para o outro?",
-  c:"Mudam: o banco ajusta o fechamento pelos dias úteis — no Ourocard, por exemplo, fechou dia 6 em janeiro e dia 4 em fevereiro. Cada fatura traz impressas a data do próximo fechamento e a melhor data de compra, e o app guarda as duas ao importar. Enquanto essa data não chega, é ela que manda; depois, ele volta a estimar pelo dia do mês, que erra no máximo um ou dois dias.",a:"cartoes"},
+  c:"Mudam: o banco ajusta o fechamento pelos dias úteis — a fatura que fechou no dia 6 num mês pode fechar no dia 4 no seguinte. Cada fatura traz impressas a data do próximo fechamento e a melhor data de compra, e o app guarda as duas ao importar. Enquanto essa data não chega, é ela que manda; depois, ele volta a estimar pelo dia do mês, que erra no máximo um ou dois dias.",a:"cartoes"},
  {g:"Cartões",t:"Só vou saber a data exata quando importar a fatura?",
   c:"A fatura que fecha hoje já traz o fechamento do mês seguinte. Importando cada fatura quando ela sai, você fica sempre um ciclo à frente — não perde dias. E mesmo sem importar, o app já indica o melhor cartão pela estimativa do dia.",a:"cartoes"},
  {g:"Cartões",t:"A compra no cartão sai da minha conta?",
   c:"Não. Ela conta como gasto no mês em que foi feita e entra nas análises, mas o dinheiro só sai quando a fatura é paga. Cada linha mostra a marca crédito · não sai da conta.",a:"cartoes"},
+ {g:"Cartões",t:"O quadro do cartão diz que a fatura venceu e não tem pagamento",
+  c:"Quer dizer que a fatura daquele mês já passou do vencimento e o app ainda não tem o pagamento dela. Se o banco pagou sozinho (débito automático) ou você pagou pelo app do banco, não pague de novo: ao importar o extrato do mês, o pagamento entra e a fatura fica paga. Se quiser deixar certo antes, toque em Pagar fatura e escolha no calendário o dia em que o banco descontou — quando o extrato vier, o app reconhece que é o mesmo pagamento e não lança duas vezes.",a:"cartoes"},
  {g:"Cartões",t:"O banco já descontou, mas a fatura continua pedindo Pagar fatura",
   c:"Pode clicar em Pagar fatura sem medo: ele não desconta nada sozinho, abre uma tela. Se o app achar o pagamento que veio do extrato, aparece o aviso \u201cEsse pagamento já parece ter saído da conta\u201d e o botão É este pagamento — toque nele: a fatura fica paga e o dinheiro não sai de novo. O outro botão, Pagar mesmo assim, é que cria um pagamento novo. Se o aviso não aparecer, o pagamento ficou preso em outro cartão: abra o extrato da conta, toque nesse pagamento e corrija De qual cartão e Abate a fatura de. E se sobrar um resto pequeno, confira antes a Revisão, em Ajustes → Dados: linha de câmbio lida como compra deixa a fatura do app maior que a do banco.",a:"cartoes"},
  {g:"Cartões",t:"A fatura aparece com pagamento a mais, ou com dois pagamentos",
@@ -3444,7 +3446,9 @@ const AJUDA=[
  {g:"No dia a dia",t:"Funciona sem internet?",
   c:"Funciona. Tudo é salvo no aparelho e sobe para o Drive quando a conexão volta. A leitura de PDF e foto também acontece no próprio aparelho.",a:"dados"},
  {g:"No dia a dia",t:"Minha família pode usar o mesmo app?",
-  c:"Pode: é um app só, e cada pessoa entra com a própria conta Google. Os dados de cada um ficam no Drive dela — ninguém vê os dados do outro.",a:"comecar"},
+  c:"Pode: é um app só, e cada pessoa entra com a própria conta Google. Os dados de cada um ficam no Drive dela — ninguém vê os dados do outro, e cada um tem a sua caderneta, com as suas contas e os seus cartões. O que muda de pessoa para pessoa é o banco: a leitura dos PDFs foi afinada com os extratos e faturas do Banco do Brasil. Para outro banco, veja a pergunta Meu banco é outro. O app lê os PDFs dele?",a:"comecar"},
+ {g:"Importar",t:"Meu banco é outro. O app lê os PDFs dele?",
+  c:"A leitura de extratos e faturas foi testada e afinada com os PDFs do Banco do Brasil, onde todos os totais fecham com os impressos pelo banco. Outros bancos imprimem de outro jeito: o app tenta ler, e logo depois de ler confere com o Total da fatura impresso (✓ ou ⚠), mas pode errar linhas. Antes de usar com outro banco, o melhor é mandar um ou dois PDFs (extrato e fatura) para ajustar o leitor — eles ficam só no computador de quem ajusta, e nada vai para o GitHub. O extrato em OFX ou CSV, quando o banco oferece, também serve.",a:"extrato"},
 
  {g:"Entender os números",t:"O que a aba Análises mostra?",
   c:"O diagnóstico do mês (ritmo contra o teto, 50-30-20, renda comprometida, cartões perto do limite, gastos que parecem fixos), as compras parceladas, os gastos por cartão e o acompanhamento das dívidas.",a:"analises"},
@@ -3530,7 +3534,7 @@ function renderAjuda(){
     '<div class="set-f" style="margin-top:12px"><input id="ajQ" placeholder="Qual é a sua dúvida?" autocomplete="off"></div></div>'+
     '<div class="card pad"><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">'+
     MARCA(42)+'<div><div class="tile-l" style="margin:0">Manual de uso</div>'+
-    '<div class="tile-s">Caderneta · edição de setembro de 2026</div></div></div>'+
+    '<div class="tile-s">Caderneta · edição de outubro de 2026</div></div></div>'+
     '<div class="tile-s" style="margin-bottom:10px">Completo, com telas de cada parte do app. Dá para ler no celular, imprimir em A4 ou baixar em PDF.</div>'+
     '<div class="cardbox-a"><a class="btn sm" href="manual.html" target="_blank" rel="noopener">Abrir o manual</a>'+
     '<a class="btn ghost sm" href="manual.pdf" target="_blank" rel="noopener">Baixar em PDF</a>'+
@@ -5064,7 +5068,7 @@ async function lerComZxing(img){
 /* o pedaço do quadro que está dentro da mira (com folga), na resolução da câmera — o vídeo na tela é "cover" */
 function recorteDaMira(video,cv){
   const vw=video.videoWidth, vh=video.videoHeight, mira=$("#bolOv .bol-mira"); if(!vw||!vh||!mira) return null;
-  const el=video.getBoundingClientRect(), m=mira.getBoundingClientRect();
+  const el=video.getBoundingClientRect(), m=mira.getBoundingClientRect(); if(!el.width||!el.height) return null;
   const k=Math.max(el.width/vw,el.height/vh), ox=(el.width-vw*k)/2, oy=(el.height-vh*k)/2;
   let x0=(m.left-el.left-ox)/k, x1=(m.right-el.left-ox)/k, y0=(m.top-el.top-oy)/k, y1=(m.bottom-el.top-oy)/k;
   const fy=(y1-y0)*0.3, fx=(x1-x0)*0.06; x0=Math.max(0,x0-fx); x1=Math.min(vw,x1+fx); y0=Math.max(0,y0-fy); y1=Math.min(vh,y1+fy);
@@ -5998,8 +6002,8 @@ function classificarLinhaExtrato(d){
     const palavras=s.split(" "), ym=ymOf(d.date);
     /* sem o nome do cartão ("Pagto cartão crédito"), vale o cartão cuja fatura tem exatamente esse valor */
     const peloValor=C.find(x=>{ const ref=x.due&&x.closing&&x.due>x.closing?ym:ymShift(ym,-1), inv=cardInvoice(x.id,ref); return inv.total&&Math.abs(inv.total-d.v)<=1; });
-    /* o extrato do BB escreve "Pagto cartão crédito · Elo Grafite". O nome do cartão no app pode ser outro
-       ("Ourocard", "Grafite", "Elo"), então compara nos dois sentidos — palavra do app que aparece no extrato
+    /* o extrato do BB escreve "Pagto cartão crédito · Elo". O nome do cartão no app pode ser outro
+       ("Ourocard", "Elo"), então compara nos dois sentidos — palavra do app que aparece no extrato
        e palavra do extrato que aparece no nome do app — e ainda usa os apelidos já aprendidos. */
     const pal=palavras.filter(w=>w.length>2);
     const pontua=x=>{ const nome=norm(x.n+" "+(x.alias||"")).split(" ").filter(w=>w.length>2);

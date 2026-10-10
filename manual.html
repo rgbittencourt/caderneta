@@ -78,6 +78,8 @@ figure{margin:18px 0;break-inside:avoid;page-break-inside:avoid}
 .colofao span:last-child{font-family:var(--f-m);font-size:11px;color:var(--ink-3)}
 figure img{width:100%;display:block;border:1px solid var(--line);border-radius:10px}
 figcaption{font-size:12.5px;color:var(--ink-3);margin-top:7px}
+figure.cel{max-width:320px}            /* tela de celular, em pé: não estica até a largura da página */
+figure.ficha-t{max-width:520px}
 figure.telefone{max-width:330px}
 figure.ficha{max-width:520px}
 .nota,.aviso,.dica{border-radius:10px;padding:14px 16px;margin:16px 0;font-size:14px;break-inside:avoid}
@@ -117,6 +119,8 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   figure{max-width:none}
   figure.telefone{max-width:62mm}
   figure.ficha{max-width:110mm}
+  figure.cel{max-width:62mm}
+  figure.ficha-t{max-width:110mm}
   a{color:#000;text-decoration:none}
   .sumario{background:#fff;border:1px solid #ccc}
   .sumario ol{columns:2}
@@ -149,7 +153,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div>
     <h2 class="titulo">Manual de uso</h2>
     <p class="sub">Controle de gastos por fala, leitura de extratos e faturas em PDF, cartões e faturas, dívidas com quitação, plano para juntar dinheiro e o método 50-30-20.</p>
-    <span class="edicao">Edição de outubro de 2026 · aplica-se à versão caderneta-v87 em diante</span>
+    <span class="edicao">Edição de outubro de 2026 · aplica-se à versão caderneta-v92 em diante</span>
   </div>
 
   <div class="pe">
@@ -201,6 +205,18 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
     <li><a href="#glossario">Glossário</a></li>
   </ol>
 </nav>
+
+<div class="dica">
+  <b>Novidades desta edição (da v88 à v92)</b>
+  <ul style="margin:6px 0 0;padding-left:18px">
+    <li><b>Conta pelo código de barras, com a câmera</b> — botão <i>Código de barras</i>, ao lado do <i>Ler</i>; lê sozinho, em qualquer celular (seção 8).</li>
+    <li><b>Calendário em todo campo de data</b> — toque no campo e no dia; não precisa de teclado (seção 4).</li>
+    <li><b>Fala mais esperta</b> — "5 do 10" é 05/10 deste ano; "no débito" sai da conta corrente; "no Master", "no Visa", "no Elo" pelo começo do nome (seção 4).</li>
+    <li><b>O que você lançou por voz é reconhecido na importação</b> — mesmo com o valor arredondado ou o cartão trocado; <i>É o mesmo — corrigir pelo banco</i> ou <i>São diferentes — lançar</i> (seção 9).</li>
+    <li><b>Pagou pelo botão e depois importou o extrato</b> — o pagamento não entra duas vezes (seção 14).</li>
+  </ul>
+  Todas as telas foram refeitas na versão 92.
+</div>
 
 <div class="nota">
   <b>Como este manual foi feito</b>
@@ -258,23 +274,23 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <tr><td><b>Ajustes</b></td><td>Saldos, renda, cartões, categorias, gastos fixos e dados.</td></tr>
 </table>
 
-<figure>
+<figure class="cel">
   <img src="manual/celular-lancar.png" alt="Lançar por fala no celular">
-  <figcaption>No celular tudo fica numa coluna só, com os botões grandes. Esta é a aba <b>Lançar</b>.</figcaption>
+  <figcaption>No celular tudo fica numa coluna só, com os botões grandes. Esta é a aba <b>Lançar</b>: a caixa de fala, o <b>Ler</b> e o <b>Código de barras</b>.</figcaption>
 </figure>
 
-<figure>
+<figure class="cel">
   <img src="manual/celular-extrato.png" alt="Extrato no celular">
   <figcaption>O extrato do mês no telefone: cada linha traz o que foi, como foi pago e o valor.</figcaption>
 </figure>
 
 <h2 id="painel">3. Painel</h2>
 
-<p>O Painel começa pelo mais básico: <b>quanto você tem no banco</b> e <b>quanto já está lançado em cada cartão</b>.</p>
+<p>O Painel começa pelo mais básico: <b>quanto você tem no banco</b> e <b>quanto vence nos cartões</b> no mês da barra de cima.</p>
 
 <figure>
-  <img src="manual/painel-banco.png" alt="No banco hoje e lançado nos cartões">
-  <figcaption>À esquerda, o total somando as contas, com uma linha para cada uma. O dinheiro da <b>Carteira</b> aparece na lista, mas fora do total, porque não está no banco. À direita, a fatura do mês de cada cartão, o total em aberto (contando as parcelas futuras) e o limite livre. Tocando em qualquer linha, você vai direto ao extrato daquela conta ou cartão.</figcaption>
+  <img src="manual/painel-banco.png" alt="No banco hoje e faturas dos cartões que vencem no mês">
+  <figcaption>À esquerda, o total somando as contas, com uma linha para cada uma. O dinheiro da <b>Carteira</b> aparece na lista, mas fora do total, porque não está no banco. À direita, <b>Faturas dos cartões que vencem em</b> — a fatura de cada cartão que vence naquele mês, com o dia do vencimento, quanto há a pagar no total (contando as parcelas dos próximos meses) e o limite livre. A fatura tem o nome do mês em que vence, como o banco faz. Tocando em qualquer linha, você vai direto ao extrato daquela conta ou cartão.</figcaption>
 </figure>
 
 <figure>
@@ -316,11 +332,15 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <figure>
   <img src="manual/lancar-fala.png" alt="Lançar por fala">
-  <figcaption>Na aba Lançar dá para tocar no 🎤 do teclado e falar, ou escrever. Separe vários lançamentos com ponto final. Ao lado ficam os botões para lançar na mão: entrada, gasto e transferência entre contas.</figcaption>
+  <figcaption>Na aba Lançar dá para segurar o botão redondo do microfone, tocar no 🎤 do teclado e falar, ou escrever. Separe vários lançamentos com ponto final. <b>Código de barras</b> abre a câmera para lançar uma conta (seção 8). Embaixo ficam os botões para lançar na mão: entrada, gasto e transferência entre contas.</figcaption>
 </figure>
 
 <h3>Segure para falar</h3>
 <p>Em <b>todas as abas</b>, no canto de baixo da tela, fica o botão redondo do microfone. <b>Segure</b> o botão e fale; enquanto você segura, ele fica vermelho e mostra o que está ouvindo. <b>Solte</b> quando terminar: o app abre <i>Confira antes de salvar</i> com o que entendeu, para você conferir e salvar. Um toque rápido não grava — é preciso segurar. Se o navegador não reconhecer fala, o botão leva para a aba Lançar, onde o 🎤 do teclado funciona igual.</p>
+<figure class="cel">
+  <img src="manual/fala-segurar.png" alt="Segurando o botão do microfone">
+  <figcaption>Segurando o botão, ele fica vermelho e a faixa mostra o que está ouvindo. Solte quando terminar.</figcaption>
+</figure>
 
 <h3>O que ele entende</h3>
 <table>
@@ -352,6 +372,10 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <b>Trocar uma data: toque no campo e no dia</b>
   Todo campo de data do app — na conferência, no <i>Pagar fatura</i>, ao editar um lançamento — mostra a data com um desenho de calendário (<i>05/10/2026 · seg</i>). Tocando nele, abre um calendário por cima da janela: toque no dia. As setas <b>‹ ›</b> mudam o mês e <b>« »</b> o ano; <b>Ontem</b> e <b>Hoje</b> marcam de uma vez. A janela de baixo continua aberta, com o resto do que você preencheu. Os campos de mês (como <i>Abate a fatura que vence em</i>) mostram os 12 meses do ano. Não precisa de teclado.
 </div>
+<figure class="ficha-t">
+  <img src="manual/calendario.png" alt="O calendário de um campo de data">
+  <figcaption>O calendário abre por cima da janela. <b>‹ ›</b> mudam o mês, <b>« »</b> o ano; o dia marcado fica azul. <i>Ontem</i> e <i>Hoje</i> marcam de uma vez; <i>Fechar</i> deixa como estava.</figcaption>
+</figure>
 
 <h2 id="agendar">5. Agendar pagamentos</h2>
 
@@ -426,6 +450,10 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <li><b>logo depois de ler</b>, a linha embaixo da conferência diz <i>✓ a leitura confere com o total impresso pelo banco</i> — ou <i>⚠</i>, com a diferença: aí não salve, e mande a amostra sem dados;</li>
   <li><b>depois de salvar</b>, ela soma a fatura como ficou no app, com o que já estava lançado antes, e abre uma janela — <i>A fatura fecha com o banco</i> (✓) ou <i>A fatura não fechou com o banco</i> (⚠, com os dois valores e o botão <i>Abrir a Revisão</i>). A janela fica até você tocar em <i>Ok</i>, e aparece também quando não havia nada novo para lançar.</li>
 </ul>
+<figure class="ficha">
+  <img src="manual/conferencia-banco.png" alt="A fatura fecha com o banco">
+  <figcaption>Depois de salvar a fatura: o total no app é o mesmo que o banco imprimiu. Se não fosse, a janela diria quanto falta ou sobra e mostraria <i>Abrir a Revisão</i>.</figcaption>
+</figure>
 <p>O total fica guardado, e a <b>Revisão</b> confere aquela fatura daí em diante, paga ou não.</p>
 
 <h3>Reimportar a mesma fatura conserta, e não duplica</h3>
@@ -458,6 +486,14 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <h3>Conta pelo código de barras, com a câmera</h3>
 <p>Na aba <b>Lançar</b>, na caixa de fala, toque em <b>Código de barras</b> (ao lado do <i>Ler</i>). A câmera abre com um retângulo: aponte para o código de barras da conta ou do boleto, a um palmo de distância, inteiro dentro dele. <b>Não precisa apertar nada</b>: ele lê sozinho em um ou dois segundos, em qualquer celular (iPhone também). Quando o app lê, o celular vibra e aparece o que ele entendeu — valor, banco ou tipo de conta, vencimento e de qual conta sai (<i>Sai da Conta corrente</i>). Escolha <b>Já paguei hoje</b> ou <b>Pagar no vencimento</b>; o lançamento vai para <i>Confira antes de salvar</i>, pago com <b>Boleto · Conta corrente</b>. Ali dá para trocar a descrição — o código diz o banco (<i>Boleto Itaú</i>) ou o tipo de conta (<i>Energia ou gás</i>, <i>Água e saneamento</i>, <i>Telefone e internet</i>), não o nome da loja — e salvar.</p>
+<figure class="cel">
+  <img src="manual/boleto-camera.png" alt="A câmera lendo o código de barras">
+  <figcaption>A câmera aberta: o código inteiro dentro do retângulo, a um palmo. A linha miúda embaixo é o diagnóstico — se não ler, mande um print dela.</figcaption>
+</figure>
+<figure class="ficha">
+  <img src="manual/boleto-lido.png" alt="Código lido">
+  <figcaption>Lido: valor, banco e vencimento, e de qual conta sai. Escolha <i>Já paguei hoje</i> ou <i>Pagar em</i> (o vencimento); depois é só conferir e salvar.</figcaption>
+</figure>
 <div class="dica">
   <b>Se não ler</b>
   O que mais atrapalha é a imagem embaçada: perto demais o celular não foca. Segure a um palmo — a câmera já começa com um pouco de zoom para isso, e o botão <b>Zoom</b> muda entre 1x, 1,5x e 2,5x. No escuro, <b>Lanterna</b>; papel reto, o código inteiro no retângulo; deitar o celular ajuda. Código apagado ou amassado: enquadre os números da linha digitável e toque em <b>Tirar foto</b>. E sempre há <b>Digitar a linha</b>. Na primeira vez o leitor é baixado da internet. A linha miúda embaixo da câmera é o diagnóstico (versão, leitores, tamanho da imagem, tentativas, códigos vistos): se não ler, um print dela mostra o motivo. Na primeira vez o navegador pergunta se o app pode usar a câmera: permita. A imagem não sai do celular.
@@ -489,7 +525,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <div class="nota">
   <b>Pagamento de fatura vindo do extrato.</b>
-  O extrato do banco traz o pagamento com o nome do cartão (<i>"Pagto cartão crédito · Elo Grafite"</i>), e o app liga esse pagamento à fatura certa — mesmo que o cartão tenha outro nome aqui dentro. Quando o extrato não disser de qual cartão é, o lançamento fica marcado como <b>cartão a confirmar</b>: você escolhe o cartão na conferência, ou o app liga sozinho assim que a fatura daquele valor for importada. O app <b>nunca</b> oferece o pagamento de um cartão como se fosse de outro.
+  O extrato do banco traz o pagamento com o nome do cartão (<i>"Pagto cartão crédito · Elo"</i>), e o app liga esse pagamento à fatura certa — mesmo que o cartão tenha outro nome aqui dentro. Quando o extrato não disser de qual cartão é, o lançamento fica marcado como <b>cartão a confirmar</b>: você escolhe o cartão na conferência, ou o app liga sozinho assim que a fatura daquele valor for importada. O app <b>nunca</b> oferece o pagamento de um cartão como se fosse de outro.
 </div>
 
 <figure>
@@ -523,6 +559,10 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <li><b>É o mesmo — corrigir pelo banco:</b> não entra de novo, e o seu lançamento fica com o valor, a data e o cartão do banco. A descrição que você falou continua.</li>
   <li><b>São diferentes — lançar:</b> entram os dois. Use quando foram mesmo duas compras iguais, no mesmo dia, no mesmo valor e até com o mesmo nome.</li>
 </ul>
+<figure>
+  <img src="manual/conferencia-voz.png" alt="Lançamento de voz reconhecido no extrato">
+  <figcaption>Você tinha falado "conta de telefone 90 no débito"; o extrato traz 89,90. O app pergunta e mostra o que muda: <i>É o mesmo — corrigir pelo banco</i> deixa o seu lançamento com 89,90 e a sua descrição. A padaria, que não tinha par, entra marcada.</figcaption>
+</figure>
 <p>O que fugir disso — valor muito diferente, data distante — entra como novo. Aí é só tocar no lançamento que sobrou e escolher <b>Excluir</b>.</p>
 
 <p>Depois de salvar, ainda existe o <b>Repetidos</b>, no alto do extrato (aba Contas): ele procura dois lançamentos iguais já gravados, mostra de cada lado qual fatura abate e de onde veio, e deixa você escolher — <i>São diferentes</i>, <i>Apagar o primeiro</i> ou <i>Apagar o segundo</i>.</p>
@@ -545,7 +585,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <figure>
   <img src="manual/contas-cartoes.png" alt="Cartões de crédito">
-  <figcaption>Cada cartão mostra a fatura do mês, o limite usado contando as parcelas futuras e o que está livre. <i>Pagar fatura</i> lança o pagamento; <i>Ver fatura</i> abre a lista de compras daquela fatura.</figcaption>
+  <figcaption>Cada cartão mostra a fatura que vence no mês da barra de cima — com o vencimento entre parênteses, como <i>Fatura de set 2026 (15/09)</i>, e <i>paga</i> quando já tem pagamento —, quanto há a pagar no total (contando as parcelas dos próximos meses) e o que está livre do limite. <i>Pagar fatura</i> lança o pagamento; <i>Ver fatura</i> abre a lista de compras daquela fatura.</figcaption>
 </figure>
 
 <figure>
@@ -609,7 +649,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 </div>
 
 <h3>As datas mudam todo mês</h3>
-<p>O banco ajusta o fechamento pelos dias úteis: no Ourocard, por exemplo, a fatura fechou no dia 6 em janeiro e no dia 4 em fevereiro. Por isso, cada fatura traz impressas duas datas que o app guarda ao importar:</p>
+<p>O banco ajusta o fechamento pelos dias úteis: a fatura que fechou no dia 6 num mês pode fechar no dia 4 no mês seguinte. Por isso, cada fatura traz impressas duas datas que o app guarda ao importar:</p>
 <ul>
   <li><b>Fechamento da próxima fatura</b> — a data exata do próximo ciclo. Enquanto ela não chega, é ela que vale no cálculo, e o app avisa que aquela data veio da fatura.</li>
   <li><b>Melhor data de compra</b> — o dia em que comprar rende o prazo máximo. Ela aparece junto com a recomendação.</li>
@@ -623,6 +663,10 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <li><b>Fatura paga em pedaços:</b> quando o banco debita em partes, o app soma. Enquanto falta, mostra <i>pagamento parcial de X em N vezes</i>; quando fecha, <i>paga em N pagamentos</i>.</li>
   <li><b>Fatura prevista:</b> enquanto você não importa a fatura daquele mês, o valor é só a previsão pelas compras e parcelas conhecidas — ela aparece como <i>prevista</i>, nunca como atrasada.</li>
 </ul>
+<figure class="ficha">
+  <img src="manual/pagar-fatura.png" alt="Pagar fatura">
+  <figcaption><i>Pagar fatura</i>: o valor que falta, a conta de onde sai e o dia. Toque em <b>Quando</b> para escolher outro dia no calendário.</figcaption>
+</figure>
 
 <h3>O quadro de cada cartão, em Contas</h3>
 <ul>
@@ -881,6 +925,12 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <h2 id="problemas">23. Quando algo não bate</h2>
 
+<p>O primeiro lugar para olhar é a <b>Revisão</b> (<b>Ajustes → Dados → Revisar</b>): numa tela só, o app confere o que dá para conferir sozinho — linhas de câmbio, pagamentos sem cartão ou na fatura errada, faturas que não batem com o total do banco, empréstimo contado como salário e acertos de saldo. Nada é apagado sem você mandar.</p>
+<figure class="ficha">
+  <img src="manual/revisao.png" alt="Revisão da Caderneta">
+  <figcaption>Tudo em ordem: cada linha diz o que foi conferido. Quando algo não bate, a linha mostra o problema e o botão para resolver.</figcaption>
+</figure>
+
 <table>
   <tr><th>Sintoma</th><th>O que olhar</th></tr>
   <tr><td>Saldo diferente do banco</td><td>Falta importar algum extrato? No BB, some o Rende Fácil. Se ainda diferir, use <i>Corrigir saldo</i> no mês certo.</td></tr>
@@ -921,7 +971,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <h2 id="ajuda">25. Ajuda dentro do app</h2>
 
-<p>A <b>Ajuda</b> é a última aba do app (no celular, dentro de <i>Mais</i>). Ali ficam mais de setenta perguntas e respostas, agrupadas por tema, e o atalho para este manual.</p>
+<p>A <b>Ajuda</b> é a última aba do app (no celular, dentro de <i>Mais</i>). Ali ficam mais de cem perguntas e respostas, agrupadas por tema, e o atalho para este manual.</p>
 
 <div class="nota">
   <b>Dica em cima de cada coisa.</b>
@@ -959,7 +1009,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div>
     <b>Caderneta</b>
     <span>App de uso pessoal e familiar, sem servidor e sem custo. Seus lançamentos ficam no aparelho e no seu Google Drive.</span>
-    <span>https://rgbittencourt.github.io/caderneta/ · setembro de 2026</span>
+    <span>https://rgbittencourt.github.io/caderneta/ · outubro de 2026 · versão 92</span>
   </div>
 </div>
 
