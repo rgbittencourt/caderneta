@@ -247,8 +247,181 @@ function lerCsvBB(texto){
   r.saldos=(saldos.anterior||saldos.final)?Object.assign(saldos,RE_RENDE_FACIL.test(semAcento(texto).toLowerCase())?{rendeFacil:true}:{}):null;
   return r; }
 
+
+/* =================== outros bancos: Nubank e Bradesco ===================
+   Pedido do dono (12/10/2026), para a esposa: extrato e fatura do Nubank e extrato do Bradesco, em PDF. O banco é
+   reconhecido pelo texto; cada leitor devolve o mesmo formato do BB (linhas, saldos, totais impressos para conferir). */
+const MES3={jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
+const MESX={janeiro:1,fevereiro:2,marco:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12};
+const centavos=t=>{ const x=String(t||"").replace(/\s/g,"").replace(/[−–]/g,"-"), neg=/^-|-$/.test(x);
+  const v=Math.round(parseFloat(x.replace(/[^\d,]/g,"").replace(",","."))*100); return isNaN(v)?null:(neg?-v:v); };
+const iso3=(d,m,y)=>y+"-"+pad(m)+"-"+pad(d);
+/* o Pix para outra conta da própria titular não é gasto nem renda: é dinheiro mudando de conta. O nome dela vem no
+   cabeçalho do extrato; o do outro lado pode vir cortado ("Maria Souza Li", cortado). Vale o primeiro nome e mais um. */
+function mesmoTitular(titular,outro){
+  const pal=x=>semAcento(x).toLowerCase().replace(/[^a-z\s]/g," ").split(/\s+/).filter(w=>w.length>=3&&!/^(das?|dos?|de)$/.test(w));
+  const T=pal(titular), O=pal(outro); if(T.length<2||O.length<2||O[0]!==T[0]) return false;
+  return O.slice(1).some(w=>T.slice(1).some(t=>t===w||(w.length>=3&&t.indexOf(w)===0))); }
+/* débito que o banco desfez: o estorno com o mesmo valor e o mesmo nome, até 5 dias depois, anula os dois */
+function desfazerEstornos(linhas){
+  const dia=x=>Date.parse(x+"T12:00:00"), fora=[]; let n=0;
+  linhas.filter(x=>x.k==="e"&&x._estorno).forEach(e=>{
+    const par=linhas.find(x=>x.k==="g"&&fora.indexOf(x)<0&&x.v===e.v&&Math.abs(dia(x.d)-dia(e.d))<=5*86400000&&semAcento(x._nome||"").toLowerCase()===semAcento(e._nome||"").toLowerCase());
+    if(par){ fora.push(par,e); n++; } });
+  return {linhas:linhas.filter(x=>fora.indexOf(x)<0).map(x=>{ delete x._estorno; delete x._nome; return x; }), desfeitos:n}; }
+
+/* ---- extrato da conta do Nubank ----
+   "03 JAN 2026   Total de entradas   + 1.234,56" abre o dia e diz o sinal; "Total de saídas   - 45,67" troca o sinal
+   no mesmo dia; cada lançamento é "Histórico   Detalhe   valor", às vezes com uma linha de continuação embaixo. */
+function ehExtratoNubank(texto){ const s=semAcento(texto||"").toLowerCase();
+  return /nu pagamentos|nubank\.com\.br/.test(s)&&/\bmovimentacoes\b/.test(s)&&/total de (entradas|saidas)/.test(s); }
+function lerExtratoNubank(texto){
+  const L=String(texto||"").split(/\r?\n/), sem=semAcento(texto||"");
+  const per=sem.match(/(\d{2}) DE ([A-Z]+) DE (\d{4}) a (\d{2}) DE ([A-Z]+) DE (\d{4})/i);
+  const ini=per?iso3(+per[1],MESX[per[2].toLowerCase()],+per[3]):"", fim=per?iso3(+per[4],MESX[per[5].toLowerCase()],+per[6]):"";
+  const titular=(L.find(l=>l.trim()&&!/^\s*$/.test(l))||"").trim();
+  const cab=new Set(L.slice(0,Math.max(0,L.findIndex(l=>/VALORES EM R\$/i.test(l))+1)).map(l=>l.trim()));
+  const sIni=sem.match(/saldo inicial\s+(-?[\d.]+,\d{2})/i), sFim=sem.match(/saldo final do periodo\s+(-?[\d.]+,\d{2})/i);
+  const tE=sem.match(/total de entradas\s+\+\s*([\d.]+,\d{2})/i), tS=sem.match(/total de saidas\s+-\s*([\d.]+,\d{2})/i);
+  const RUIDO=/^(tem alguma duvida|metropolitanas\)|caso a solucao|disponiveis em|extrato gerado|o saldo liquido|nao nos responsabilizamos|asseguramos|nu financeira|investimento\s+pagamento|cnpj:|saldo inicial|saldo final|rendimento liquido|total de entradas\s+\+[\d]|total de saidas\s+-[\d]|r\$ [\d.,]+$)/;
+  const itens=[]; let dia="", sinal="", ant=null, dentro=false, ignoradas=0;
+  for(const bruta of L){
+    const linha=bruta.replace(/\s+$/,""), t=linha.trim(), sl=semAcento(t).toLowerCase();
+    if(!t) continue;
+    if(!dentro){ if(/^movimentacoes$/.test(sl)) dentro=true; continue; }
+    if(cab.has(t)||RUIDO.test(sl)) continue;
+    let m=t.match(/^(\d{2}) ([A-Z]{3}) (\d{4})\s+Total de (entradas|sa[ií]das)\s+([+-])\s*[\d.]+,\d{2}$/i);
+    if(m){ dia=iso3(+m[1],MES3[semAcento(m[2]).toLowerCase()],+m[3]); sinal=m[5]; ant=null; continue; }
+    m=t.match(/^Total de (entradas|sa[ií]das)\s+([+-])\s*[\d.]+,\d{2}$/i);
+    if(m){ sinal=m[2]; ant=null; continue; }
+    m=t.match(/^(.*?)\s{2,}([\d.]+,\d{2})$/);
+    if(m&&dia){ const partes=m[1].split(/\s{2,}/);
+      ant={d:dia, v:centavos(m[2]), k:sinal==="+"?"e":"g", hist:partes[0].trim(), det:partes.slice(1).join(" ").trim()}; itens.push(ant); continue; }
+    /* continuação: "NuPay" completa o histórico; o resto (banco, agência, conta) é detalhe que não entra no nome */
+    if(ant){ if(/\bvia$/i.test(ant.hist)&&/^\S+$/.test(t)) ant.hist+=" "+t; else ant.cont=(ant.cont?ant.cont+" ":"")+t; }
+    else ignoradas++; }
+  const linhas=[]; let aplicacoes=0;
+  itens.forEach(it=>{
+    if(!it.v) return;
+    const h=semAcento(it.hist).toLowerCase(), nome=it.det.replace(/\s*\((?:Transfer[eê]ncia (?:enviada|recebida))\)\s*/gi," ").replace(/\s+-\s+(?:[•*\d.]{3,}[\d•*\-/.]*)\s+-.*$/,"").replace(/\s+-\s+\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}.*$/,"").replace(/\s+-\s*$/,"").trim();
+    if(/\b(aplicacao|resgate)\s+rdb\b|caixinha/.test(h)){ aplicacoes++;
+      linhas.push({d:it.d, desc:"Caixinha Nubank", v:it.v, k:it.k, i0:1, n:1, aplic:"Caixinha Nubank"}); return; }
+    let desc;
+    if(/^estorno/.test(h)) desc="Estorno · "+capitalizar(nome||it.hist.replace(/^estorno\s*-\s*/i,""));
+    else if(/^compra no debito/.test(h)) desc=capitalizar(nome)||"Compra no débito";
+    else if(/^transferencia enviada pelo pix/.test(h)) desc="Pix enviado · "+capitalizar(nome);
+    else if(/^transferencia recebida pelo pix/.test(h)) desc="Pix recebido · "+capitalizar(nome);
+    else if(/^pagamento de boleto/.test(h)) desc="Boleto · "+capitalizar(nome);
+    else if(/^pagamento de fatura/.test(h)) desc="Pagamento de fatura · Nubank";
+    else desc=capitalizar(it.hist)+(nome?" · "+capitalizar(nome):"");
+    const l={d:it.d, desc:desc.replace(/\s·\s*$/,""), v:it.v, k:it.k, i0:1, n:1};
+    if(/^estorno/.test(h)){ l._estorno=1; l._nome=nome; } else l._nome=nome;
+    if(/pix/.test(h)&&titular&&mesmoTitular(titular,nome)) l.proprio=1;
+    linhas.push(l); });
+  const somaE=linhas.filter(x=>x.k==="e").reduce((a,x)=>a+x.v,0), somaS=linhas.filter(x=>x.k==="g").reduce((a,x)=>a+x.v,0);
+  /* o rendimento da conta vem só no resumo ("Rendimento líquido +1,23"), fora dos totais do dia a dia: entra no
+     último dia do período, e aí o saldo fecha com o impresso */
+  const rl=sem.match(/rendimento liquido\s+\+\s*([\d.]+,\d{2})/i), rv=rl?centavos(rl[1]):0;
+  if(rv>0) linhas.push({d:fim||linhas.length&&linhas[linhas.length-1].d, desc:"Rendimento da conta", v:rv, k:"e", i0:1, n:1});
+  const des=desfazerEstornos(linhas), dAnt=ini?new Date(Date.parse(ini+"T12:00:00")-86400000).toISOString().slice(0,10):"";
+  return {linhas:des.linhas, ignoradas, estornos:0, aplicacoes, desfeitos:des.desfeitos, banco:"Nubank", titular,
+    saldos:(sIni||sFim)?{anterior:sIni?{v:centavos(sIni[1]),d:dAnt}:null, final:sFim?{v:centavos(sFim[1]),d:fim}:null, rendeFacil:aplicacoes>0}:null,
+    conferencia:(tE||tS)?{lido:[somaE,somaS], impresso:[tE?centavos(tE[1]):0, tS?centavos(tS[1]):0]}:null}; }
+
+/* ---- extrato da conta do Bradesco ("Bradesco Celular") ----
+   Cada lançamento: o histórico numa linha ("PIX ENVIADO"), a linha com [data] documento valor saldo, e o detalhe
+   embaixo ("DES: FULANO 03/03"). O texto não diz se o valor é crédito ou débito — o saldo diz: ele sobe ou desce. */
+function ehExtratoBradesco(texto){ const s=semAcento(texto||"").toLowerCase();
+  return /bradesco/.test(s)&&/extrato de: agencia/.test(s)&&/historico\s+docto/.test(s); }
+const RE_HIST_BRADESCO=/^(pix\b|transf|ted\b|doc\b|compra|rendimento|tarifa|pagto|pagamento|saque|deposito|aplic|resgate|estorno|iof\b|juros|encargo|cesta|deb\b|debito|cred\b|credito|boleto|titulo|seguro|emprestimo|parcela|anuidade|gastos? cart|cartao|conta |devolucao|regulariza)/;
+function lerExtratoBradesco(texto){
+  const L=String(texto||"").split(/\r?\n/), sem=semAcento(texto||"");
+  const nm=sem.match(/^Nome:\s*(.+)$/mi), titular=nm?nm[1].trim():"";
+  const per=sem.match(/Movimenta\w*o entre:\s*(\d{2})\/(\d{2})\/(\d{4}) e (\d{2})\/(\d{2})\/(\d{4})/i);
+  const fim=per?iso3(+per[4],+per[5],+per[6]):"";
+  const itens=[]; let pend=[], ant=null, dia="", saldo=null, saldoAnt=null, dAnt="", totais=null, ignoradas=0;
+  const ehRuido=sl=>/^(bradesco celular|data: \d|nome: |extrato de: |data\s+historico|extrato inexistente|folha:)/.test(sl);
+  for(const bruta of L){
+    const t=bruta.replace(/\s+/g," ").trim(), sl=semAcento(t).toLowerCase(); if(!t||ehRuido(sl)) continue;
+    let m=t.match(/^(\d{2})\/(\d{2})\/(\d{4}) COD\. LANC\. 0 [\d.]+,\d{2} (-?[\d.]+,\d{2}-?)$/i);
+    if(m){ saldoAnt=centavos(m[4]); saldo=saldoAnt; dAnt=iso3(+m[1],+m[2],+m[3]); ignoradas++; continue; }
+    m=t.match(/^Total ([\d.]+,\d{2}) ([\d.]+,\d{2}) (-?[\d.]+,\d{2}-?)$/i);
+    if(m){ totais=[centavos(m[1]),centavos(m[2]),centavos(m[3])]; continue; }
+    m=t.match(/^(?:(\d{2})\/(\d{2})\/(\d{4}) )?(\d{3,}) ([\d.]+,\d{2}) (-?[\d.]+,\d{2}-?)$/);
+    if(m){
+      if(m[1]) dia=iso3(+m[1],+m[2],+m[3]);
+      /* as linhas soltas desde o lançamento anterior: o detalhe dele (se ainda falta) e o histórico deste */
+      if(ant&&!ant.det&&pend.length&&(pend.length>=2||!RE_HIST_BRADESCO.test(semAcento(pend[0]).toLowerCase()))) ant.det=pend.shift();
+      const v=centavos(m[5]), novo=centavos(m[6]);
+      const k=saldo!=null&&Math.abs(saldo+v-novo)<=1?"e":"g"; saldo=novo;
+      ant={d:dia, v, k, hist:pend.join(" ").trim(), det:"", doc:m[4]}; pend=[]; itens.push(ant); continue; }
+    pend.push(t); }
+  if(ant&&!ant.det&&pend.length) ant.det=pend.shift();
+  const linhas=[];
+  itens.forEach(it=>{
+    if(!it.v) return;
+    const h=semAcento(it.hist).toLowerCase(), nome=it.det.replace(/^(DES|REM):\s*/i,"").replace(/\s+\d{2}\/\d{2}$/,"").trim();
+    let desc;
+    if(/^compra/.test(h)) desc=capitalizar(nome)||capitalizar(it.hist);
+    else if(/^pix enviado/.test(h)) desc="Pix enviado · "+capitalizar(nome);
+    else if(/^pix recebido/.test(h)) desc="Pix recebido · "+capitalizar(nome);
+    else if(/^pix qr/.test(h)) desc="Pix · "+capitalizar(nome);
+    else if(/^transf saldo c\/sal/.test(h)) desc="Salário · "+capitalizar(nome);       /* conta-salário para a corrente */
+    else if(/^rendimento/.test(h)) desc="Rendimentos"+(nome?" · "+capitalizar(nome):"");
+    else desc=capitalizar(it.hist||"Lançamento do extrato")+(nome?" · "+capitalizar(nome):"");
+    const l={d:it.d, desc:desc.replace(/\s·\s*$/,""), v:it.v, k:it.k, i0:1, n:1, _nome:nome};
+    if(/^estorno/.test(h)) l._estorno=1;
+    if(/^pix/.test(h)&&titular&&mesmoTitular(titular,nome)) l.proprio=1;
+    linhas.push(l); });
+  const somaE=linhas.filter(x=>x.k==="e").reduce((a,x)=>a+x.v,0), somaS=linhas.filter(x=>x.k==="g").reduce((a,x)=>a+x.v,0);
+  const des=desfazerEstornos(linhas);
+  return {linhas:des.linhas, ignoradas, estornos:0, aplicacoes:0, desfeitos:des.desfeitos, banco:"Bradesco", titular,
+    saldos:(saldoAnt!=null||saldo!=null)?{anterior:saldoAnt!=null?{v:saldoAnt,d:dAnt}:null, final:saldo!=null?{v:saldo,d:fim||dia}:null}:null,
+    conferencia:totais?{lido:[somaE,somaS,saldo], impresso:totais}:null}; }
+
+/* ---- fatura do cartão do Nubank ----
+   "05 MAR   •••• 1234   Loja - Parcela 3/3   R$ 99,90"; o pagamento da fatura anterior é "Pagamento em 05 MAR −R$ …".
+   O total é o "no valor de R$ …" da primeira página (o "Total a pagar" aparece também nas simulações de parcelamento). */
+function ehFaturaNubank(texto){ const s=semAcento(texto||"").toLowerCase();
+  return /nu pagamentos|nubank/.test(s)&&/resumo da fatura atual/.test(s)&&/\btransacoes\b/.test(s); }
+function lerFaturaNubank(texto){
+  const sem=semAcento(texto||"").replace(/[−–]/g,"-");
+  const dataDe=re=>{ const m=sem.match(re); return m?iso3(+m[1],MES3[m[2].toLowerCase()],+m[3]):""; };
+  const vencimento=dataDe(/data de vencimento:\s*(\d{2}) ([A-Z]{3}) (\d{4})/i);
+  const fechada=dataDe(/emissao e envio\s+(\d{2}) ([A-Z]{3}) (\d{4})/i);
+  const proxFechamento=dataDe(/fechamento da proxima fatura\s+(\d{2}) ([A-Z]{3}) (\d{4})/i);
+  const tot=sem.match(/no valor de\s+R\$\s*([\d.]+,\d{2})/i)||sem.match(/^Total a pagar\s+R\$\s*([\d.]+,\d{2})\s*$/mi);
+  const fa=sem.match(/^Fatura anterior\s+R\$\s*([\d.]+,\d{2})/mi), pr=sem.match(/^Pagamento recebido\s+-\s*R\$\s*([\d.]+,\d{2})/mi);
+  const lim=sem.match(/limite total do cartao de credito:\s*R\$\s*([\d.]+,\d{2})/i);
+  const yF=+(fechada||vencimento||"2000").slice(0,4), mF=+(fechada||vencimento||"2000-12").slice(5,7);
+  const linhas=[], creditos=[]; let ignoradas=0, dentro=false;
+  String(texto||"").split(/\r?\n/).forEach(bruta=>{
+    const t=bruta.replace(/[−–]/g,"-").replace(/\s+$/,""), sl=semAcento(t).toLowerCase().trim();
+    if(/^transacoes\b/.test(sl)){ dentro=true; return; }
+    if(!dentro) return;
+    const m=t.match(/^(\d{2}) ([A-Z]{3})\s+(?:•+\s*\d{4}\s+)?(.+?)\s{2,}(-)?R\$\s*([\d.]+,\d{2})$/i); if(!m) return;
+    const mes=MES3[semAcento(m[2]).toLowerCase()]; if(!mes) return;
+    const d=iso3(+m[1],mes,mes>mF?yF-1:yF), v=centavos(m[5]); let desc=m[3].trim();
+    if(/^saldo restante da fatura anterior|^pagamento em \d{2} /i.test(semAcento(desc))){ ignoradas++; return; }
+    if(!v) return;
+    let i0=1, n=1; const pm=desc.match(/\s*-\s*Parcela (\d{1,2})\/(\d{1,2})$/i);
+    if(pm){ i0=+pm[1]; n=+pm[2]; desc=desc.slice(0,pm.index).trim(); }
+    if(m[4]) creditos.push({d, desc:capitalizar(desc), v, i0, n});
+    else linhas.push({d, desc:capitalizar(desc), v, k:"g", i0, n}); });
+  let anulados=0; const abertos=[];
+  creditos.forEach(c=>{ const j=linhas.findIndex(l=>l.v===c.v&&l.i0===c.i0&&l.n===c.n);
+    if(j>=0){ linhas.splice(j,1); anulados++; }
+    else abertos.push({d:c.d, desc:(/estorno|devolu|cancel/i.test(c.desc)?c.desc:"Estorno · "+c.desc), v:-c.v, k:"g", i0:1, n:1, cred:1}); });
+  abertos.forEach(c=>linhas.push(c));
+  return {linhas, ignoradas, estornos:creditos.length, anulados, estornosAbertos:abertos.length, fechada, cartao:"Nubank", vencimento,
+    proxFechamento, melhorCompra:"", saldoAnterior:fa?centavos(fa[1]):0, pagoAnterior:pr?centavos(pr[1]):0,
+    totalImpresso:tot?centavos(tot[1]):null, limiteUnico:0, limite:lim?centavos(lim[1]):0, banco:"Nubank"}; }
+
 function lerLancamentos(texto,tipo,mes){
   if(tipo==="extrato"&&ehExtratoEmBlocos(texto)) return lerExtratoEmBlocos(texto);
+  if(tipo==="extrato"&&ehExtratoNubank(texto)) return lerExtratoNubank(texto);
+  if(tipo==="extrato"&&ehExtratoBradesco(texto)) return lerExtratoBradesco(texto);
+  if(tipo==="fatura"&&ehFaturaNubank(texto)) return lerFaturaNubank(texto);
   let ref=(mes||mesDeHoje()).split("-").map(Number);
   const fatura=tipo!=="extrato";
   const linhas=[], creditos=[]; let ignoradas=0, estornos=0, anulados=0, dataDoDia=null, saldoAnterior=0, pagoAnterior=0, totalImpresso=null, limiteUnico=0;
@@ -378,7 +551,8 @@ function saldosDoExtrato(texto,mes){
 function adivinharTipo(texto,codigo){
   if(codigo) return "boleto";
   const s=semAcento(texto).toLowerCase();
-  if(ehExtratoEmBlocos(texto)) return "extrato";
+  if(ehExtratoEmBlocos(texto)||ehExtratoNubank(texto)||ehExtratoBradesco(texto)) return "extrato";
+  if(ehFaturaNubank(texto)) return "fatura";
   /* a fatura traz a linha digitável para pagar e o extrato fala em "pagamento fatura de água": primeiro as marcas fortes */
   if(/pagamento minimo|melhor data de compra|lancamentos nesta fatura|total da fatura/.test(s)) return "fatura";
   if(/\d{5}[.\s]?\d{5}\s+\d{5}[.\s]?\d{6}\s+\d{5}[.\s]?\d{6}\s+\d\s+\d{14}/.test(s)||/8\d{10}[\s\-]?\d\s+\d{11}/.test(s)) return "boleto";
@@ -470,7 +644,7 @@ async function ler(arquivo,op){
     const tipo=op.tipo&&op.tipo!=="auto"?op.tipo:adivinharTipo(texto,codigo);
     const r=tipo==="boleto"?lerBoleto(codigo||texto):tipo==="cupom"?lerCupom(texto):lerLancamentos(texto,tipo,op.mes);
     r.tipo=tipo; r.texto=texto;
-    if(tipo==="extrato") r.saldos=saldosDoExtrato(texto,op.mes);
+    if(tipo==="extrato"&&!r.saldos) r.saldos=saldosDoExtrato(texto,op.mes);
     return r;
   } finally { progCb=null; } }
 

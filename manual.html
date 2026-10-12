@@ -403,12 +403,19 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <div class="dica">
   <b>O app reconhece o banco e o formato sozinho</b>
-  Você só escolhe a conta e o arquivo. O extrato do <b>Banco do Brasil</b> pode ser o <b>PDF</b> ou o <b>CSV</b> que o banco oferece para baixar: os dois saem com os mesmos lançamentos, o mesmo saldo informado pelo banco, a aplicação automática (Rende Fácil) e os estornos — e o CSV traz os nomes inteiros, que o PDF às vezes corta. A linha do resumo diz o que foi lido, por exemplo <i>52 lançamentos lidos do extrato (Banco do Brasil, CSV)</i>. Importar o PDF e o CSV do mesmo mês não duplica nada.
+  Você só escolhe a conta e o arquivo. O app lê:
+  <ul style="margin:6px 0 4px;padding-left:18px">
+    <li><b>Banco do Brasil</b> — extrato em <b>PDF</b> ou <b>CSV</b> (os dois saem iguais: mesmos lançamentos, saldo do banco, aplicação automática Rende Fácil e estornos; o CSV traz os nomes inteiros);</li>
+    <li><b>Nubank</b> — extrato da conta em PDF (com a Caixinha como movimento para a conta Caixinha Nubank e o rendimento da conta);</li>
+    <li><b>Bradesco</b> — extrato da conta em PDF.</li>
+  </ul>
+  Logo depois de ler, a linha do resumo diz o banco e confere com os totais que ele imprime, por exemplo <i>52 lançamentos lidos do extrato (Nubank) · ✓ a leitura confere com os totais impressos pelo banco</i>. Importar o mesmo mês de novo, ou em outro formato, não duplica nada.
 </div>
 
 <h3>O que o app faz sozinho</h3>
 <ul>
   <li>Lê cada lançamento com o nome certo e separa entradas de saídas.</li>
+  <li><b>Pix entre contas suas</b> (Nubank e Bradesco): o app lê o nome da titular no cabeçalho do extrato, e o Pix em que o outro lado é ela mesma vira transferência entre contas — não é gasto nem renda.</li>
   <li><b>Pagamento de fatura</b> ("Pagto cartão crédito") vira pagamento: sai da conta, mas não conta como gasto — as compras já vieram da fatura.</li>
   <li><b>Saque</b> vira transferência para a Carteira.</li>
   <li><b>Aplicação automática do saldo</b> (no Banco do Brasil, o Rende Fácil) vira transferência para uma conta própria, criada na primeira importação. Assim a conta corrente fica igual ao saldo impresso no extrato.</li>
@@ -433,6 +440,8 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 </div>
 
 <h2 id="fatura">7. Importar a fatura do cartão</h2>
+
+<p>O app lê as faturas do <b>Banco do Brasil</b> (Ourocard) e do <b>Nubank</b>, em PDF. Na primeira fatura de um cartão ele aprende sozinho o dia do fechamento, o do vencimento e — no Nubank — o limite.</p>
 
 <figure>
   <img src="manual/lancar-fatura.png" alt="Importar fatura do cartão">

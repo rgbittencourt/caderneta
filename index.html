@@ -705,7 +705,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v95";
+const VERSAO_APP="caderneta-v96";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -2413,7 +2413,10 @@ async function saveDrafts(){
     (corrigidos?" · "+corrigidos+(corrigidos>1?" lançamentos de voz corrigidos":" lançamento de voz corrigido")+" pelo banco":""));
   /* aplicação automática: quando o banco resgata mais do que aplicou, a diferença é o rendimento */
   const invs=[...new Set(ok.filter(d=>d.k==="t").map(d=>d.acct).concat(ok.filter(d=>d.k==="t").map(d=>d.acct2)))]
-    .filter(id=>id&&((S.cfg.accounts||[]).find(a=>a.id===id)||{}).type==="invest");
+    .filter(id=>{ const a=(S.cfg.accounts||[]).find(x=>x.id===id);
+      /* só a aplicação automática do BB (Rende Fácil) devolve o rendimento escondido nos resgates. Na Caixinha do
+         Nubank, resgatar mais do que aplicou quer dizer que já havia dinheiro lá antes do primeiro extrato. */
+      return !!a&&a.type==="invest"&&/rende facil/.test(norm(a.n)); });
   const datas=ok.map(d=>d.date).filter(Boolean).sort(), ate=datas[datas.length-1]||todayISO();
   const sd=S.docSaldo; S.docSaldo=null;
   if(sd&&sd.conta&&sd.saldo){ setTimeout(()=>openAcerto(sd.conta,sd.saldo,()=>perguntarRendimento(invs,ate)),700); return; }
@@ -3332,6 +3335,12 @@ const AJUDA=[
  /* importar */
  {g:"Importar",t:"Onde importo o extrato do banco?",
   c:"Aba Lançar, em Importar extrato da conta. Escolha a conta e o arquivo baixado do app ou do site do banco — PDF, ou CSV do Banco do Brasil (OFX também serve). O app reconhece sozinho o banco e o formato, e diz na linha do resumo (por exemplo: lido do extrato (Banco do Brasil, CSV)). Importe do mês mais antigo para o mais novo.",a:"extrato"},
+ {g:"Importar",t:"Como importo o extrato do Nubank ou do Bradesco?",
+  c:"Primeiro, uma vez só: em Ajustes, Saldo de cada conta, Adicionar conta — uma para cada banco (Nubank, Bradesco), do tipo Conta corrente. Em Formas de pagamento, crie um Débito para cada conta (Débito Nubank, Sai de qual conta: Nubank) e o cartão de crédito Nubank. Depois, todo mês: Lançar, Importar extrato da conta, escolha a conta e o PDF baixado do app do banco. O app reconhece o banco sozinho, e a linha do resumo diz, por exemplo, lidos do extrato (Nubank) · ✓ a leitura confere com os totais impressos pelo banco. A fatura do cartão do Nubank vai em Importar fatura do cartão, escolhendo o cartão Nubank: na primeira, o app aprende sozinho o dia do fechamento, o do vencimento e o limite.",a:"extrato"},
+ {g:"Importar",t:"Fiz um Pix de uma conta minha para outra minha. Conta como gasto?",
+  c:"Não. No extrato do Nubank e no do Bradesco o app lê o nome da titular no cabeçalho; o Pix enviado ou recebido em que o outro lado é ela mesma vira transferência entre contas suas — não entra como gasto nem como renda. Importando os extratos das duas contas, cada uma fecha com o saldo do seu banco.",a:"extrato"},
+ {g:"Importar",t:"A Caixinha do Nubank ficou com saldo negativo",
+  c:"Quando você aplica ou resgata na Caixinha, o app lança como movimento entre a conta Nubank e a conta Caixinha Nubank, criada na primeira importação. Se você resgatou dinheiro que já estava na Caixinha antes do primeiro extrato importado, ela fica negativa — o app não sabia quanto havia lá. Informe em Ajustes, Saldo de cada conta, Caixinha Nubank, Saldo inicial: a data do primeiro extrato e quanto havia na Caixinha no dia anterior.",a:"extrato"},
  {g:"Importar",t:"O extrato do Banco do Brasil em CSV não importava",
   c:"Desde a versão 94 importa. O arquivo CSV do BB vem com os valores entre aspas e numa codificação antiga, e o leitor genérico do app cortava os valores e descartava as linhas. Agora o app reconhece o CSV do Banco do Brasil e lê com as mesmas regras do PDF: o saldo que o banco informa (para conferir a conta), a aplicação automática do saldo (Rende Fácil) e o estorno de débito. Comparado mês a mês com os PDFs, saem os mesmos lançamentos e os mesmos saldos — e o CSV traz os nomes inteiros, que o PDF às vezes corta. Importar o PDF e o CSV do mesmo mês não duplica: o app reconhece que é a mesma linha do banco.",a:"extrato"},
  {g:"Importar",t:"Onde importo a fatura do cartão?",
@@ -3456,9 +3465,9 @@ const AJUDA=[
  {g:"No dia a dia",t:"Funciona sem internet?",
   c:"Funciona. Tudo é salvo no aparelho e sobe para o Drive quando a conexão volta. A leitura de PDF e foto também acontece no próprio aparelho.",a:"dados"},
  {g:"No dia a dia",t:"Minha família pode usar o mesmo app?",
-  c:"Pode: é um app só, e cada pessoa entra com a própria conta Google. Os dados de cada um ficam no Drive dela — ninguém vê os dados do outro, e cada um tem a sua caderneta, com as suas contas e os seus cartões. O que muda de pessoa para pessoa é o banco: a leitura dos PDFs foi afinada com os extratos e faturas do Banco do Brasil. Para outro banco, veja a pergunta Meu banco é outro. O app lê os PDFs dele?",a:"comecar"},
+  c:"Pode: é um app só, e cada pessoa entra com a própria conta Google. Os dados de cada um ficam no Drive dela — ninguém vê os dados do outro, e cada um tem a sua caderneta, com as suas contas e os seus cartões. O que muda de pessoa para pessoa é o banco: o app lê o Banco do Brasil (extrato em PDF ou CSV, fatura em PDF), o Nubank (extrato e fatura em PDF) e o Bradesco (extrato em PDF). Para outro banco, veja a pergunta Meu banco é outro. O app lê os PDFs dele?",a:"comecar"},
  {g:"Importar",t:"Meu banco é outro. O app lê os PDFs dele?",
-  c:"A leitura de extratos e faturas foi testada e afinada com os arquivos do Banco do Brasil (extrato em PDF ou CSV, fatura em PDF), onde todos os totais fecham com os impressos pelo banco. Outros bancos imprimem de outro jeito: o app tenta ler, e logo depois de ler confere com o Total da fatura impresso (✓ ou ⚠), mas pode errar linhas. Antes de usar com outro banco, o melhor é mandar um ou dois PDFs (extrato e fatura) para ajustar o leitor — eles ficam só no computador de quem ajusta, e nada vai para o GitHub. O extrato em OFX ou CSV, quando o banco oferece, também serve.",a:"extrato"},
+  c:"O app lê, reconhecendo o banco sozinho: Banco do Brasil (extrato em PDF ou CSV, fatura em PDF), Nubank (extrato da conta e fatura do cartão, em PDF) e Bradesco (extrato da conta em PDF). Cada um foi testado com dez meses de documentos de verdade, e em todos os totais fecham com os impressos pelo banco; logo depois de ler, o app confere com esses totais e diz ✓ ou ⚠. Outros bancos imprimem de outro jeito: o app tenta ler, e logo depois de ler confere com o Total da fatura impresso (✓ ou ⚠), mas pode errar linhas. Antes de usar com outro banco, o melhor é mandar um ou dois PDFs (extrato e fatura) para ajustar o leitor — eles ficam só no computador de quem ajusta, e nada vai para o GitHub. O extrato em OFX ou CSV, quando o banco oferece, também serve.",a:"extrato"},
 
  {g:"Entender os números",t:"O que a aba Análises mostra?",
   c:"O diagnóstico do mês (ritmo contra o teto, 50-30-20, renda comprometida, cartões perto do limite, gastos que parecem fixos), as compras parceladas, os gastos por cartão e o acompanhamento das dívidas.",a:"analises"},
@@ -4752,8 +4761,8 @@ function mostrarLidos(r,op,anexar){
     (r.banco?" ("+r.banco+(r.formato?", "+r.formato:"")+")":"")+
     (rep?" · "+rep+(rep>1?" parecem já lançados e ficaram desmarcados":" parece já lançado e ficou desmarcado"):"")+
     (r.estornos?" · "+r.estornos+(r.estornos>1?" estornos ficaram de fora":" estorno ficou de fora")+(r.anulados?" (com a cobrança de mesmo valor que "+(r.anulados>1?"eles anulam)":"ele anula)"):""):"")+
-    (r.aplicacoes?" · "+r.aplicacoes+(r.aplicacoes>1?" movimentos":" movimento")+" da aplicação automática do saldo, entre a conta e a conta da aplicação":"")+
-    (r.desfeitos?" · "+r.desfeitos+(r.desfeitos>1?" débitos que o banco desfez no mesmo dia ficaram":" débito que o banco desfez no mesmo dia ficou")+" de fora, com o estorno":"")+
+    (r.aplicacoes?" · "+r.aplicacoes+(r.aplicacoes>1?" movimentos":" movimento")+" entre a conta e a aplicação ("+(r.banco==="Nubank"?"Caixinha":"aplicação automática do saldo")+")":"")+
+    (r.desfeitos?" · "+r.desfeitos+(r.desfeitos>1?" débitos que o banco desfez ficaram":" débito que o banco desfez ficou")+" de fora, com o estorno":"")+
     (S.contaCriada?" · criei a conta "+S.contaCriada+" para o dinheiro aplicado":"")+
     (S.fechamentoAprendido?" · anotei que o "+S.fechamentoAprendido:"")+
     (S.limiteAprendido?" · anotei que o "+S.limiteAprendido:"")+
@@ -4763,7 +4772,11 @@ function mostrarLidos(r,op,anexar){
     (r.tipo==="fatura"&&r.totalImpresso!=null?(Math.abs(totalLido(r)-r.totalImpresso)<=1
       ?" · ✓ a leitura confere com o total impresso pelo banco ("+fmt(r.totalImpresso)+")"
       :" · ⚠ o banco imprime "+fmt(r.totalImpresso)+" e a leitura somou "+fmt(totalLido(r))+": não salve, mande a amostra"):"")+
-    (S.docSaldo&&S.docSaldo.saldo?" · o banco diz saldo de "+fmt(S.docSaldo.saldo.v)+" em "+diaMesAno(S.docSaldo.saldo.d):"");
+    (S.docSaldo&&S.docSaldo.saldo?" · o banco diz saldo de "+fmt(S.docSaldo.saldo.v)+" em "+diaMesAno(S.docSaldo.saldo.d):"")+
+    /* extrato que imprime os totais (Nubank: entradas e saídas; Bradesco: créditos e débitos): a leitura se confere */
+    (r.tipo==="extrato"&&r.conferencia?(r.conferencia.lido[0]===r.conferencia.impresso[0]&&r.conferencia.lido[1]===r.conferencia.impresso[1]
+      ?" · ✓ a leitura confere com os totais impressos pelo banco"
+      :" · ⚠ o banco imprime entradas de "+fmt(r.conferencia.impresso[0])+" e saídas de "+fmt(r.conferencia.impresso[1])+", e a leitura somou "+fmt(r.conferencia.lido[0])+" e "+fmt(r.conferencia.lido[1])+": não salve, mande a amostra"):"");
   if((r.tipo==="fatura"||r.tipo==="extrato")&&!r.formato){ const b=document.createElement("button"); b.className="mini"; b.style.marginLeft="8px";
     const cam=op.box?$(".docCam",op.box):null;
     if(cam){ b.textContent="Fotografar mais uma página"; b.onclick=()=>{ S.docMais=true; cam.click(); }; st.appendChild(b); } }
@@ -4787,7 +4800,7 @@ function rascunhosDoc(r,op){
   let cardFat=op.card;
   if(r.tipo==="fatura"&&r.cartao){
     const w=norm(r.cartao).split(" "), nomes=c=>norm(c.n+" "+(c.alias||"")).split(" ");
-    const fim=(w[w.length-1]||"").length===4?w[w.length-1]:"", band=w.find(x=>/^(visa|master|mastercard|elo|amex|hipercard|diners)$/.test(x));
+    const fim=(w[w.length-1]||"").length===4?w[w.length-1]:"", band=w.find(x=>/^(visa|master|mastercard|elo|amex|hipercard|diners|nubank)$/.test(x));
     const bate=c=>{ const ns=nomes(c); return (fim&&ns.indexOf(fim)>=0)||(band&&ns.some(x=>x===band||(band.indexOf("master")===0&&x.indexOf("master")===0))); };
     const escolhido=creditCards().find(c=>c.id===op.card), doc=creditCards().find(c=>fim&&nomes(c).indexOf(fim)>=0)||creditCards().find(bate);
     if(doc&&!(escolhido&&bate(escolhido))) cardFat=doc.id;
@@ -4808,6 +4821,10 @@ function rascunhosDoc(r,op){
   if(r.tipo==="fatura"&&cardFat&&r.limiteUnico>0){
     const c=creditCards().find(x=>x.id===cardFat);
     if(c&&(c.limit!==r.limiteUnico||!c.limUnico)){ c.limit=r.limiteUnico; c.limUnico=true; S.limiteAprendido=c.n+" divide o limite único de "+fmt(r.limiteUnico); saveCfg(); } }
+  /* o limite do cartão impresso na fatura (Nubank: "Limite total do cartão de crédito"): anota quando muda */
+  else if(r.tipo==="fatura"&&cardFat&&r.limite>0){
+    const c=creditCards().find(x=>x.id===cardFat);
+    if(c&&!c.limUnico&&c.limit!==r.limite){ c.limit=r.limite; S.limiteAprendido=c.n+" tem limite de "+fmt(r.limite); saveCfg(); } }
   /* o saldo que a fatura anterior deixou volta nesta: o que faltou pagar vem cobrado de novo e, quando a anterior
      fechou a favor do dono (saldo credor, estorno maior que as compras), o banco abate esse crédito aqui.
      Só entra quando a fatura anterior não está no app — se estiver, ela mesma já mostra esse saldo,
@@ -4838,6 +4855,7 @@ function rascunhosDoc(r,op){
     else if(r.tipo==="extrato"){ const c=debitoDaConta(op.conta); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id;
       d.method=d.k==="e"?"pix":"debito"; d.acct=op.conta||acctOf(d.cardId); d.raw="Extrato";
       if(l.aplic) d.aplic=l.aplic;
+      if(l.proprio) d.proprio=1;
       d.contaDoc=op.conta||d.acct;
       classificarLinhaExtrato(d); }
     else if(r.tipo==="boleto"){ const c=pagoCom||boletoCard||debitoDaConta(); d.cardId=c?c.id:(S.cfg.cards[0]||{}).id; d.method=pagoCom?pagoCom.type:"boleto";
@@ -5024,6 +5042,17 @@ function pareceRepetido(d,usados,doBanco){
        cartão ficava de fora (a fatura ficava abaixo da do banco). */
     if(d.origem==="fatura"&&/^Extrato/.test(t.raw||"")) continue;
     if(d.origem==="extrato"&&doBanco&&doBanco.has(t.id)) continue;
+    /* linha que veio do extrato de OUTRA conta é outro movimento (12/10/2026, extratos do Nubank e do Bradesco da
+       mesma pessoa): o Pix que sai de uma conta e o que chega na outra têm o mesmo valor e o mesmo dia, e o
+       app deixava de fora a chegada — a conta de destino ficava sem o dinheiro */
+    if(d.origem==="extrato"&&d.contaDoc&&/^Extrato/.test(t.raw||"")&&t.acct!==d.contaDoc&&t.acct2!==d.contaDoc
+      &&(t.acct||acctOf(t.card))!==d.contaDoc) continue;
+    /* duas linhas de extrato da mesma conta, em dias diferentes, são dois movimentos: o banco não muda a data de um
+       lançamento de um extrato para o outro (dois estornos de centavos em dias seguidos; duas compras de mesmo valor) */
+    if(d.origem==="extrato"&&d.contaDoc&&/^Extrato/.test(t.raw||"")&&t.d!==d.date) continue;
+    /* movimento entre contas: só é o mesmo se for no mesmo sentido para esta conta — a aplicação de 100 e o resgate
+       de 100 dois dias depois são dois movimentos */
+    if(d.k==="t"&&d.contaDoc&&((d.acct===d.contaDoc)!==(t.acct===d.contaDoc)||(d.acct2===d.contaDoc)!==(t.acct2===d.contaDoc))) continue;
     /* parcela de uma compra parcelada não é a mesma coisa que uma compra à vista de valor parecido:
        o app perguntava se uma compra à vista era a parcela, de valor quase igual, de outra loja. */
     if(t.plan&&(+d.n||1)<=1) continue;
@@ -6020,6 +6049,13 @@ function migrar2(c){
    resgate é dinheiro mudando de lugar. Os dois viram movimento que não conta como gasto nem como renda. */
 function classificarLinhaExtrato(d){
   const s=norm(d.desc), C=creditCards();
+  /* Pix para outra conta da mesma titular (o leitor reconhece o nome dela no cabeçalho do extrato): é dinheiro mudando
+     de conta, não gasto nem renda. O outro lado fica "fora do app" — quando o extrato da outra conta também é
+     importado, a entrada de lá vira o mesmo tipo de movimento, e cada conta fecha com o seu banco. */
+  if(d.proprio){ const conta=d.acct, entra=d.k==="e";
+    d.k="t"; d.method="transferencia"; d.cardId="transf"; d.n=1;
+    d.acct=entra?"":conta; d.acct2=entra?conta:"";
+    d.raw="Extrato · "+(entra?"veio de outra conta sua":"foi para outra conta sua"); return; }
   if(d.k!=="e"&&!/\bfatura de (agua|luz|energia|gas|telefone|internet|celular)\b/.test(s)&&
     /\b(pagamento|pagto|pgto|pag)\b.{0,16}\b(fatura|cartao|cartoes)\b|\bfatura\b.{0,16}\b(cartao|visa|master|mastercard|elo)\b|\bcartao de credito\b/.test(s)){
     const palavras=s.split(" "), ym=ymOf(d.date);
