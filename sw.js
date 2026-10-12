@@ -1,6 +1,7 @@
 /* Caderneta — service worker: guarda o app no aparelho para abrir sem internet.
-   Mude VERSAO a cada publicação para os aparelhos pegarem a versão nova. */
-const VERSAO = "caderneta-v97";
+   Mude VERSAO a cada publicação para os aparelhos pegarem a versão nova. Desde a 1.30.1 a versão segue o
+   Versionamento Semântico (MAIOR.MENOR.CORREÇÃO): função nova sobe o MENOR, correção sobe a CORREÇÃO. */
+const VERSAO = "caderneta-1.30.1";
 const FONTES = "caderneta-fontes";
 const LIBS = "caderneta-libs-2";
 const APP = ["./", "./index.html", "./manifest.webmanifest", "./config.js",
@@ -12,7 +13,8 @@ self.addEventListener("install", e => {
 });
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys()
-    .then(ks => Promise.all(ks.filter(k => (k.startsWith("caderneta-v") && k !== VERSAO) || k === "caderneta-libs").map(k => caches.delete(k))))
+    /* apaga as cópias de versões antigas ("caderneta-v97", "caderneta-1.30.1"…); fontes e bibliotecas ficam */
+    .then(ks => Promise.all(ks.filter(k => k.startsWith("caderneta-") && k !== VERSAO && k !== FONTES && k !== LIBS).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener("message", e => { if (e.data === "skipWaiting") self.skipWaiting(); });
