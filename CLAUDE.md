@@ -319,4 +319,6 @@ As conversas até a v14 aconteceram num PC com Windows, que não fica mais ligad
 
 ## Histórico
 
+**Início do projeto:** por volta de **08/09/2026** (lembrança do dono, 12/10/2026; ele vai confirmar no PC com Windows onde foram feitas as versões 1 a 14). Veio para o Mac em 15/09/2026, na v14 = 1.0.0.
+
 Começou como dois artifacts do Claude ("Caderneta da Casa" e "Meu Caixa"), por um erro de leitura do pedido: o dono queria um app só, com contas separadas. Os artifacts antigos servem apenas para exportar o backup e trazer os dados para cá.
