@@ -642,7 +642,7 @@ const KW = {
   medic:"farmacia drogaria remedio remedios medicamento medicamentos panvel drogasil raia nissei dimed pacheco vitamina antibiotico",
   saude:"medico consulta dentista exame exames laboratorio clinica hospital fisioterapia psicologo psicologa terapia nutricionista oftalmo oculista dermato unimed cirurgia vacina ressonancia",
   casa:"aluguel condominio luz energia celesc cemig copel enel agua casan sanepar esgoto gas internet fibra iptu faxina diarista jardineiro pedreiro reforma sindico portaria",
-  educ:"escola colegio faculdade universidade mensalidade matricula curso apostila livro creche ingles ifsc udesc ufsc senai sesi sesc",
+  educ:"escola colegio faculdade universidade mensalidade matricula curso apostila livro creche ingles udesc ufsc senai sesi sesc",
   roupa:"roupa roupas calcado calcados tenis sapato sandalia camisa camiseta calca bermuda vestido jaqueta casaco meia renner riachuelo hering zara pernambucanas havaianas centauro",
   lazer:"cinema teatro show ingresso netflix spotify disney hbo max prime paramount deezer viagem hotel pousada airbnb passeio parque balada festa jogo videogame steam livraria",
   assin:"assinatura plano celular telefone vivo claro tim oi recarga icloud google microsoft office dropbox chatgpt anuidade",
@@ -705,7 +705,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v93";
+const VERSAO_APP="caderneta-v94";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -3323,7 +3323,9 @@ const AJUDA=[
 
  /* importar */
  {g:"Importar",t:"Onde importo o extrato do banco?",
-  c:"Aba Lançar, em Importar extrato da conta. Escolha a conta e o PDF baixado do app do banco (OFX e CSV também servem). Importe do mês mais antigo para o mais novo.",a:"extrato"},
+  c:"Aba Lançar, em Importar extrato da conta. Escolha a conta e o arquivo baixado do app ou do site do banco — PDF, ou CSV do Banco do Brasil (OFX também serve). O app reconhece sozinho o banco e o formato, e diz na linha do resumo (por exemplo: lido do extrato (Banco do Brasil, CSV)). Importe do mês mais antigo para o mais novo.",a:"extrato"},
+ {g:"Importar",t:"O extrato do Banco do Brasil em CSV não importava",
+  c:"Desde a versão 94 importa. O arquivo CSV do BB vem com os valores entre aspas e numa codificação antiga, e o leitor genérico do app cortava os valores e descartava as linhas. Agora o app reconhece o CSV do Banco do Brasil e lê com as mesmas regras do PDF: o saldo que o banco informa (para conferir a conta), a aplicação automática do saldo (Rende Fácil) e o estorno de débito. Comparado mês a mês com os PDFs, saem os mesmos lançamentos e os mesmos saldos — e o CSV traz os nomes inteiros, que o PDF às vezes corta. Importar o PDF e o CSV do mesmo mês não duplica: o app reconhece que é a mesma linha do banco.",a:"extrato"},
  {g:"Importar",t:"Onde importo a fatura do cartão?",
   c:"Aba Lançar, em Importar fatura do cartão, canhoto ou boleto. O mês não se escolhe: vale o fechamento impresso na fatura.",a:"fatura"},
  {g:"Importar",t:"Se eu lançar por voz e depois importar, vai duplicar?",
@@ -3448,7 +3450,7 @@ const AJUDA=[
  {g:"No dia a dia",t:"Minha família pode usar o mesmo app?",
   c:"Pode: é um app só, e cada pessoa entra com a própria conta Google. Os dados de cada um ficam no Drive dela — ninguém vê os dados do outro, e cada um tem a sua caderneta, com as suas contas e os seus cartões. O que muda de pessoa para pessoa é o banco: a leitura dos PDFs foi afinada com os extratos e faturas do Banco do Brasil. Para outro banco, veja a pergunta Meu banco é outro. O app lê os PDFs dele?",a:"comecar"},
  {g:"Importar",t:"Meu banco é outro. O app lê os PDFs dele?",
-  c:"A leitura de extratos e faturas foi testada e afinada com os PDFs do Banco do Brasil, onde todos os totais fecham com os impressos pelo banco. Outros bancos imprimem de outro jeito: o app tenta ler, e logo depois de ler confere com o Total da fatura impresso (✓ ou ⚠), mas pode errar linhas. Antes de usar com outro banco, o melhor é mandar um ou dois PDFs (extrato e fatura) para ajustar o leitor — eles ficam só no computador de quem ajusta, e nada vai para o GitHub. O extrato em OFX ou CSV, quando o banco oferece, também serve.",a:"extrato"},
+  c:"A leitura de extratos e faturas foi testada e afinada com os arquivos do Banco do Brasil (extrato em PDF ou CSV, fatura em PDF), onde todos os totais fecham com os impressos pelo banco. Outros bancos imprimem de outro jeito: o app tenta ler, e logo depois de ler confere com o Total da fatura impresso (✓ ou ⚠), mas pode errar linhas. Antes de usar com outro banco, o melhor é mandar um ou dois PDFs (extrato e fatura) para ajustar o leitor — eles ficam só no computador de quem ajusta, e nada vai para o GitHub. O extrato em OFX ou CSV, quando o banco oferece, também serve.",a:"extrato"},
 
  {g:"Entender os números",t:"O que a aba Análises mostra?",
   c:"O diagnóstico do mês (ritmo contra o teto, 50-30-20, renda comprometida, cartões perto do limite, gastos que parecem fixos), as compras parceladas, os gastos por cartão e o acompanhamento das dívidas.",a:"analises"},
@@ -4658,6 +4660,10 @@ async function lerDoc(arquivo,op){
       if(r.tipo==="cupom"&&!pdf){ toast(r.erro||"Não achei o valor nessa foto. Tente com mais luz e o papel reto."); return; }
       if(r.tipo==="fatura"&&(r.anulados||r.estornos)){ toast("Nada para lançar: nesta fatura só há "+(r.anulados?"cobrança e desconto que se anulam":"créditos e estornos")+"."); return; }
       diagnosticoDoc(arquivo,r,null,tipo); return; }
+    /* extrato escolhido no leitor de fatura: o arquivo diz o que é, e vai para a conta do leitor de extrato */
+    if(tipo==="fatura"&&r.tipo==="extrato"&&r.banco){ const bx=$('[data-leitor="extrato"]');
+      toast("Esse arquivo é o extrato da conta ("+r.banco+"): li como extrato.");
+      mostrarLidos(r,{mes,conta:bx?(($(".docConta",bx)||{}).value||""):op.conta,box:bx||box},op.anexar); return; }
     mostrarLidos(r,{mes,card:op.card,conta:op.conta,pago:op.pago,quando:op.quando,box},op.anexar);
   }catch(e){
     st.textContent="";
@@ -4735,6 +4741,7 @@ function mostrarLidos(r,op,anexar){
   const de={fatura:"da fatura",extrato:"do extrato",cupom:"do canhoto",boleto:"do boleto"}[r.tipo]||"do documento";
   const st=$("#parseStatus"); st.hidden=false;
   st.textContent=n+(n>1?" lançamentos lidos ":" lançamento lido ")+de+
+    (r.banco?" ("+r.banco+(r.formato?", "+r.formato:"")+")":"")+
     (rep?" · "+rep+(rep>1?" parecem já lançados e ficaram desmarcados":" parece já lançado e ficou desmarcado"):"")+
     (r.estornos?" · "+r.estornos+(r.estornos>1?" estornos ficaram de fora":" estorno ficou de fora")+(r.anulados?" (com a cobrança de mesmo valor que "+(r.anulados>1?"eles anulam)":"ele anula)"):""):"")+
     (r.aplicacoes?" · "+r.aplicacoes+(r.aplicacoes>1?" movimentos":" movimento")+" da aplicação automática do saldo, entre a conta e a conta da aplicação":"")+
@@ -4749,12 +4756,18 @@ function mostrarLidos(r,op,anexar){
       ?" · ✓ a leitura confere com o total impresso pelo banco ("+fmt(r.totalImpresso)+")"
       :" · ⚠ o banco imprime "+fmt(r.totalImpresso)+" e a leitura somou "+fmt(totalLido(r))+": não salve, mande a amostra"):"")+
     (S.docSaldo&&S.docSaldo.saldo?" · o banco diz saldo de "+fmt(S.docSaldo.saldo.v)+" em "+diaMesAno(S.docSaldo.saldo.d):"");
-  if(r.tipo==="fatura"||r.tipo==="extrato"){ const b=document.createElement("button"); b.className="mini"; b.style.marginLeft="8px";
+  if((r.tipo==="fatura"||r.tipo==="extrato")&&!r.formato){ const b=document.createElement("button"); b.className="mini"; b.style.marginLeft="8px";
     const cam=op.box?$(".docCam",op.box):null;
     if(cam){ b.textContent="Fotografar mais uma página"; b.onclick=()=>{ S.docMais=true; cam.click(); }; st.appendChild(b); } }
   S.contaCriada=""; S.fechamentoAprendido=""; S.limiteAprendido="";
   renderDrafts(); $("#draftSec").scrollIntoView({behavior:"smooth",block:"start"}); }
 
+/* dois nomes do mesmo lançamento do banco: as palavras do menor (3+ letras) quase todas no maior */
+function mesmoNomeDoBanco(a,b){
+  const pal=x=>new Set(norm(x).split(/[^a-z0-9]+/).filter(w=>w.length>=3)), A=pal(a), B=pal(b);
+  if(!A.size||!B.size) return norm(a)===norm(b);
+  const [P,G]=A.size<=B.size?[A,B]:[B,A]; let n=0; P.forEach(w=>{ if(G.has(w)) n++; });
+  return n/P.size>=0.8; }
 function rascunhosDoc(r,op){
   op=op||{}; const hoje=todayISO();
   const debitoDaConta=conta=>S.cfg.cards.find(c=>c.type==="debito"&&(!conta||c.acct===conta))||S.cfg.cards.find(c=>c.type==="debito");
@@ -4864,9 +4877,11 @@ function rascunhosDoc(r,op){
             &&(!d.cardId||!rep.card||rep.card===d.cardId)&&(!d.ref||!rep.ref||rep.ref===d.ref)){
             d.dupResp=1; d.dupAuto=1; d.mesmaLinha=1;
             if(!/^Extrato/.test(rep.raw||"")){ d.pagoAntes=1; d.alinhar={ym:rep.ym,id:rep.id}; } }
-          /* o mesmo vale para o extrato importado de novo: mesma linha, mesmo dia, mesmo valor, mesmo nome */
+          /* o mesmo vale para o extrato importado de novo: mesma linha, mesmo dia, mesmo valor, mesmo nome. O nome pode
+             vir cortado diferente — o PDF do BB corta o fim do nome, o CSV traz inteiro —,
+             então basta que quase todas as palavras do nome menor estejam no maior (12/10/2026, CSV do BB) */
           if(d.origem==="extrato"&&/^Extrato/.test(rep.raw||"")&&Math.abs(rep.v)===d.v&&rep.d===d.date
-            &&norm(rep.desc||"")===norm(d.desc||"")){ d.dupResp=1; d.dupAuto=1; d.mesmaLinha=1; } } } }
+            &&mesmoNomeDoBanco(rep.desc||"",d.desc||"")){ d.dupResp=1; d.dupAuto=1; d.mesmaLinha=1; } } } }
     return d; }).concat(extras).map(d=>{
       /* o total impresso pelo banco acompanha a fatura até ela ser salva: é com ele que o app se confere.
          Se o que faltou pagar da anterior ficou na fatura anterior (que já está no app), ele sai da conta. */
@@ -6395,8 +6410,16 @@ async function restaurarPacote(d){
 /* =================== OFX e CSV =================== */
 /* arquivos exportados pelo banco: passam pela mesma conferência do PDF e da foto */
 const ehArquivoTexto=f=>/\.(ofx|csv|txt)$/i.test(f.name||"")||/^text\/|ofx/i.test(f.type||"");
+/* a codificação vem do próprio arquivo: o CSV do Banco do Brasil é Latin-1, e lido como UTF-8 os acentos quebravam */
+async function textoDoArquivo(arquivo){
+  const buf=await arquivo.arrayBuffer(); let t;
+  try{ t=new TextDecoder("utf-8",{fatal:true}).decode(buf); }catch(e){ t=new TextDecoder("windows-1252").decode(buf); }
+  return t.replace(/^\uFEFF/,""); }
 async function lerArquivoTexto(arquivo,tipo){
-  const texto=await arquivo.text(), ofx=/<OFX>|<STMTTRN>/i.test(texto);
+  const texto=await textoDoArquivo(arquivo), ofx=/<OFX>|<STMTTRN>/i.test(texto);
+  /* extrato do Banco do Brasil em CSV (pedido do dono, 12/10/2026: o leitor genérico partia "-1.234,56" na vírgula e
+     não importava nada). Vai pelo mesmo leitor do PDF do BB, com os saldos que o banco põe no arquivo. */
+  if(window.Leitor&&Leitor.cabecalhoCsvBB(texto)){ const r=Leitor.lerCsvBB(texto); r.texto=texto; return r; }
   let t=tipo&&tipo!=="auto"?tipo:(/<CCSTMTRS>|CREDITCARDMSGSRS/i.test(texto)?"fatura":"extrato");
   if(t!=="fatura"&&t!=="extrato") t="extrato";
   let rows=parseStatement(texto,"both");

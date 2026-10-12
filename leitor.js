@@ -182,7 +182,11 @@ function lerExtratoEmBlocos(texto){
     it.querDetalhe=!it.inline||!it.hist;
     itens.push(it); ant=it; }
   fechar();
-  const linhas=[];
+  return Object.assign(linhasDoBB(itens),{ignoradas, estornos:0}); }
+/* o que vale para o extrato do BB em PDF e em CSV: Rende Fácil vira transferência, a descrição junta histórico e
+   detalhe, e o estorno de débito desfaz o débito igual. itens: {d, v, k, hist, inline, detalhe, cod} */
+function linhasDoBB(itens){
+  const linhas=[]; let aplicacoes=0;
   itens.forEach(it=>{
     const hist=it.hist||it.inline, det=limparDetalhe(it.hist?[it.inline,it.detalhe].filter(Boolean).join(" "):it.detalhe);
     if(!it.v) return;
@@ -206,7 +210,42 @@ function lerExtratoEmBlocos(texto){
       &&((x._cod&&x._cod===e._cod)||comum(x._c,e._c)));
     if(par){ fora.push(par,e); desfeitos++; } });
   const limpas=linhas.filter(x=>fora.indexOf(x)<0).map(x=>{ delete x._c; delete x._cod; return x; });
-  return {linhas:limpas, ignoradas, estornos:0, aplicacoes, desfeitos}; }
+  return {linhas:limpas, aplicacoes, desfeitos, banco:"Banco do Brasil"}; }
+
+/* ---- extrato do Banco do Brasil em CSV ----
+   "Data","Lançamento","Detalhes","N° documento","Valor","Tipo Lançamento" — o mesmo conteúdo do PDF, coluna a coluna:
+   o histórico, o detalhe ("dd/mm hh:mm LOJA"), o documento e o valor com sinal ("-1.234,56"). Vem em
+   Latin-1 (quem lê decide a codificação) e traz os saldos: "Saldo Anterior", "Saldo do dia" e "S A L D O" no fim. */
+function camposCsv(linha,sep){
+  const out=[]; let cur="", q=false;
+  for(let i=0;i<linha.length;i++){ const ch=linha[i];
+    if(q){ if(ch==='"'){ if(linha[i+1]==='"'){ cur+='"'; i++; } else q=false; } else cur+=ch; }
+    else if(ch==='"') q=true; else if(ch===sep){ out.push(cur); cur=""; } else cur+=ch; }
+  /* um CSV do dono trazia caracteres nulos no fim de um detalhe */
+  out.push(cur); return out.map(x=>x.replace(/[\u0000-\u001f\u007f]/g,"").trim()); }
+function cabecalhoCsvBB(texto){
+  const l=semAcento(String(texto||"").replace(/^\uFEFF/,"").split(/\r?\n/)[0]||"").toLowerCase().replace(/"/g,"").replace(/\s+/g," ");
+  return /^data[,;] ?(lancamento|historico)[,;] ?detalhes?[,;]/.test(l); }
+function lerCsvBB(texto){
+  const L=String(texto||"").replace(/^\uFEFF/,"").split(/\r?\n/).filter(x=>x.trim());
+  const sep=(L[0].match(/;/g)||[]).length>(L[0].match(/,/g)||[]).length?";":",";
+  const cab=camposCsv(L[0],sep).map(c=>semAcento(c).toLowerCase().trim());
+  const col=re=>cab.findIndex(c=>re.test(c));
+  const iD=col(/^data$/), iL=col(/^(lancamento|historico)$/), iDet=col(/^detalhes?$/), iDoc=col(/documento/), iV=col(/^valor$/);
+  const itens=[], saldos={anterior:null, final:null}; let ignoradas=0;
+  L.slice(1).forEach(bruta=>{
+    const c=camposCsv(bruta,sep), m=(c[iD]||"").match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if(!m) return;
+    const d=m[3]+"-"+m[2]+"-"+m[1], hist=c[iL]||"", sem=semAcento(hist).toLowerCase().trim();
+    const vt=(c[iV]||"").replace(/\s/g,"").replace(/^R\$/,""), neg=/^-/.test(vt);
+    const v=Math.round(parseFloat(vt.replace(/^-/,"").replace(/\./g,"").replace(",","."))*100); if(isNaN(v)) return;
+    if(/^saldo anterior\b/.test(sem)){ if(!saldos.anterior) saldos.anterior={v:neg?-v:v, d}; ignoradas++; return; }
+    if(/^(saldo\b|s a l d o\b)/.test(sem)){ saldos.final={v:neg?-v:v, d}; ignoradas++; return; }
+    if(!v) return;
+    itens.push({d, v, k:neg?"g":"e", hist, inline:"", detalhe:c[iDet]||"", cod:(c[iDoc]||"").trim()}); });
+  const r=linhasDoBB(itens);
+  r.ignoradas=ignoradas; r.estornos=0; r.tipo="extrato"; r.formato="CSV";
+  r.saldos=(saldos.anterior||saldos.final)?Object.assign(saldos,RE_RENDE_FACIL.test(semAcento(texto).toLowerCase())?{rendeFacil:true}:{}):null;
+  return r; }
 
 function lerLancamentos(texto,tipo,mes){
   if(tipo==="extrato"&&ehExtratoEmBlocos(texto)) return lerExtratoEmBlocos(texto);
@@ -435,5 +474,5 @@ async function ler(arquivo,op){
     return r;
   } finally { progCb=null; } }
 
-window.Leitor={ler, lerBoleto, lerCupom, lerLancamentos, saldosDoExtrato, adivinharTipo, linhasDoPdf, _dv:{mod10,mod11Banco,mod11Arrec,decodificar}};
+window.Leitor={ler, lerCsvBB, cabecalhoCsvBB, lerBoleto, lerCupom, lerLancamentos, saldosDoExtrato, adivinharTipo, linhasDoPdf, _dv:{mod10,mod11Banco,mod11Arrec,decodificar}};
 })();
