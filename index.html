@@ -705,7 +705,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="caderneta-v94";
+const VERSAO_APP="caderneta-v95";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -2971,17 +2971,23 @@ function htmlImportacoes(){
   if(!contas.length) contas=A.filter(a=>a.type!=="carteira"&&a.type!=="invest");
   const cartoes=creditCards();
   if(!contas.length&&!cartoes.length) return "";
-  const todos=mesesComDados(), meses=mesesDoQuadro();
-  /* de quando cobrar cada documento: da abertura da conta (ou do primeiro mês com movimento) e, no cartão,
-     do primeiro mês em que ele teve fatura */
+  /* o quadro começa no primeiro documento importado (pedido do dono, 12/10/2026: o filho começou agora, e o quadro
+     cobrava desde janeiro — vinha do Saldo inicial sugerido em 1º de janeiro ou de lançamentos antigos). Antes do
+     primeiro extrato ou fatura, o quadro nem aparece: quem lança só por voz não tem nada para acompanhar aqui. */
+  const primeiro=[];
+  Object.keys(ex).forEach(k=>{ const m=k.split("|")[1]; if(m) primeiro.push(m); });
+  Object.keys(fa).forEach(k=>{ const [id,m]=k.split("|"); if(m) primeiro.push(mesDeVencimento(id,m)); });
+  if(!primeiro.length) return "";
+  const inicio=primeiro.sort()[0];
+  const todos=mesesComDados().filter(m=>m>=inicio), meses=mesesDoQuadro().filter(m=>m>=inicio);
+  /* de quando cobrar cada documento: a conta corrente, desde o primeiro documento importado; as outras contas e cada
+     cartão, desde o primeiro documento deles */
   const desdeConta={}, desdeCartao={};
-  contas.forEach(a=>{ let d=a.openDate?ymOf(a.openDate):"";
+  contas.forEach(a=>{ let d="";
     Object.keys(ex).forEach(k=>{ const [id,m]=k.split("|"); if(id===a.id&&(!d||m<d)) d=m; });
-    todos.forEach(m=>{ if((!d||m<d)&&movsConta(a.id,m).length) d=m; });
-    desdeConta[a.id]=d||todos[todos.length-1]||cur; });
+    desdeConta[a.id]=d&&d<inicio?inicio:(d||(a.type==="corrente"?inicio:cur)); });
   cartoes.forEach(c=>{ let d="";
     Object.keys(fa).forEach(k=>{ const [id,m]=k.split("|"); if(id===c.id&&(!d||m<d)) d=m; });
-    todos.forEach(m=>{ if(cardInvoice(c.id,m).total&&(!d||m<d)) d=m; });
     desdeCartao[c.id]=d; });
   const docsDoMes=ym=>{ const out=[];
     contas.forEach(a=>{ if(desdeConta[a.id]&&ym<desdeConta[a.id]) return;
@@ -2994,7 +3000,9 @@ function htmlImportacoes(){
       out.push({lido:!!fa[c.id+"|"+kf], nome:c.n, quando:fa[c.id+"|"+kf], cobra:ym<=cur, chave:"f|"+c.id+"|"+kf}); });
     return out; };
   let faltam=0;
-  const linhas=meses.map(ym=>{ const L=docsDoMes(ym); if(!L.length) return "";
+  /* só os meses em que a pessoa importou alguma coisa (pedido do dono): mês sem nada importado não aparece */
+  const temAlgo=ym=>docsDoMes(ym).some(x=>x.lido);
+  const linhas=meses.filter(temAlgo).map(ym=>{ const L=docsDoMes(ym); if(!L.length) return "";
     const chips=L.map(x=>{ if(!x.lido&&x.cobra) faltam++;
       const quando=x.quando==="auto"?"reconhecido pelos lançamentos do documento"
         :x.quando==="manual"?"marcado por você":"importado em "+diaMesAno(x.quando);
@@ -3004,12 +3012,12 @@ function htmlImportacoes(){
       '<div class="s" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'+chips+'</div></div></div>'; }).join("");
   /* o que ficou faltando em anos que saíram da lista */
   let antes=0;
-  todos.filter(m=>meses.indexOf(m)<0).forEach(m=>docsDoMes(m).forEach(x=>{ if(!x.lido&&x.cobra) antes++; }));
+  todos.filter(m=>meses.indexOf(m)<0&&temAlgo(m)).forEach(m=>docsDoMes(m).forEach(x=>{ if(!x.lido&&x.cobra) antes++; }));
   const ano=cur.slice(0,4), janeiro=+cur.slice(5,7)===1;
   return '<div class="sec"><div class="sec-h"><h2 class="sec-t">O que já foi importado · '+ano+(janeiro?" e "+(+ano-1):"")+'</h2>'+
     '<span class="day-t">'+(faltam?faltam+(faltam>1?" documentos faltando":" documento faltando"):"tudo em dia")+'</span></div>'+
     '<div class="card pad">'+
-    '<div class="say-hint" style="margin-bottom:8px">Verde é o que já entrou; cinza é o que falta — <b>toque num selo</b> para marcar ou desmarcar à mão. O extrato se importa em Lançar → Importar extrato da conta; a fatura, em Importar fatura do cartão. A lista mostra o ano corrente — em janeiro, o ano anterior continua aqui.</div>'+
+    '<div class="say-hint" style="margin-bottom:8px">Verde é o que já entrou; cinza é o que falta — <b>toque num selo</b> para marcar ou desmarcar à mão. O extrato se importa em Lançar → Importar extrato da conta; a fatura, em Importar fatura do cartão. Aparecem só os meses deste ano em que você importou alguma coisa — em janeiro, os do ano anterior continuam aqui.</div>'+
     linhas+
     (antes?'<div class="say-hint" style="margin-top:10px">Ainda faltam '+antes+(antes>1?" documentos de anos anteriores":" documento de anos anteriores")+'. Eles saíram da lista, mas continuam podendo ser importados: basta escolher o arquivo em Lançar.</div>':"")+
     '</div></div>'; }
@@ -3333,7 +3341,7 @@ const AJUDA=[
  {g:"Importar",t:"Importo extrato e fatura: o gasto conta duas vezes?",
   c:"Não. As compras vêm da fatura e não tiram dinheiro da conta; o pagamento da fatura vem do extrato, sai da conta e não conta como gasto. Pode importar todos os extratos primeiro e as faturas depois.",a:"carregar"},
  {g:"Importar",t:"Como sei quais extratos e faturas já importei?",
-  c:"Em Ajustes, no quadro O que já foi importado: cada mês mostra o extrato de cada conta e a fatura de cada cartão — verde é o que já entrou, cinza é o que falta. No alto aparece quantos documentos ainda faltam. A lista é do ano corrente; em janeiro, o ano anterior continua à vista, e de fevereiro em diante fica só o ano novo — o que ficou faltando de anos anteriores aparece resumido no rodapé e pode ser importado a qualquer momento. O que você importou antes de o quadro existir também aparece: o app reconhece pelos lançamentos que vieram do documento. E dá para tocar num selo para marcar ou desmarcar à mão, quando você sabe que já leu aquele documento.",a:"carregar"},
+  c:"Em Ajustes, no quadro O que já foi importado: cada mês mostra o extrato de cada conta e a fatura de cada cartão — verde é o que já entrou, cinza é o que falta. No alto aparece quantos documentos ainda faltam. Desde a versão 94 aparecem só os meses em que você importou alguma coisa, a partir do primeiro extrato ou fatura; antes de importar o primeiro, o quadro nem aparece (quem lança só por voz não tem nada para acompanhar ali). A lista é do ano corrente; em janeiro, o ano anterior continua à vista, e de fevereiro em diante fica só o ano novo — o que ficou faltando de anos anteriores aparece resumido no rodapé e pode ser importado a qualquer momento. O que você importou antes de o quadro existir também aparece: o app reconhece pelos lançamentos que vieram do documento. E dá para tocar num selo para marcar ou desmarcar à mão, quando você sabe que já leu aquele documento.",a:"carregar"},
  {g:"Importar",t:"Importei a fatura e o mês continua cinza",
   c:"Isso acontecia quando a importação não acrescentava nada — tudo já estava lançado, ou a fatura só trazia parcelas que o app já tinha reservado. A partir da versão 44 o documento fica registrado mesmo assim. Nos meses antigos, toque no selo para marcar à mão.",a:"carregar"},
  {g:"Importar",t:"O quadro conta o que lancei por voz?",
