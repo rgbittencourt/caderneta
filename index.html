@@ -705,7 +705,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="1.31.0";
+const VERSAO_APP="1.31.1";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -1447,6 +1447,7 @@ async function commit(d){
     touched.add(ym); }
   if(kind==="g") learn(d);
   for(const ym of touched) await saveMonth(ym);
+  if(kind==="g"&&!d.fix&&!d.cons&&n===1) for(const ym of touched) ligarFixosPagos(ym);
   if(kind==="e"&&d.cat==="sal"&&!d.auto) await descontarConsignados(ymOf(d.date),d.id);
   return true; }
 function learn(d){
@@ -1536,6 +1537,7 @@ function monthStats(ym){
   let spent=0,future=0,rigid=0;
   gastos.forEach(t=>{ if(isCur&&t.d>today) future+=t.v; else { spent+=t.v; if(t.fix||t.n>1) rigid+=t.v; } });
   const income=entradas.filter(t=>t.cat!=="emprest").reduce((s,t)=>s+t.v,0);   /* empréstimo recebido entra na conta, mas não é renda */
+  const emprest=entradas.filter(t=>t.cat==="emprest").reduce((s,t)=>s+t.v,0);   /* aparece em "Entrou no mês", fora das contas de renda */
   const fixosDoMes=fixedFor(ym), fixPend=fixosDoMes.reduce((s,f)=>s+f.amount,0);
   const fixPendConta=fixosDoMes.filter(f=>!f.cons).reduce((s,f)=>s+f.amount,0);   /* consignado não sai da conta */
   const commitV=future+((isCur||ym>ymOf(today))?fixPend:0);
@@ -1545,7 +1547,7 @@ function monthStats(ym){
   const should=cap*(dayNow/dim);
   const byCat={}; gastos.forEach(t=>{ byCat[t.cat]=(byCat[t.cat]||0)+t.v; });
   if(isCur||ym>ymOf(today)) fixedFor(ym).forEach(f=>{ byCat[f.cat]=(byCat[f.cat]||0)+f.amount; });
-  return {all,gastos,entradas,income,spent,commit:commitV,avail,cap,dim,dayNow,left,perDay,pace,should,byCat,isCur,fixPend,fixPendConta,rigid}; }
+  return {all,gastos,entradas,income,emprest,spent,commit:commitV,avail,cap,dim,dayNow,left,perDay,pace,should,byCat,isCur,fixPend,fixPendConta,rigid}; }
 
 function projectMonth(ym){
   const st=monthStats(ym), last=ym+"-"+pad(daysIn(ym));
@@ -1808,14 +1810,14 @@ const DICAS={};
 /* a chave casa por começo do texto, porque os rótulos trazem o mês ou o nome junto
    ("Disponível até o fim de set 2026"). Vence a chave mais longa que encaixa. */
 [["No banco hoje","O saldo de todas as contas somadas, hoje. O dinheiro da carteira aparece à parte, porque não está no banco."],
- ["Faturas dos cartões que vencem em","A fatura de cada cartão que vence neste mês, com o dia do vencimento — a fatura tem o nome do mês em que vence, como o banco faz. Compra no crédito só sai da conta quando a fatura é paga."],
+ ["Faturas dos cartões que vencem em","A fatura de cada cartão que vence neste mês, com o dia do vencimento — a fatura tem o nome do mês em que vence, como o banco faz. O valor grande é o que ainda falta pagar; a fatura já paga fica na lista com o selo paga, fora da soma. Compra no crédito só sai da conta quando a fatura é paga."],
  ["Melhor cartão","O cartão cuja fatura fecha mais longe: comprando com ele hoje, você fica mais tempo com o dinheiro na conta. Depende do dia de fechamento de cada cartão, informado em Ajustes."],
- ["Disponível até o fim","O que ainda cabe no seu teto neste mês: o teto menos o que já foi gasto e menos o que está comprometido (parcelas, fixos e agendados)."],
+ ["Disponível até o fim","Conta de orçamento, não de dinheiro no banco: o teto do mês menos o que já foi gasto (o crédito conta no dia da compra) e menos o que ainda está reservado no mês — fixos não lançados, consignado ainda não descontado, parcelas e agendados com data à frente. Fatura não entra: as compras dela já contaram quando foram feitas."],
  ["Gasto no mês","Tudo o que saiu neste mês, inclusive as compras no crédito — elas contam no dia da compra, mesmo que o dinheiro só saia na fatura."],
- ["Entrou no mês","O que entrou neste mês: salário e outras entradas já lançadas. Empréstimo recebido não conta como renda."],
+ ["Entrou no mês","Tudo o que entrou neste mês: salário, outras entradas e o empréstimo recebido (consignado), que aparece separado embaixo. Nas análises de renda o empréstimo fica de fora: é dinheiro que entra, mas não é renda."],
  ["Saldo hoje","O dinheiro que você tem agora, somando as contas."],
- ["Previsto dia","O saldo que o app espera para o último dia do mês: o de hoje, mais o que ainda entra, menos os fixos e as faturas que ainda vão sair."],
- ["Próximos vencimentos","Faturas, boletos, gastos fixos e parcelas de dívida com data marcada nos próximos dias."],
+ ["Previsto dia","Conta de dinheiro, não de orçamento: o saldo que o app espera para o último dia do mês — o de hoje (com os agendados até lá), mais o salário que ainda vai entrar, menos os fixos não lançados que saem da conta e as faturas do mês ainda não pagas. Não depende do teto, por isso não é igual ao Disponível."],
+ ["Próximos vencimentos","Só o que ainda não foi pago e vence nos próximos dez dias (ou já venceu): faturas, gastos fixos e parcelas de dívida. O que já foi pago, debitado ou descontado do salário sai daqui; a lista completa do mês, com o que já foi pago, está em Ver todas."],
  ["Onde meu dinheiro está indo","As categorias do mês em ordem de valor. O traço cinza na barra é o limite que você definiu para aquela categoria em Ajustes."],
  ["Onde o dinheiro está","O saldo de cada conta hoje, uma por uma."],
  ["O que salta aos olhos","O diagnóstico do mês: o que passou do teto, o que fugiu do 50-30-20, gastos que parecem fixos e cartões perto do limite."],
@@ -2047,7 +2049,7 @@ function openMore(){
   $$("[data-goto]").forEach(b=>b.onclick=()=>{ closeSheet(); setView(b.dataset.goto); }); }
 
 function render(){
-  garantirSalario();
+  garantirSalario(); arrumarMesAtual();
   { const b=$("#pttBtn"); if(b) b.hidden=!S.user; }
   renderNav(); renderSyncBadge();
   $("#mLbl").textContent=ymLabel(S.ym);
@@ -2114,8 +2116,17 @@ function htmlBancoCartoes(){
     (sub?'<div class="s">'+esc(sub)+'</div>':'')+'</div><span class="row-v'+(valor<0?' neg':'')+'">'+fmtN(valor)+'</span></div>';
   const contas=A.map(a=>({a, v:balanceOf(a.id,hoje)}));
   const banco=contas.filter(x=>x.a.type!=="carteira").reduce((s,x)=>s+x.v,0);
-  const C=creditCards().map(c=>{ const k=chaveDaFatura(c,S.ym); return {c, k, fat:cardInvoice(c.id,k).total, devo:cardOwed(c.id), venc:vencimentoDe(c,k)}; });
-  const totalFat=C.reduce((s,x)=>s+x.fat,0);
+  const C=creditCards().map(c=>{ const k=chaveDaFatura(c,S.ym), inv=cardInvoice(c.id,k), pg=pagamentosDaFatura(c.id,k);
+    return {c, k, fat:inv.total, falta:Math.max(0,inv.open), paga:inv.total>0&&inv.open<=0, pagaEm:pg.length?pg[pg.length-1].d:"",
+      devo:cardOwed(c.id), venc:vencimentoDe(c,k)}; });
+  /* o total de cima é o que ainda falta pagar; a fatura já paga fica na lista com o selo, fora da soma */
+  const totalFat=C.reduce((s,x)=>s+x.falta,0), jaPago=C.filter(x=>x.paga).reduce((s,x)=>s+x.fat,0);
+  const linhaFat=x=>'<div class="linkrow clicavel" data-irext="card:'+x.c.id+'"><div class="m"><div class="t">'+esc(x.c.n)+
+    (x.paga?' <span class="chip ok">paga'+(x.pagaEm?" em "+x.pagaEm.slice(8,10)+"/"+x.pagaEm.slice(5,7):"")+'</span>':"")+'</div>'+
+    '<div class="s">'+esc((x.venc?"vence "+x.venc.slice(8,10)+"/"+x.venc.slice(5,7)+" · ":"")+
+      (!x.paga&&x.falta<x.fat?"falta "+fmtN(x.falta)+" de "+fmtN(x.fat)+" · ":"")+
+      "a pagar no total "+fmtN(x.devo)+(x.c.limit?" · livre "+fmtN(livreDoCartao(x.c)):""))+'</div></div>'+
+    '<span class="row-v'+(x.paga?" pay":"")+'">'+fmtN(x.paga?x.fat:x.falta)+'</span></div>';
   return '<div class="sec"><div class="grid g2">'+
     '<div class="card pad"><div class="tile-l">No banco hoje</div>'+
     '<span class="tile-v" style="font-size:30px;color:'+(banco<0?"var(--bad)":"var(--ink)")+'">'+fmt(banco)+'</span>'+
@@ -2126,10 +2137,9 @@ function htmlBancoCartoes(){
     '</div>'+
     '<div class="card pad"><div class="tile-l">Faturas dos cartões que vencem em '+esc(ymLabel(S.ym))+'</div>'+
     '<span class="tile-v" style="font-size:30px">'+fmt(totalFat)+'</span>'+
-    '<div class="tile-s" style="margin-bottom:8px">Compra no crédito só sai da conta quando a fatura é paga.</div>'+
-    (C.length?C.map(x=>linha(x.c.n,x.fat,
-      (x.venc?"vence "+x.venc.slice(8,10)+"/"+x.venc.slice(5,7)+" · ":"")+"a pagar no total "+fmtN(x.devo)+(x.c.limit?" · livre "+fmtN(livreDoCartao(x.c)):""),
-      ' data-irext="card:'+x.c.id+'"')).join("")
+    '<div class="tile-s" style="margin-bottom:8px">'+(C.some(x=>x.fat)?(totalFat?"Falta pagar":"Tudo pago")+(jaPago?" · já pago "+fmtN(jaPago):"")+". ":"")+
+      'Compra no crédito só sai da conta quando a fatura é paga.</div>'+
+    (C.length?C.map(linhaFat).join("")
       :'<div class="empty" style="padding:14px">Cadastre seus cartões em Ajustes.</div>')+
     '</div></div></div>'; }
 
@@ -2153,7 +2163,8 @@ function renderPainel(){
     '</div>'+
     '<div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));align-content:start">'+
       tile("Gasto no mês",fmt(st.spent),st.dayNow>0?("Fecha em "+fmt(Math.round(st.pace))):"",st.cap&&st.pace>st.cap?"up":"flat")+
-      tile("Entrou no mês",st.income?"+"+fmt(st.income):fmt(0),S.cfg.income&&!S.cfg.salPausa?("Previsto "+fmt(rendaPrevista(S.ym))):"","down")+
+      tile("Entrou no mês",st.income+st.emprest?"+"+fmt(st.income+st.emprest):fmt(0),
+        st.emprest?("Renda "+fmtN(st.income)+" + empréstimo "+fmtN(st.emprest)):S.cfg.income&&!S.cfg.salPausa?("Previsto "+fmt(rendaPrevista(S.ym))):"","down")+
       tile("Saldo hoje",fmt(pr.hoje),(S.cfg.accounts||[]).length+" contas","flat")+
       tile("Previsto dia "+daysIn(S.ym),fmt(pr.fim),pr.goal?("Meta "+fmt(pr.goal)):"",pr.goal?(pr.fim>=pr.goal?"down":"up"):"flat")+
     '</div></div></div>';
@@ -2784,12 +2795,20 @@ function contasRepetidas(){
   const A=S.cfg.accounts||[], invs=A.filter(a=>a.type==="invest"), out=[];
   if(!invs.length) return out;
   const tx=allTx();
-  A.forEach(r=>{ if(invs.indexOf(r)>=0&&!/^conta recuperada$/.test(norm(r.n))) return;
+  A.forEach(r=>{ const recuperada=/^conta recuperada$/.test(norm(r.n));
+    if(invs.indexOf(r)>=0&&!recuperada) return;
     const L=tx.filter(t=>t.acct===r.id||t.acct2===r.id); if(!L.length) return;
     /* a conta tem de estar do lado da aplicação: destino na aplicação, origem no resgate (a conta corrente fica do outro) */
-    if(!L.every(t=>(/^Extrato · aplicação/.test(t.raw||"")&&t.acct2===r.id)||(/^Extrato · resgate/.test(t.raw||"")&&t.acct===r.id))) return;
-    const alvo=invs.find(i=>i.id!==r.id&&L.some(t=>norm(t.desc||"")===norm(i.n)));
-    if(alvo) out.push({de:r, para:alvo, n:L.length}); });
+    const ladoAplic=t=>(/^Extrato · aplicação/.test(t.raw||"")&&t.acct2===r.id)||(/^Extrato · resgate/.test(t.raw||"")&&t.acct===r.id);
+    if(!recuperada&&!L.every(ladoAplic)) return;
+    /* a "Conta recuperada" vem de versões antigas, com movimentos escritos de outros jeitos ("Rende Fácil",
+       "Aplicação BB Rende Fácil"): basta o nome da aplicação estar no movimento, ou haver uma aplicação só */
+    const temNome=(i,t)=>{ const a=" "+norm(i.n)+" ", d=" "+norm(t.desc||"")+" ";
+      return a===d||(recuperada&&(d.indexOf(a)>=0||(d.trim().length>3&&a.indexOf(d)>=0))); };
+    let alvo=invs.find(i=>i.id!==r.id&&L.some(t=>temNome(i,t)));
+    if(!alvo&&recuperada){ const outras=invs.filter(i=>i.id!==r.id); if(outras.length===1&&L.some(ladoAplic)) alvo=outras[0]; }
+    if(alvo) out.push({de:r, para:alvo, n:L.length});
+    else if(recuperada) out.push({de:r, para:null, n:L.length}); });   /* sem saber com qual: o dono escolhe na ficha da conta */
   return out; }
 
 /* saldo inicial: a data do primeiro extrato e o saldo anterior impresso nele. Antes dessa data, nada conta no saldo. */
@@ -3563,6 +3582,14 @@ const AJUDA=[
   c:"Na aba Meta: divide a renda em Necessidades (50%), Desejos (30%) e Futuro (20%). A rosca mostra a meta e para onde a renda foi. Necessidades e Desejos são tetos; Futuro é piso. Os percentuais e o grupo de cada categoria são ajustáveis.",a:"futuro"},
  {g:"Entender os números",t:"O que é o teto de gastos?",
   c:"É quanto você decidiu gastar no mês, informado em Ajustes → Meta do mês. O Painel mostra o disponível até o fim do mês descontando o que já foi gasto e o que está comprometido.",a:"painel"},
+ {g:"Entender os números",t:"Como o Painel calcula cada número do mês?",
+  c:"Disponível até o fim do mês: o teto menos o que já foi gasto e menos o que ainda está reservado no mês (fixos não lançados, consignado ainda não descontado, parcelas e agendados com data à frente). É conta de orçamento: a compra no crédito conta no dia em que foi feita, e a fatura não entra de novo. Gasto no mês: tudo o que saiu até hoje, crédito inclusive; o Fecha em embaixo é a projeção para o fim do mês no ritmo atual. Entrou no mês: salário, outras entradas e o empréstimo recebido, que aparece separado embaixo. Saldo hoje: a soma das contas. Previsto no último dia: o saldo de hoje, mais o salário que ainda vai entrar, menos os fixos não lançados que saem da conta e as faturas do mês ainda não pagas. Pare o mouse três segundos em cima de cada título para ver a explicação.",a:"painel"},
+ {g:"Entender os números",t:"Por que o Previsto do último dia não é igual ao Disponível?",
+  c:"Porque medem coisas diferentes. O Disponível é orçamento: quanto ainda cabe no teto que você escolheu. O Previsto é dinheiro: quanto deve sobrar nas contas no último dia. Os dois só dariam igual se o teto fosse exatamente o que você tem para gastar no mês. Um gasto no crédito, por exemplo, tira do Disponível no dia da compra, mas só tira do Previsto no mês em que a fatura vence.",a:"painel"},
+ {g:"Entender os números",t:"Paguei a fatura. Ela ainda aparece no Painel?",
+  c:"Aparece, com o selo paga e a data, para você ver o mês inteiro, mas fica fora do valor grande, que é o que ainda falta pagar (o já pago aparece embaixo dele). O Previsto também só desconta as faturas ainda não pagas. Se a fatura paga continua sem o selo, o pagamento não está no app, ou está ligado a outra fatura: abra o cartão em Contas.",a:"painel"},
+ {g:"Entender os números",t:"Paguei uma conta fixa e ela continua em Próximos vencimentos",
+  c:"Desde a versão 1.31.1 o app reconhece sozinho a conta fixa paga fora dele, por débito automático ou boleto, quando ela chega pelo extrato ou é lançada: o nome do lançamento tem as palavras do fixo e o valor é parecido (até 30% de diferença). Ela sai de Próximos vencimentos e deixa de ser contada duas vezes. Se o nome do banco é muito diferente do nome do fixo, toque no lançamento e use Tornar fixo, ou mude o nome do fixo em Ajustes para o que vem no extrato.",a:"painel"},
 
  {g:"Dinheiro",t:"Saque é gasto?",
   c:"Não. O saque tira da conta corrente e põe na Carteira. O gasto conta quando o dinheiro sai da carteira.",a:"carteira"},
@@ -3575,7 +3602,9 @@ const AJUDA=[
  {g:"Dívidas",t:"Como cadastro um consignado que já estou pagando?",
   c:"Aba Lançar, no fim, Cadastrar dívida, tipo Consignado. Os números estão no contracheque: a linha do empréstimo traz o valor da parcela e o prazo. Preencha o valor da parcela, o valor do empréstimo, a data em que ele caiu na conta, o número total de parcelas, quantas já foram descontadas antes deste mês e, em Primeiro desconto no salário de, o mês em que caiu o primeiro salário já com o desconto. Se o dinheiro do empréstimo já veio no extrato, desmarque Lançar o depósito: senão ele entra duas vezes. Os salários que já estão no app ficam como estão; do próximo em diante, a parcela aparece em Dívidas e empréstimos.",a:"dividas"},
  {g:"Dívidas",t:"O empréstimo apareceu como salário na minha renda",
-  c:"Acontecia com o crédito do consignado no extrato do Banco do Brasil (Contr BB Consig em Folha): a palavra folha puxava a categoria para Salário, e o dinheiro emprestado inflava a renda do mês nas análises e no plano. Agora ele entra como Empréstimo recebido, que soma no saldo da conta mas não conta como renda. Para corrigir o que já entrou: Ajustes, Dados, Revisar, e toque em Corrigir na linha dos empréstimos contados como salário.",a:"dividas"},
+  c:"Acontecia com o crédito do consignado no extrato do Banco do Brasil (Contr BB Consig em Folha): a palavra folha puxava a categoria para Salário, e o dinheiro emprestado inflava a renda do mês nas análises e no plano. Agora ele entra como Empréstimo recebido, que soma no saldo da conta mas não conta como renda. No Painel, Entrou no mês mostra o empréstimo separado, somado ao que entrou. Para corrigir o que já entrou: Ajustes, Dados, Revisar, e toque em Corrigir na linha dos empréstimos contados como salário.",a:"dividas"},
+ {g:"Dívidas",t:"O consignado aparece como Sai do salário do mês, mas o salário já entrou",
+  c:"Acontecia quando o consignado era cadastrado depois de o salário do mês já estar no app (vindo do extrato, por exemplo). Desde a versão 1.31.1, com o salário do mês lançado, o app lança sozinho a parcela do consignado na data do salário, como descontada, em Dívidas e empréstimos. O valor do salário não muda, e o saldo da conta também não. Se você apagou a parcela de propósito, ela não volta.",a:"dividas"},
  {g:"Dívidas",t:"O desconto do consignado começou meses depois. Como informo?",
   c:"Na ficha da dívida há Primeiro desconto no salário de. A contagem das parcelas passa a valer desse mês. Se algumas já saíram antes deste mês, informe em Já descontadas antes deste mês.",a:"dividas"},
  {g:"Dívidas",t:"Quanto preciso para quitar hoje?",
@@ -5658,7 +5687,7 @@ function openDivida(id){
         const idDep=uid(); dv.depId=idDep;
         await commit({id:idDep,raw:"",v:V,desc:"Empréstimo · "+nome,cat:"emprest",method:"transferencia",cardId:"",acct:conta,n:1,date:data,time:"",k:"e",emp:dv.id}); }
       else if(antigo){ await removeTx(antigo.ym,antigo.id,false); dv.depId=""; }
-      saveCfg(); closeSheet(); render();
+      saveCfg(); await conferirDescontos(ymOf(hoje)); closeSheet(); render();
       const e=estadoCons(dv);
       toast(e.n?"Consignado salvo. A próxima parcela sai do salário de "+ymLabel(e.start)+".":"Consignado salvo: todas as parcelas já foram descontadas.");
       return; }
@@ -5914,7 +5943,7 @@ function contasDoMes(ym){
   (S.cfg.dividas||[]).filter(dv=>dv.folha||dv.tipo==="consignado").forEach(dv=>{ normDivida(dv);
     if(ehConsSal(dv)){ const t=txOf(ym).find(x=>x.cons===dv.id);
       if(t) out.push({tipo:"folha", id:dv.id, nome:dv.nome, v:t.v, d:t.d, pago:true, sub:"Descontado do salário"});
-      else if(consDoMes(ym).some(x=>x.dv.id===dv.id)) out.push({tipo:"folha", id:dv.id, nome:dv.nome, v:+dv.parcela||0, d:primeiroDiaUtil(ym), pago:false, sub:"Sai do salário do mês"});
+      else if(!salarioDoMes(ym)&&consDoMes(ym).some(x=>x.dv.id===dv.id)) out.push({tipo:"folha", id:dv.id, nome:dv.nome, v:+dv.parcela||0, d:primeiroDiaUtil(ym), pago:false, sub:"Sai do salário do mês"});
       return; }
     if(ym<dv.inicio||ym>ymShift(dv.inicio,Math.max(1,+dv.total||1)-1)) return;
     const d=diaDoMes(dv.dia);
@@ -5931,8 +5960,10 @@ function contasDoMes(ym){
         (prevista?" · ainda sem a fatura do banco":"")}); });
   return out.sort((a,b)=>a.d.localeCompare(b.d)||b.v-a.v); }
 
+/* venceu e não foi paga: desconto em folha não atrasa, e fatura ainda sem o documento do banco é só previsão */
+const estaAtrasada=(x,hoje)=>!x.pago&&x.d<hoje&&x.tipo!=="folha"&&!x.prevista;
 function linhaConta(x,hoje){
-  const atrasada=!x.pago&&x.d<hoje&&x.tipo!=="folha"&&!x.prevista;
+  const atrasada=estaAtrasada(x,hoje);
   const acao=x.pago?"":x.tipo==="fixo"?'<button class="mini" data-pagafixo="'+x.id+'">Lançar</button>'
     :x.tipo==="fatura"?'<button class="mini" data-pagafat="'+x.id+'">Pagar</button>':"";
   const chip=x.pago?'<span class="chip ok">'+(x.tipo==="folha"?"descontado":"pago")+'</span>'
@@ -5950,7 +5981,7 @@ function htmlContas(ym){
   if(!L.length) return '<div class="sec" id="ctaSec"><div class="sec-h"><h2 class="sec-t">Contas a pagar de '+esc(ymLabel(ym))+'</h2></div>'+
     '<div class="card pad"><div class="empty"><b>Nada a pagar neste mês</b>Marque como fixo o que se repete — aluguel, escola, assinaturas — e cadastre suas dívidas: tudo aparece aqui, em ordem de vencimento.</div></div></div>';
   const aPagar=L.filter(x=>!x.pago), falta=aPagar.reduce((s,x)=>s+x.v,0), pago=L.filter(x=>x.pago).reduce((s,x)=>s+x.v,0);
-  const atrasadas=aPagar.filter(x=>x.d<hoje).length, total=pago+falta;
+  const atrasadas=aPagar.filter(x=>estaAtrasada(x,hoje)).length, total=pago+falta;
   return '<div class="sec" id="ctaSec"><div class="sec-h"><h2 class="sec-t">Contas a pagar de '+esc(ymLabel(ym))+'</h2>'+
     '<span class="day-t">'+(falta?"faltam "+fmt(falta):"tudo pago")+'</span></div>'+
     '<div class="card pad">'+
@@ -5965,7 +5996,7 @@ function htmlProximas(ym){
   const hoje=todayISO(), lim=new Date(Date.parse(hoje+"T12:00:00")+10*86400000).toISOString().slice(0,10);
   const L=contasDoMes(ym).filter(x=>!x.pago&&x.d<=lim);
   if(!L.length) return "";
-  const tot=L.reduce((s,x)=>s+x.v,0), atrasadas=L.filter(x=>x.d<hoje&&!x.prevista).length;
+  const tot=L.reduce((s,x)=>s+x.v,0), atrasadas=L.filter(x=>estaAtrasada(x,hoje)).length;
   return '<div class="sec"><div class="sec-h"><h2 class="sec-t">Próximos vencimentos</h2>'+
     '<button class="sec-a" data-irmes="1">Ver todas</button></div>'+
     '<div class="card pad"><div class="ch-s" style="margin-bottom:4px">'+
@@ -6039,8 +6070,12 @@ function consDoMes(ym){
   return (S.cfg.dividas||[]).filter(ehConsSal).map(dv=>({dv,e:estadoCons(dv)}))
     .filter(x=>x.e.meses[ym]||(x.e.n>0&&ym>=x.e.start&&ym<=x.e.fim)); }
 function rendaPrevista(ym){ return Math.max(0,rendaDoMes(ym)-consDoMes(ym).reduce((s,x)=>s+(+x.dv.parcela||0),0)); }
-/* parcela prevista no mês, enquanto não foi lançada: entra como gasto fixo */
+/* o salário do mês (o primeiro, se houver mais de um lançamento de salário) */
+const salarioDoMes=ym=>txOf(ym).filter(t=>t.k==="e"&&t.cat==="sal").sort((a,b)=>a.d.localeCompare(b.d))[0]||null;
+/* parcela prevista no mês, enquanto não foi lançada: entra como gasto fixo. Com o salário do mês já lançado, a parcela
+   já saiu dele — o desconto é lançado por conferirDescontos; se o dono o apagou, não volta como "a descontar". */
 function consVirtuais(ym){
+  if(salarioDoMes(ym)) return [];
   return consDoMes(ym).filter(x=>!x.e.meses[ym]).map(x=>({id:"cons:"+x.dv.id, name:x.dv.nome, amount:+x.dv.parcela||0,
     day:+primeiroDiaUtil(ym).slice(8,10), cat:"divida", card:"", cons:x.dv.id, acct:contaDoSalario()})); }
 const idDesconto=(dvId,ym)=>"cons-"+dvId+"-"+ym;
@@ -6094,6 +6129,47 @@ async function descontarConsignados(ym,txId){
   for(const x of L) await lancarDesconto(x.dv,ym,x.e,sal.d);
   const msg="Salário de "+fmt(sal.v)+", já sem o consignado de "+fmt(P)+" — a parcela foi para Dívidas e empréstimos";
   setTimeout(()=>toast(msg),2900); }
+
+/* salário já lançado e o desconto do consignado não: o consignado foi cadastrado depois de o salário entrar
+   (pelo extrato, por exemplo), e ficava "Sai do salário do mês" em Próximos vencimentos com o salário já na conta.
+   Lança o desconto na data do salário. Não mexe no valor do salário: o que veio do banco é o que caiu.
+   Desconto apagado de propósito fica apagado (lancarDesconto respeita a lápide). */
+async function conferirDescontos(ym){
+  const sal=salarioDoMes(ym); if(!sal) return 0;
+  let n=0;
+  for(const x of consDoMes(ym)) if(x.e.n>0&&!x.e.meses[ym]&&await lancarDesconto(x.dv,ym,x.e,sal.d)) n++;
+  return n; }
+
+/* gasto fixo pago fora do app — débito automático, boleto — e trazido pelo extrato ou lançado à mão sem marcar o fixo:
+   o lançamento é o do fixo. Sem essa ligação o fixo continuava "a lançar": aparecia atrasado em Próximos vencimentos
+   e era contado duas vezes, no gasto e no comprometido. Liga pelo nome (as palavras do fixo estão no lançamento)
+   e pelo valor parecido; um lançamento por fixo por mês. */
+const PALAVRAS_GENERICAS=new Set(["pagamento","pagto","pgto","pag","conta","contas","debito","automatico","aut","boleto","compra",
+  "com","cartao","para","pix","ted","doc","transferencia","enviada","enviado","fatura","mensal","pago","paga"]);
+const palavrasDoFixo=s=>norm(s||"").split(" ").filter(w=>w.length>2&&!PALAVRAS_GENERICAS.has(w));
+function ligarFixosPagos(ym){
+  const m=S.months[ym]; if(!m||!m.tx) return 0;
+  const todos=txOf(ym), feitos=new Set(todos.map(t=>t.fix).filter(Boolean));
+  const livres=todos.filter(t=>t.k==="g"&&!t.fix&&!t.cons&&!t.aj&&t.method!=="folha"&&(+t.n||1)<=1);
+  let n=0;
+  (S.cfg.fixed||[]).forEach(f=>{
+    if(!f.amount||feitos.has(f.id)||(f.ate&&ym>f.ate)||(f.desde&&ym<f.desde)) return;
+    const pf=palavrasDoFixo(f.name); if(!pf.length) return;
+    const casa=t=>{ const pt=new Set(palavrasDoFixo(t.desc)); return pf.filter(w=>pt.has(w)).length>=Math.ceil(pf.length*0.8); };
+    const c=livres.filter(t=>casa(t)&&Math.abs(t.v-f.amount)<=Math.max(20,f.amount*0.3))
+      .sort((a,b)=>Math.abs(a.v-f.amount)-Math.abs(b.v-f.amount))[0];
+    if(!c||!m.tx[c.id]) return;
+    m.tx[c.id].fix=f.id; m.tx[c.id].u=Date.now(); livres.splice(livres.indexOf(c),1); feitos.add(f.id); n++; });
+  if(n) saveMonth(ym);
+  return n; }
+/* a cada abertura (e depois de sincronizar): os dois consertos acima no mês atual; o anterior, só para os fixos */
+let arrumouEm=0;
+async function arrumarMesAtual(){
+  if(!S.cfg||salarioRodando||(S.mode!=="local"&&!S.sincronizado)) return;
+  if(Date.now()-arrumouEm<4000) return; arrumouEm=Date.now();
+  const cur=ymOf(todayISO());
+  const n=ligarFixosPagos(ymShift(cur,-1))+ligarFixosPagos(cur)+await conferirDescontos(cur);
+  if(n) setTimeout(render,0); }
 
 /* versões anteriores: consignado contado pelo calendário passa a ser descontado no salário */
 function migrar2(c){
@@ -6447,9 +6523,11 @@ async function openRevisao(){
       empSal.length?empSal.map(t=>fmtN(t.v)+" em "+diaMesAno(t.d)).join(" · ")+" — dinheiro emprestado entra na conta, mas não é renda"
         :"Os créditos de empréstimo estão em Empréstimo recebido",
       empSal.length?'<button class="mini" id="rvEmp">Corrigir</button>':'')+
-    (dupC.length?dupC.map((x,i)=>bloco("A mesma conta aparece duas vezes",
+    (dupC.length?dupC.map((x,i)=>x.para?bloco("A mesma conta aparece duas vezes",
       esc(x.de.n)+" ("+x.n+(x.n===1?" movimento":" movimentos")+") e "+esc(x.para.n)+" são a mesma aplicação",
-      '<button class="mini" data-junta="'+i+'">Juntar em '+esc(x.para.n)+'</button>')).join(""):bloco("Nenhuma conta repetida","Cada conta aparece uma vez só",""))+
+      '<button class="mini" data-junta="'+i+'">Juntar em '+esc(x.para.n)+'</button>')
+      :bloco("Uma conta foi recuperada",esc(x.de.n)+" ("+x.n+(x.n===1?" lançamento":" lançamentos")+"): se ela é a mesma de outra conta, junte as duas",
+      '<button class="mini" data-abreconta="'+x.de.id+'">Abrir</button>')).join(""):bloco("Nenhuma conta repetida","Cada conta aparece uma vez só",""))+
     bloco(acs.length?acs.length+(acs.length>1?" acertos de saldo lançados":" acerto de saldo lançado"):"Nenhum acerto de saldo",
       acs.length?"Somam "+fmtN(acs.reduce((s,t)=>s+(t.acct2?t.v:-t.v),0))+" no saldo das contas":"O saldo das suas contas é só a soma dos lançamentos",
       acs.length?'<button class="mini" id="rvAcs">Ver</button>':'')+
@@ -6460,6 +6538,7 @@ async function openRevisao(){
   $("#rvX").onclick=closeSheet;
   const ver=$("#rvVer"); if(ver) ver.onclick=openSemDescricao;
   const vac=$("#rvAcs"); if(vac) vac.onclick=openAcertos;
+  $$("[data-abreconta]").forEach(b=>b.onclick=()=>openAcct(b.dataset.abreconta));
   $$("[data-junta]").forEach(b=>b.onclick=()=>{ const x=dupC[+b.dataset.junta]; if(!x) return;
     if(!b.dataset.certeza){ b.dataset.certeza="1"; b.textContent="Juntar mesmo?";
       toast("Os movimentos de "+x.de.n+" vão para "+x.para.n+", e "+x.de.n+" deixa de existir. Toque de novo."); return; }
