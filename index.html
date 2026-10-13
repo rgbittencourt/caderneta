@@ -711,7 +711,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="1.32.0";
+const VERSAO_APP="1.32.1";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -1742,7 +1742,10 @@ function chartCols(rows,opt){
     s+='<text x="'+W+'" y="'+(y-6)+'" text-anchor="end" style="fill:var(--ink-2);font:600 10.5px var(--f)">teto '+fmtK(ref)+'</text>'; }
   return s+'</svg>'; }
 
-/* colunas empilhadas: ordem fixa azul -> cobre -> roxo (cobre separa o par que colapsa sob CVD) */
+/* colunas empilhadas: ordem fixa azul -> cobre -> roxo (cobre separa o par que colapsa sob CVD).
+   O topo arredondado é da coluna inteira (clipPath), não do último pedaço: com o pedaço de cima mais fino que o raio,
+   o arredondamento não cabia nele e aquela coluna ficava com o topo reto (o dono notou em mar/2027, 13/10/2026). */
+let idColuna=0;
 function chartStack(rows,series,opt){
   opt=opt||{}; const W=560,H=190,L=44,B=26,T=10,n=rows.length,GAP=2;
   const ref=opt.ref||0;
@@ -1757,12 +1760,14 @@ function chartStack(rows,series,opt){
   rows.forEach((r,i)=>{
     const cx=L+band*i+band/2; let acc=0;
     const parts=series.map(k=>({k,v:r[k.key]||0})).filter(p=>p.v>0);
-    parts.forEach((p,j)=>{
-      const h=(p.v/max)*(H-T-B); const yTop=Y(acc+p.v); const isTop=j===parts.length-1;
-      const hh=Math.max(1,h-(j<parts.length-1?GAP:0));
-      s+= isTop ? '<path d="'+pathTop(cx-bw/2,yTop,bw,Math.max(1,h),4)+'" style="fill:'+p.k.color+'"/>'
-                : '<rect x="'+(cx-bw/2)+'" y="'+yTop+'" width="'+bw+'" height="'+hh+'" style="fill:'+p.k.color+'"/>';
-      acc+=p.v; });
+    if(parts.length){ const t=tot(r), id="col"+(++idColuna);
+      s+='<clipPath id="'+id+'"><path d="'+pathTop(cx-bw/2,Y(t),bw,Math.max(1,(t/max)*(H-T-B)),4)+'"/></clipPath><g clip-path="url(#'+id+')">';
+      parts.forEach((p,j)=>{
+        const h=(p.v/max)*(H-T-B); const yTop=Y(acc+p.v); const isTop=j===parts.length-1;
+        const hh=Math.max(1,h-(isTop?0:GAP));
+        s+='<rect x="'+(cx-bw/2)+'" y="'+yTop+'" width="'+bw+'" height="'+hh+'" style="fill:'+p.k.color+'"/>';
+        acc+=p.v; });
+      s+='</g>'; }
     s+='<text x="'+cx+'" y="'+(H-8)+'" text-anchor="middle" style="fill:var(--ink-3);font:400 10.5px var(--f)">'+esc(r.label)+'</text>';
     const tip=esc(r.label)+" — "+fmt(tot(r))+"|"+series.map(k=>esc(k.n)+" "+fmtN(r[k.key]||0)).join(" · ");
     s+='<rect x="'+(cx-band/2)+'" y="'+T+'" width="'+band+'" height="'+(H-T-B)+'" style="fill:transparent" data-tip="'+tip+'"'+attrLeitura(r)+'/>'; });

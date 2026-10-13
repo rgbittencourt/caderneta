@@ -59,7 +59,7 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **Bancos que o app lê:** Banco do Brasil (extrato em PDF ou CSV, fatura em PDF), Nubank (extrato e fatura em PDF) e Bradesco (extrato em PDF). O banco é reconhecido pelo texto, e a leitura se confere com os totais que o banco imprime. Pix entre contas da mesma pessoa vira transferência, não gasto.
 
-**Versão:** 1.32.0. A numeração segue o Versionamento Semântico (MAIOR.MENOR.CORREÇÃO): o segundo número sobe a cada função nova, o terceiro a cada correção. A versão em uso aparece em Ajustes → Dados → *Versão do app*.
+**Versão:** 1.32.1. A numeração segue o Versionamento Semântico (MAIOR.MENOR.CORREÇÃO): o segundo número sobe a cada função nova, o terceiro a cada correção. A versão em uso aparece em Ajustes → Dados → *Versão do app*.
 
 **Conta pelo código de barras:** na caixa de fala, *Código de barras* abre a câmera ao vivo e lê sozinho, em qualquer celular (zxing-cpp em WebAssembly, além do leitor do aparelho); lido o código, o app pergunta se já pagou ou se paga no vencimento e lança como Boleto, saindo da conta corrente. *Tirar foto* e *Digitar a linha* ficam de reserva.
 
