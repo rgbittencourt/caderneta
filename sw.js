@@ -1,7 +1,7 @@
 /* Caderneta — service worker: guarda o app no aparelho para abrir sem internet.
    Mude VERSAO a cada publicação para os aparelhos pegarem a versão nova. Desde a 1.30.1 a versão segue o
    Versionamento Semântico (MAIOR.MENOR.CORREÇÃO): função nova sobe o MENOR, correção sobe a CORREÇÃO. */
-const VERSAO = "caderneta-1.32.1";
+const VERSAO = "caderneta-1.33.0";
 const FONTES = "caderneta-fontes";
 const LIBS = "caderneta-libs-2";
 const APP = ["./", "./index.html", "./manifest.webmanifest", "./config.js",

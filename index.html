@@ -711,7 +711,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="1.32.1";
+const VERSAO_APP="1.33.0";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -1532,8 +1532,21 @@ function cardInvoice(cardId,ym){ let total=0,paid=0;
 const comprasDaFatura=(cardId,ym)=>allTx().filter(t=>t.card===cardId&&t.k==="g"&&t.method==="credito"&&faturaDe(t)===ym);
 const pagamentosDaFatura=(cardId,ym)=>allTx().filter(t=>t.k==="p"&&t.card===cardId&&t.ref===ym).sort((a,b)=>a.d.localeCompare(b.d));
 const creditCards=()=>(S.cfg.cards||[]).filter(c=>c.type==="credito");
+/* fixo com valor que varia todo mês (luz, água — pedido do dono, 13/10/2026): a previsão é a média dos últimos 3 meses
+   já pagos antes de ym (até 12 meses para trás); sem histórico, o valor cadastrado. Fixo comum: o valor cadastrado. */
+function previsaoDoFixo(f,ym){
+  if(!f||!f.varia) return f?f.amount:0;
+  const vs=[], desde=ymShift(ym,-12);
+  Object.keys(S.months).filter(m=>m<ym&&m>=desde).sort().reverse().some(m=>{
+    const tx=(S.months[m]||{}).tx||{}; let v=0;
+    Object.keys(tx).forEach(id=>{ const t=tx[id]; if(t&&!t.del&&t.fix===f.id&&t.v>0) v+=t.v; });
+    if(v>0) vs.push(v); return vs.length>=3; });
+  return vs.length?Math.round(vs.reduce((a,b)=>a+b,0)/vs.length):f.amount; }
+/* o próximo mês em que o fixo ainda vai ser pago: este, ou o seguinte se o deste já está lançado */
+const proxMesDoFixo=f=>{ const cur=ymOf(todayISO()); return txOf(cur).some(t=>t.fix===f.id)?ymShift(cur,1):cur; };
 function fixedFor(ym){ const done=new Set(txOf(ym).map(t=>t.fix).filter(Boolean));
-  return (S.cfg.fixed||[]).filter(f=>f.amount&&!done.has(f.id)&&(!f.ate||ym<=f.ate)&&(!f.desde||ym>=f.desde)).concat(consVirtuais(ym))
+  return (S.cfg.fixed||[]).filter(f=>f.amount&&!done.has(f.id)&&(!f.ate||ym<=f.ate)&&(!f.desde||ym>=f.desde))
+    .map(f=>f.varia?Object.assign({},f,{amount:previsaoDoFixo(f,ym)}):f).concat(consVirtuais(ym))
     .map(f=>Object.assign({},f,{day:Math.min(f.day||1,daysIn(ym))})); }
 
 function monthStats(ym){
@@ -2577,9 +2590,13 @@ function renderMes(){
   const fb=$("#fixBtn"); if(fb) fb.onclick=lancarFixos; }
 
 async function lancarFixos(){
-  const pend=fixedFor(S.ym); if(!pend.length) return;
+  const todos=fixedFor(S.ym), pend=todos.filter(f=>!f.varia), varia=todos.filter(f=>f.varia);
+  if(!todos.length) return;
   for(const f of pend) await commit(lancamentoDoFixo(f,S.ym));
-  render(); toast(pend.length+" gastos fixos lançados"); }
+  render();
+  /* valor que varia não entra pela previsão: o dono lança com o valor da conta (ou vem pelo extrato) */
+  toast((pend.length?pend.length+(pend.length>1?" gastos fixos lançados":" gasto fixo lançado"):"Nada lançado")+
+    (varia.length?". "+varia.map(f=>f.name).join(", ")+": o valor varia — toque em Lançar "+(varia.length>1?"em cada uma":"nela")+" com o valor da conta.":".")); }
 
 /* =================== contas =================== */
 function acctIcon(type){
@@ -3650,7 +3667,9 @@ const AJUDA=[
  {g:"Entender os números",t:"Paguei a fatura. Ela ainda aparece no Painel?",
   c:"Aparece, com o selo paga e a data, para você ver o mês inteiro, mas fica fora do valor grande, que é o que ainda falta pagar (o já pago aparece embaixo dele). O Falta pagar e o Disponível também só contam as faturas ainda não pagas. Se a fatura paga continua sem o selo, o pagamento não está no app, ou está ligado a outra fatura: abra o cartão em Contas.",a:"painel"},
  {g:"Entender os números",t:"Paguei uma conta fixa e ela continua em Próximos vencimentos",
-  c:"Desde a versão 1.31.1 o app reconhece sozinho a conta fixa paga fora dele, por débito automático ou boleto, quando ela chega pelo extrato ou é lançada: o nome do lançamento tem as palavras do fixo e o valor é parecido (até 30% de diferença). Ela sai de Próximos vencimentos e deixa de ser contada duas vezes. Se o nome do banco é muito diferente do nome do fixo, toque no lançamento e use Tornar fixo, ou mude o nome do fixo em Ajustes para o que vem no extrato.",a:"painel"},
+  c:"Desde a versão 1.31.1 o app reconhece sozinho a conta fixa paga fora dele, por débito automático ou boleto, quando ela chega pelo extrato ou é lançada: o nome do lançamento tem as palavras do fixo e o valor é parecido (até 30% de diferença, ou qualquer valor se o fixo está marcado como O valor varia todo mês). Ela sai de Próximos vencimentos e deixa de ser contada duas vezes. Se o nome do banco é muito diferente do nome do fixo, toque no lançamento e use Tornar fixo, ou mude o nome do fixo em Ajustes para o que vem no extrato.",a:"painel"},
+ {g:"Entender os números",t:"Conta fixa com valor que muda todo mês (luz, água). Como faço?",
+  c:"Ajustes, Gastos fixos do mês, toque na conta e marque O valor varia todo mês. A partir daí: a previsão passa a ser a média dos últimos 3 meses pagos, e se ajusta sozinha (o valor cadastrado vale enquanto não houver meses pagos); pelo extrato, o app reconhece a conta pelo nome, com qualquer valor; e o botão Lançar pergunta quanto veio a conta, já preenchido com a previsão. O Lançar fixos, que lança todos de uma vez, deixa essas contas de fora, para não lançar a previsão como se fosse o valor de verdade. Cada mês fica com o valor que foi pago; mudar a previsão não mexe nos meses passados.",a:"mes"},
 
  {g:"Dinheiro",t:"Saque é gasto?",
   c:"Não. O saque tira da conta corrente e põe na Carteira. O gasto conta quando o dinheiro sai da carteira.",a:"carteira"},
@@ -3786,7 +3805,7 @@ function renderAjustes(){
 
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Gastos fixos do mês</h2>'+
     '<button class="sec-a" data-new="fix">Adicionar</button></div><div class="card pad">'+
-    ((c.fixed||[]).length?c.fixed.map(x=>linkrow(x.name,fmt(x.amount)+" · todo dia "+x.day+" · "+catName(x.cat),'data-fix="'+x.id+'"')).join("")
+    ((c.fixed||[]).length?c.fixed.map(x=>linkrow(x.name,(x.varia?"varia · previsão "+fmt(previsaoDoFixo(x,proxMesDoFixo(x))):fmt(x.amount))+" · todo dia "+x.day+" · "+catName(x.cat),'data-fix="'+x.id+'"')).join("")
       :'<div class="empty"><b>Nenhum gasto fixo</b>Aluguel, escola, energia, plano de saúde. Entram no teto como comprometido.</div>')+'</div></div>'+
 
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">O que o app aprendeu</h2></div><div class="card pad">'+
@@ -3993,16 +4012,24 @@ function openFix(id){
   const isNew=!F.some(x=>x.id===f.id);
   sheet(isNew?"Novo gasto fixo":f.name,
     '<div class="set"><div class="set-f"><label>Nome</label><input id="fN" value="'+esc(f.name)+'" placeholder="Aluguel"></div>'+
-    '<div class="two"><div class="set-f"><label>Valor</label><input id="fV" inputmode="decimal" value="'+(f.amount?fmtN(f.amount):"")+'"></div>'+
+    '<div class="two"><div class="set-f"><label id="fVL">'+(f.varia?"Valor previsto":"Valor")+'</label><input id="fV" inputmode="decimal" value="'+(f.amount?fmtN(f.amount):"")+'"></div>'+
     '<div class="set-f"><label>Dia do mês</label><input id="fD" inputmode="numeric" value="'+f.day+'"></div></div>'+
     '<div class="two"><div class="set-f"><label>Categoria</label><select id="fC">'+optId(S.cfg.cats,f.cat)+'</select></div>'+
     '<div class="set-f"><label>Pagamento</label><select id="fP">'+optId(S.cfg.cards,f.card)+'</select></div></div>'+
+    '<div class="set-f"><label style="display:flex;align-items:center;gap:9px;font-weight:500;color:var(--ink)"><input type="checkbox" id="fVar" style="width:20px;height:20px"'+(f.varia?" checked":"")+'>O valor varia todo mês (luz, água, telefone)</label>'+
+      '<span class="hint" id="fVarH"></span></div>'+
     '<div class="set-f"><span class="hint">Entra no teto como comprometido todo mês. Quando pagar de verdade, toque em “Lançar fixos” na aba Mês.</span></div></div>',
     (isNew?"":'<button class="btn danger" id="fKill">Excluir</button>')+'<button class="btn" id="fOk">Salvar</button>');
+  const media=isNew?0:previsaoDoFixo(Object.assign({},f,{varia:true}),proxMesDoFixo(f)), temMedia=media&&media!==f.amount;
+  const dicaVar=()=>{ const v=$("#fVar").checked; $("#fVL").textContent=v?"Valor previsto":"Valor";
+    $("#fVarH").textContent=v?("A previsão passa a ser a média dos últimos 3 meses pagos"+(temMedia?" (hoje, "+fmt(media)+")":"")+"; o valor acima vale enquanto não houver meses pagos. O extrato é reconhecido pelo nome, com qualquer valor, e o Lançar pergunta quanto veio a conta.")
+      :"Valor igual todo mês. Pelo extrato, o app reconhece a conta com até 30% de diferença."; };
+  $("#fVar").onchange=dicaVar; dicaVar();
   $("#fOk").onclick=()=>{
     const name=$("#fN").value.trim(), amount=toCents($("#fV").value);
     if(!name||!amount){ toast("Preencha nome e valor."); return; }
     const obj=Object.assign({},f,{name,amount,day:Math.max(1,Math.min(31,parseInt($("#fD").value)||1)),cat:$("#fC").value,card:$("#fP").value});
+    if($("#fVar").checked) obj.varia=true; else delete obj.varia;
     const i=F.findIndex(x=>x.id===f.id);
     if(i<0) F.push(obj); else F[i]=obj;
     saveCfg(); closeSheet(); render(); toast("Salvo"); };
@@ -5474,7 +5501,7 @@ function diagnostico(ym){
         "Faltam <b>"+fmt(falta)+"</b> para guardar este mês."+(folga>0?" A folga que ainda existe em Desejos (<b>"+fmt(folga)+"</b>) cobre "+(folga>=falta?"tudo":Math.round(folga/falta*100)+"% disso")+".":""),ver); }
     else add("good","Futuro no alvo","Você destinou <b>"+fmt(g.fut)+"</b> ("+Math.round(g.fut/renda*100)+"% da renda) para guardar ou pagar dívidas.");
     const parc=st.gastos.filter(t=>+t.n>1).reduce((s,t)=>s+t.v,0);
-    const fixos=(S.cfg.fixed||[]).filter(f=>f.amount&&(!f.ate||ym<=f.ate)&&(!f.desde||ym>=f.desde)).reduce((s,f)=>s+f.amount,0);
+    const fixos=(S.cfg.fixed||[]).filter(f=>f.amount&&(!f.ate||ym<=f.ate)&&(!f.desde||ym>=f.desde)).reduce((s,f)=>s+previsaoDoFixo(f,ym),0);
     const folha=consignadoNoMes(ym), c=(parc+fixos+folha)/(renda+folha);   /* a renda já vem sem o consignado */
     if(c>0) add(c>0.5?"bad":c>0.3?"warn":"good",Math.round(c*100)+"% da renda já sai comprometida todo mês",
       "Parcelas <b>"+fmt(parc)+"</b> + gastos fixos e dívidas <b>"+fmt(fixos)+"</b>"+(folha?" + consignado <b>"+fmt(folha)+"</b>":"")+"."+(c>0.3?" Acima de 30%, sobra pouco para imprevistos.":"")); }
@@ -5999,8 +6026,8 @@ function contasDoMes(ym){
     if(!f.amount) return;
     if((f.ate&&ym>f.ate)||(f.desde&&ym<f.desde)) return;
     const t=feito[f.id], forma=cardName(f.card)||METODOS[(S.cfg.cards.find(c=>c.id===f.card)||{}).type]||"";
-    out.push({tipo:"fixo", id:f.id, nome:f.name, v:t?t.v:f.amount, d:t?t.d:diaDoMes(f.day), pago:!!t,
-      sub:(f.divida?"Parcela de dívida":"Gasto fixo")+(forma?" · "+forma:"")}); });
+    out.push({tipo:"fixo", id:f.id, nome:f.name, v:t?t.v:previsaoDoFixo(f,ym), d:t?t.d:diaDoMes(f.day), pago:!!t,
+      sub:(f.divida?"Parcela de dívida":"Gasto fixo")+(forma?" · "+forma:"")+(f.varia&&!t?" · valor previsto (varia)":"")}); });
   (S.cfg.dividas||[]).filter(dv=>dv.folha||dv.tipo==="consignado").forEach(dv=>{ normDivida(dv);
     if(ehConsSal(dv)){ const t=txOf(ym).find(x=>x.cons===dv.id);
       if(t) out.push({tipo:"folha", id:dv.id, nome:dv.nome, v:t.v, d:t.d, pago:true, sub:"Descontado do salário"});
@@ -6067,8 +6094,23 @@ function htmlProximas(ym){
 
 async function lancarFixoUm(id){
   const f=fixedFor(S.ym).find(x=>x.id===id); if(!f){ toast("Esse já está lançado."); return; }
+  if(f.varia){ perguntarValorDoFixo(f); return; }
   await commit(lancamentoDoFixo(f,S.ym));
   render(); toast(f.name+" lançado."); }
+/* fixo de valor que varia: o valor da conta do mês, já preenchido com a previsão */
+function perguntarValorDoFixo(f){
+  const base=lancamentoDoFixo(f,S.ym), hoje=todayISO();
+  /* a data: a do vencimento, se já passou ou se o mês é outro; no mês de hoje, antes do vencimento, hoje (pagou adiantado) */
+  const dia=base.date<=hoje||ymOf(hoje)!==S.ym?base.date:hoje;
+  sheet("Lançar "+f.name,
+    '<div class="set"><div class="note"><b>Quanto veio a conta deste mês?</b>O valor muda todo mês; a previsão era '+fmt(f.amount)+'.</div>'+
+    '<div class="two"><div class="set-f"><label for="lfV">Valor da conta</label><input id="lfV" inputmode="decimal" value="'+fmtN(f.amount)+'"></div>'+
+    '<div class="set-f"><label for="lfD">Pago em</label><input id="lfD" type="date" value="'+dia+'"></div></div></div>',
+    '<button class="btn ghost" id="lfX">Cancelar</button><button class="btn" id="lfOk">Lançar</button>');
+  $("#lfX").onclick=closeSheet;
+  $("#lfOk").onclick=async()=>{ const v=toCents($("#lfV").value), d=$("#lfD").value||hoje;
+    if(!v){ toast("Informe o valor da conta."); return; }
+    await commit(Object.assign(base,{v,date:d})); closeSheet(); render(); toast(f.name+" lançada: "+fmt(v)+"."); }; }
 function bindContas(root){
   $$("[data-pagafixo]",root).forEach(b=>b.onclick=e=>{ e.stopPropagation(); lancarFixoUm(b.dataset.pagafixo); });
   $$("[data-pagafat]",root).forEach(b=>b.onclick=e=>{ e.stopPropagation(); openPay(b.dataset.pagafat); });
@@ -6217,8 +6259,9 @@ function ligarFixosPagos(ym){
     if(!f.amount||feitos.has(f.id)||(f.ate&&ym>f.ate)||(f.desde&&ym<f.desde)) return;
     const pf=palavrasDoFixo(f.name); if(!pf.length) return;
     const casa=t=>{ const pt=new Set(palavrasDoFixo(t.desc)); return pf.filter(w=>pt.has(w)).length>=Math.ceil(pf.length*0.8); };
-    const c=livres.filter(t=>casa(t)&&Math.abs(t.v-f.amount)<=Math.max(20,f.amount*0.3))
-      .sort((a,b)=>Math.abs(a.v-f.amount)-Math.abs(b.v-f.amount))[0];
+    const prev=previsaoDoFixo(f,ym);
+    const c=livres.filter(t=>casa(t)&&(f.varia||Math.abs(t.v-prev)<=Math.max(2000,prev*0.3)))
+      .sort((a,b)=>Math.abs(a.v-prev)-Math.abs(b.v-prev))[0];
     if(!c||!m.tx[c.id]) return;
     m.tx[c.id].fix=f.id; m.tx[c.id].u=Date.now(); livres.splice(livres.indexOf(c),1); feitos.add(f.id); n++; });
   if(n) saveMonth(ym);
