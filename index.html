@@ -705,7 +705,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="1.30.1";
+const VERSAO_APP="1.31.0";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -2716,7 +2716,11 @@ function openAcct(id){
     (isNew
       ? '<div class="set-f"><label>Quanto tem nela hoje</label><input id="aB" inputmode="decimal" placeholder="0,00">'+
         '<span class="hint">A partir daqui o app soma as entradas e subtrai os gastos sozinho. Para carregar extratos antigos, use depois <b>Saldo inicial</b>.</span></div>'
-      : '<div class="set-f"><span class="hint">O saldo se acerta nos botões <b>Saldo inicial</b> e <b>Corrigir saldo</b>, ao lado do nome da conta.</span></div>')+
+      : '<div class="set-f"><span class="hint">O saldo se acerta nos botões <b>Saldo inicial</b> e <b>Corrigir saldo</b>, ao lado do nome da conta.</span></div>'+
+        (A.length>1?'<div class="set-f"><label for="aJ">Juntar com outra conta</label><div style="display:flex;gap:8px">'+
+          '<select id="aJ" style="flex:1"><option value="">— escolha a conta que fica —</option>'+optId(A.filter(x=>x.id!==a.id),"")+'</select>'+
+          '<button class="btn ghost" id="aJOk" type="button">Juntar</button></div>'+
+          '<span class="hint">Quando a mesma conta aparece duas vezes: os lançamentos, cartões e o saldo inicial desta passam para a escolhida, e esta deixa de existir.</span></div>':''))+
     '</div>',
     (isNew?'<button class="btn ghost" id="aX">Cancelar</button>':'<button class="btn danger" id="aKill">Excluir</button>')+'<button class="btn" id="aOk">Salvar</button>');
   const x=$("#aX"); if(x) x.onclick=closeSheet;
@@ -2725,6 +2729,13 @@ function openAcct(id){
     if(isNew) A.push({id:a.id,n:nm,type:$("#aT").value,opening:toCents($("#aB").value),openDate:"",adjust:[]});
     else { const r=A.find(x=>x.id===a.id); r.n=nm; r.type=$("#aT").value; }
     S.cfg.accounts=A; saveCfg(); closeSheet(); render(); toast("Salvo"); };
+  const jb=$("#aJOk");
+  if(jb) jb.onclick=()=>{ const para=$("#aJ").value; if(!para){ toast("Escolha a conta que fica."); return; }
+    const nomePara=(A.find(x=>x.id===para)||{}).n;
+    if(!jb.dataset.certeza){ jb.dataset.certeza="1"; jb.textContent="Juntar mesmo?";
+      toast("Tudo de "+a.n+" vai para "+nomePara+", e "+a.n+" deixa de existir. Toque de novo para juntar."); return; }
+    const n=juntarContas(a.id,para); closeSheet(); render();
+    toast(n>=0?a.n+" foi juntada a "+nomePara+": "+n+(n===1?" lançamento passou":" lançamentos passaram")+" para lá.":"Não consegui juntar."); };
   const k=$("#aKill");
   if(k) k.onclick=()=>{ if(A.length<=1){ toast("Precisa de pelo menos uma conta."); return; }
     /* excluir fica no lugar do "Cancelar" das outras fichas: pede um segundo toque */
@@ -2741,6 +2752,45 @@ function openAcct(id){
     destino.opening=(destino.opening||0)+(a.opening||0);
     S.cfg.accounts=resto; saveCfg(); meses.forEach(ym=>saveMonth(ym));
     closeSheet(); render(); toast("Excluída. Cartões e lançamentos foram para "+destino.n+"."); }; }
+
+/* juntar duas contas que são a mesma (pedido do dono, 13/10/2026: a "Conta recuperada" tinha os movimentos do
+   BB Rende Fácil de jan a ago, e uma "BB Rende Fácil" nova os de set e out). Tudo o que apontava para a de origem —
+   lançamentos, cartões, guardados, dívidas, conta do salário, extratos lidos — passa para a de destino, e a de
+   origem deixa de existir. Os lançamentos mudados ganham carimbo novo, para a mudança vencer na sincronização. */
+function juntarContas(deId,paraId){
+  const A=S.cfg.accounts||[], de=A.find(a=>a.id===deId), para=A.find(a=>a.id===paraId);
+  if(!de||!para||deId===paraId) return -1;
+  (S.cfg.cards||[]).forEach(x=>{ if(x.acct===deId) x.acct=paraId; });
+  (S.cfg.deposits||[]).forEach(x=>{ if(x.de===deId) x.de=paraId; if(x.para===deId) x.para=paraId; });
+  (S.cfg.dividas||[]).forEach(x=>{ if(x.conta===deId) x.conta=paraId; });
+  if(S.cfg.salConta===deId) S.cfg.salConta=paraId;
+  const ex=S.cfg.extratosLidos||{};
+  Object.keys(ex).forEach(k=>{ const [id,m]=k.split("|"); if(id!==deId) return; if(!ex[paraId+"|"+m]) ex[paraId+"|"+m]=ex[k]; delete ex[k]; });
+  let n=0; const meses=new Set(), agora=Date.now();
+  Object.keys(S.months).forEach(ym=>{ const tx=(S.months[ym]||{}).tx||{};
+    Object.keys(tx).forEach(id=>{ const t=tx[id]; if(!t||t.del) return; let mudou=false;
+      if(t.acct===deId){ t.acct=paraId; mudou=true; }
+      if(t.acct2===deId){ t.acct2=paraId; mudou=true; }
+      if(mudou){ t.u=agora; n++; meses.add(ym); } }); });
+  /* saldo inicial: o de cada uma se soma, e vale a data de início mais antiga */
+  if(de.openDate&&(!para.openDate||de.openDate<para.openDate)) para.openDate=de.openDate;
+  para.opening=(para.opening||0)+(de.opening||0);
+  S.cfg.accounts=A.filter(a=>a.id!==deId);
+  saveCfg(); meses.forEach(ym=>saveMonth(ym));
+  return n; }
+/* a mesma aplicação em duas contas: uma conta (a "Conta recuperada", por exemplo) cujos movimentos são todos
+   aplicação ou resgate com o nome de uma conta de aplicação que existe ("BB Rende Fácil") */
+function contasRepetidas(){
+  const A=S.cfg.accounts||[], invs=A.filter(a=>a.type==="invest"), out=[];
+  if(!invs.length) return out;
+  const tx=allTx();
+  A.forEach(r=>{ if(invs.indexOf(r)>=0&&!/^conta recuperada$/.test(norm(r.n))) return;
+    const L=tx.filter(t=>t.acct===r.id||t.acct2===r.id); if(!L.length) return;
+    /* a conta tem de estar do lado da aplicação: destino na aplicação, origem no resgate (a conta corrente fica do outro) */
+    if(!L.every(t=>(/^Extrato · aplicação/.test(t.raw||"")&&t.acct2===r.id)||(/^Extrato · resgate/.test(t.raw||"")&&t.acct===r.id))) return;
+    const alvo=invs.find(i=>i.id!==r.id&&L.some(t=>norm(t.desc||"")===norm(i.n)));
+    if(alvo) out.push({de:r, para:alvo, n:L.length}); });
+  return out; }
 
 /* saldo inicial: a data do primeiro extrato e o saldo anterior impresso nele. Antes dessa data, nada conta no saldo. */
 function openSaldoInicial(id){
@@ -3397,6 +3447,10 @@ const AJUDA=[
   c:"Ajustes → Saldo de cada conta e cartão → Saldo inicial: a data do primeiro extrato e o saldo anterior impresso nele. Lançamentos antes dessa data não contam.",a:"saldos"},
  {g:"Conta e saldo",t:"Faltou pouco dinheiro e não sei de onde veio",
   c:"Se a conta tem aplicação automática (o BB Rende Fácil), a diferença costuma ser o rendimento: ele volta escondido dentro dos resgates. Ao importar o extrato, o app pergunta se pode lançar como Rendimentos.",a:"extrato"},
+ {g:"Conta e saldo",t:"Apareceu uma Conta recuperada, ou a mesma conta aparece duas vezes",
+  c:"A Conta recuperada aparece quando uma conta foi excluída mas ainda havia lançamentos dela: para não perder nada, o app trazia a conta de volta com esse nome. Com a aplicação automática do Banco do Brasil isso fazia a mesma conta aparecer duas vezes — a Conta recuperada com os meses antigos e uma BB Rende Fácil nova com os seguintes. Desde a versão 1.31.0 a Revisão (Ajustes, Dados, Revisar) mostra A mesma conta aparece duas vezes, com o botão Juntar em BB Rende Fácil (dois toques): os movimentos passam para a BB Rende Fácil e a Conta recuperada deixa de existir. E uma conta de aplicação excluída volta com o próprio nome, não mais como Conta recuperada.",a:"saldos"},
+ {g:"Conta e saldo",t:"Como junto duas contas que são a mesma?",
+  c:"Ajustes, Saldo de cada conta, Editar na conta que vai sair. Em Juntar com outra conta, escolha a que fica e toque em Juntar (duas vezes, para confirmar). Os lançamentos, os cartões que tiravam dinheiro dela e o saldo inicial passam para a escolhida, e a outra deixa de existir. Diferente de Excluir: no Juntar você escolhe para onde vai cada coisa.",a:"saldos"},
  {g:"Conta e saldo",t:"O que é a conta BB Rende Fácil que apareceu?",
   c:"É a aplicação automática do banco. O app criou uma conta para ela: assim a conta corrente fica igual ao saldo impresso no extrato, e o dinheiro aplicado continua sendo seu, só que em outra linha.",a:"extrato"},
  {g:"Conta e saldo",t:"Minha conta corrente sumiu da lista",
@@ -4452,6 +4506,19 @@ function repararContas(){
       [t.acct,t.acct2].forEach(a=>{ if(a&&!tem(a)) faltando[a]=(faltando[a]||0)+1; }); }); });
   const ids=Object.keys(faltando); if(!ids.length) return "";
   const nomes=[];
+  /* lançamentos de aplicação ou resgate apontando para uma conta que sumiu: se já existe a conta da aplicação com o
+     mesmo nome ("BB Rende Fácil"), eles vão para ela; senão a conta volta com esse nome, como aplicação. Antes ela
+     voltava como "Conta recuperada" (poupança) e a próxima importação criava outra BB Rende Fácil (13/10/2026). */
+  const movsDe=id=>{ const L=[]; Object.keys(S.months||{}).forEach(ym=>{ const tx=(S.months[ym]||{}).tx||{};
+    Object.keys(tx).forEach(k=>{ const t=tx[k]; if(t&&!t.del&&(t.acct===id||t.acct2===id)) L.push(t); }); }); return L; };
+  for(const id of ids.slice()){
+    const L=movsDe(id); if(!L.length||!L.every(t=>(/^Extrato · aplicação/.test(t.raw||"")&&t.acct2===id)||(/^Extrato · resgate/.test(t.raw||"")&&t.acct===id))) continue;
+    const nome=(L.find(t=>t.desc)||{}).desc||"Aplicação";
+    let alvo=A.find(a=>a.type==="invest"&&norm(a.n)===norm(nome));
+    if(alvo){ const agora=Date.now(); L.forEach(t=>{ if(t.acct===id) t.acct=alvo.id; if(t.acct2===id) t.acct2=alvo.id; t.u=agora; });
+      setTimeout(()=>touch(),0); }
+    else { A.push({id, n:nome, type:"invest", opening:0, openDate:"", adjust:[]}); nomes.push(nome); }
+    ids.splice(ids.indexOf(id),1); }
   ids.forEach(id=>{ const corrente=id==="cc"||!A.some(a=>a.type==="corrente");
     const nova={id, n:corrente?"Conta corrente":"Conta recuperada", type:corrente?"corrente":"poupanca", opening:0, openDate:"", adjust:[]};
     if(corrente) A.unshift(nova); else A.push(nova); nomes.push(nova.n); });
@@ -6352,7 +6419,7 @@ function faturasQueNaoFecham(){
 async function openRevisao(){
   const fant=comprasSemDescricao();
   const semCartao=allTx().filter(t=>t.k==="p"&&semCartaoCerto(t));
-  const tortas=faturasQueNaoFecham(), acs=acertosDeSaldo(), empSal=emprestimosComoSalario();
+  const tortas=faturasQueNaoFecham(), acs=acertosDeSaldo(), empSal=emprestimosComoSalario(), dupC=contasRepetidas();
   const bloco=(t,s,extra)=>'<div class="linkrow"><div class="m"><div class="t">'+t+'</div><div class="s">'+s+'</div></div>'+(extra||'')+'</div>';
   sheet("Revisão da Caderneta",
     '<div class="set">'+
@@ -6380,6 +6447,9 @@ async function openRevisao(){
       empSal.length?empSal.map(t=>fmtN(t.v)+" em "+diaMesAno(t.d)).join(" · ")+" — dinheiro emprestado entra na conta, mas não é renda"
         :"Os créditos de empréstimo estão em Empréstimo recebido",
       empSal.length?'<button class="mini" id="rvEmp">Corrigir</button>':'')+
+    (dupC.length?dupC.map((x,i)=>bloco("A mesma conta aparece duas vezes",
+      esc(x.de.n)+" ("+x.n+(x.n===1?" movimento":" movimentos")+") e "+esc(x.para.n)+" são a mesma aplicação",
+      '<button class="mini" data-junta="'+i+'">Juntar em '+esc(x.para.n)+'</button>')).join(""):bloco("Nenhuma conta repetida","Cada conta aparece uma vez só",""))+
     bloco(acs.length?acs.length+(acs.length>1?" acertos de saldo lançados":" acerto de saldo lançado"):"Nenhum acerto de saldo",
       acs.length?"Somam "+fmtN(acs.reduce((s,t)=>s+(t.acct2?t.v:-t.v),0))+" no saldo das contas":"O saldo das suas contas é só a soma dos lançamentos",
       acs.length?'<button class="mini" id="rvAcs">Ver</button>':'')+
@@ -6390,6 +6460,11 @@ async function openRevisao(){
   $("#rvX").onclick=closeSheet;
   const ver=$("#rvVer"); if(ver) ver.onclick=openSemDescricao;
   const vac=$("#rvAcs"); if(vac) vac.onclick=openAcertos;
+  $$("[data-junta]").forEach(b=>b.onclick=()=>{ const x=dupC[+b.dataset.junta]; if(!x) return;
+    if(!b.dataset.certeza){ b.dataset.certeza="1"; b.textContent="Juntar mesmo?";
+      toast("Os movimentos de "+x.de.n+" vão para "+x.para.n+", e "+x.de.n+" deixa de existir. Toque de novo."); return; }
+    const n=juntarContas(x.de.id,x.para.id); render();
+    toast(x.de.n+" foi juntada a "+x.para.n+": "+n+(n===1?" movimento passou.":" movimentos passaram.")); openRevisao(); });
   const ve=$("#rvEmp"); if(ve) ve.onclick=async()=>{ const meses=new Set();
     for(const t of empSal){ const x=S.months[t.ym]&&S.months[t.ym].tx[t.id]; if(x){ x.cat="emprest"; x.u=Date.now(); meses.add(t.ym); } }
     for(const ym of meses) await saveMonth(ym);
