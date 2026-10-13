@@ -153,7 +153,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div>
     <h2 class="titulo">Manual de uso</h2>
     <p class="sub">Controle de gastos por fala, leitura de extratos e faturas em PDF, cartões e faturas, dívidas com quitação, plano para juntar dinheiro e o método 50-30-20.</p>
-    <span class="edicao">Edição de outubro de 2026 · aplica-se à versão 1.33.0 em diante</span>
+    <span class="edicao">Edição de outubro de 2026 · aplica-se à versão 1.34.0 em diante</span>
   </div>
 
   <div class="pe">
@@ -197,7 +197,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
     <li><a href="#plano">Plano para juntar um montante</a></li>
     <li><a href="#analises">Análises</a></li>
     <li><a href="#consulta">Consulta</a></li>
-    <li><a href="#categorias">Categorias: renomear e dividir</a></li>
+    <li><a href="#categorias">Categorias e subcategorias</a></li>
     <li><a href="#carregar">Carregar meses anteriores</a></li>
     <li><a href="#problemas">Quando algo não bate</a></li>
     <li><a href="#dados">Dados, backup e privacidade</a></li>
@@ -207,8 +207,9 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 </nav>
 
 <div class="dica">
-  <b>Novidades desta edição (da versão 1.26.0 à 1.33.0)</b>
+  <b>Novidades desta edição (da versão 1.26.0 à 1.34.0)</b>
   <ul style="margin:6px 0 0;padding-left:18px">
+    <li><b>Categorias e subcategorias</b> — 14 categorias com 39 subcategorias (Padaria, Feira, Lavanderia, Delivery, Viagens de lazer e necessárias…); a subcategoria decide o 50-30-20; o Painel mostra as categorias e abre as subcategorias; a Consulta filtra por uma ou por outra; os lançamentos antigos foram convertidos sozinhos (seção 21).</li>
     <li><b>Conta fixa que varia</b> — luz, água e telefone com a marca <i>O valor varia todo mês</i>: previsão pela média dos últimos 3 meses, extrato reconhecido com qualquer valor e o <i>Lançar</i> pergunta quanto veio (seção 10).</li>
     <li><b>Painel com o dinheiro de verdade</b> — o Disponível passa a ser o que está no banco menos o que falta pagar até o fim do mês (faturas, não as compras no crédito), com a lista do que falta; o teto virou a caixa <i>Teto de compras do mês</i>; fatura paga com selo e fora do total; conta fixa paga pelo extrato e consignado já descontado saem dos Próximos vencimentos; o empréstimo recebido aparece em Entrou no mês (seção 3).</li>
     <li><b>Juntar contas</b> — quando a mesma conta aparece duas vezes (como a <i>Conta recuperada</i> e a <i>BB Rende Fácil</i>), a Revisão junta num toque; e em Editar há <i>Juntar com outra conta</i> (seção 12).</li>
@@ -332,7 +333,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <figure>
   <img src="manual/painel-categorias.png" alt="Onde meu dinheiro está indo">
-  <figcaption><b>Onde meu dinheiro está indo</b>: as categorias do mês em ordem de valor. O traço cinza é o limite que você definiu para a categoria, em Ajustes. Embaixo do gráfico, <b>O que este gráfico diz</b> lê os seus números em uma frase.</figcaption>
+  <figcaption><b>Onde meu dinheiro está indo</b>: as categorias do mês em ordem de valor; tocando numa barra, aparecem as subcategorias de dentro dela, com o valor de cada uma. O traço cinza é o limite que você definiu para a categoria, em Ajustes. Embaixo do gráfico, <b>O que este gráfico diz</b> lê os seus números em uma frase.</figcaption>
 </figure>
 
 <div class="nota">
@@ -849,7 +850,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <figure>
   <img src="manual/consulta-filtros.png" alt="Filtros da consulta">
-  <figcaption>Escolha o <b>período</b> — hoje, esta semana, este mês, mês passado, últimos 30 dias, este ano, tudo, ou duas datas —, o que mostrar (gastos, entradas ou tudo), e marque quantas <b>categorias</b> e <b>formas de pagamento</b> quiser. Sem marcar nada, valem todas.</figcaption>
+  <figcaption>Escolha o <b>período</b> — hoje, esta semana, este mês, mês passado, últimos 30 dias, este ano, tudo, ou duas datas —, o que mostrar (gastos, entradas ou tudo), as <b>categorias</b> e as <b>formas de pagamento</b>. Tocando numa categoria, abrem as subcategorias dela: <i>Todas de…</i> marca a categoria inteira, ou marque só as subcategorias que quiser — e dá para juntar várias, de categorias diferentes. Sem marcar nada, valem todas.</figcaption>
 </figure>
 
 <div class="dica">
@@ -889,44 +890,72 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <figcaption>Cada linha traz a data, a descrição, a categoria, a forma de pagamento e o valor; as parcelas mostram o número da parcela, e a compra no crédito vem marcada. Tocando na linha, dá para corrigir o lançamento.</figcaption>
 </figure>
 
-<h2 id="categorias">21. Categorias: renomear, dividir, juntar</h2>
+<h2 id="categorias">21. Categorias e subcategorias</h2>
 
-<p>As categorias são suas: Ajustes → <b>Categorias de gasto</b> (e <b>Categorias de entrada</b>). Tocando em uma delas, dá para mudar o <b>nome</b>, o <b>limite por mês</b> e o <b>grupo no 50-30-20</b> (Necessidade, Desejo ou Futuro). O botão <i>Adicionar</i> cria quantas você quiser.</p>
+<p>Os gastos ficam em dois níveis: a <b>categoria</b> (Alimentação) agrupa as <b>subcategorias</b> (Mercado, Padaria, Feira…). O lançamento vai numa subcategoria, e é ela que decide o grupo no 50-30-20 — por isso, dentro de Alimentação, <i>Mercado</i> é necessidade e <i>Restaurantes e lanches</i> é desejo. No Painel, o gráfico mostra as categorias, e o toque numa barra mostra as subcategorias de dentro.</p>
+
+<table>
+  <tr><th>Categoria</th><th>Subcategorias (N necessidade · D desejo · F futuro)</th></tr>
+  <tr><td><b>Casa</b></td><td>Aluguel e condomínio N · Energia N · Água e gás N · Manutenção e serviços da casa N · Lavanderia N · Móveis, eletro e utensílios D</td></tr>
+  <tr><td><b>Alimentação</b></td><td>Mercado N · Padaria N · Feira N · Restaurantes e lanches D · Delivery D</td></tr>
+  <tr><td><b>Veículo</b></td><td>Combustível N · Manutenção do veículo N · IPVA, seguro e licenciamento N · Estacionamento e pedágio N</td></tr>
+  <tr><td><b>Transporte e viagens</b></td><td>Uber, táxi e ônibus N · Viagens necessárias N</td></tr>
+  <tr><td><b>Saúde</b></td><td>Plano de saúde N · Consultas, exames e dentista N · Farmácia N · Academia e esporte D</td></tr>
+  <tr><td><b>Educação</b></td><td>Escola e faculdade N · Cursos, livros e material N</td></tr>
+  <tr><td><b>Pessoal</b></td><td>Roupas e calçados D · Beleza e cuidados pessoais D</td></tr>
+  <tr><td><b>Lazer</b></td><td>Passeios, bares e eventos D · Viagens de lazer D</td></tr>
+  <tr><td><b>Telefone, internet e assinaturas</b></td><td>Celular e telefone N · Internet e TV N · Streaming e assinaturas digitais D</td></tr>
+  <tr><td><b>Família</b></td><td>Filhos e mesada N · Pets N · Presentes e doações D</td></tr>
+  <tr><td><b>Compras</b></td><td>Compras diversas D</td></tr>
+  <tr><td><b>Impostos e bancos</b></td><td>Impostos e taxas N · Tarifas bancárias, juros e anuidade N</td></tr>
+  <tr><td><b>Dívidas</b></td><td>Empréstimos e consignado F · Financiamentos F</td></tr>
+  <tr><td><b>Outros</b></td><td>Outros</td></tr>
+</table>
+
+<p>A fala e a importação escolhem a subcategoria sozinhas, pelas palavras: "padaria" vai para <i>Padaria</i>, "iFood" para <i>Delivery</i>, "luz" ou o nome da companhia de energia para <i>Energia</i>, "lavanderia" para <i>Lavanderia</i>. Viagem de avião, hotel ou Airbnb vai para <i>Viagens de lazer</i>; com "trabalho", "consulta" ou "tratamento" junto, para <i>Viagens necessárias</i>; "passagem" sozinha é ônibus. Quando errar, troque — ele aprende.</p>
+
+<p>Tudo é seu: Ajustes → <b>Categorias de gasto</b>. Tocando numa categoria, ela abre e mostra as subcategorias; em cada uma, <i>Editar</i> muda o <b>nome</b>, a <b>categoria</b> a que ela pertence, o <b>limite por mês</b> só dela e o <b>grupo no 50-30-20</b>. <i>Nova subcategoria</i> cria outra ali dentro, e <i>Editar a categoria</i> muda o nome e o <b>limite do mês da categoria inteira</b> (os dois limites se somam no Painel). Para criar uma categoria nova, escolha <i>+ Nova categoria…</i> no campo Categoria de uma subcategoria.</p>
 
 <figure>
   <img src="manual/cat-lista.png" alt="Categorias de gasto em Ajustes">
-  <figcaption>A lista de categorias em Ajustes. Abaixo do nome, o grupo no 50-30-20 e o limite mensal, quando há um. Tocando na linha, abre a ficha da categoria; <i>Adicionar</i> cria uma nova.</figcaption>
+  <figcaption>As categorias em Ajustes, cada uma com quantas subcategorias tem e o limite do mês. Aberta, a categoria mostra as subcategorias com o grupo do 50-30-20, e os botões <i>Editar a categoria</i> e <i>Nova subcategoria</i>.</figcaption>
 </figure>
 
 <div class="nota">
   <b>Mexer nas categorias não desarruma o que já foi lançado.</b>
-  Por dentro, cada lançamento está amarrado à categoria por um <b>código</b>, não pelo nome. Por isso:
+  Por dentro, cada lançamento está amarrado à subcategoria por um <b>código</b>, não pelo nome. Por isso:
   <ul>
-    <li><b>Renomear é seguro e vale para trás.</b> Tudo o que já estava na categoria passa a aparecer com o nome novo — nos meses fechados, nos gráficos do Painel, no 50-30-20 e na Consulta.</li>
-    <li><b>Criar categoria nova não mexe em nada.</b> Ela nasce vazia; os lançamentos antigos continuam onde estavam até você movê-los.</li>
-    <li><b>Excluir nunca deixa lançamento solto.</b> O app conta quantos lançamentos, gastos fixos e palavras aprendidas estão ali, mostra de que mês a que mês, e pede <b>para onde levar tudo</b>. Só depois a categoria sai da lista.</li>
-    <li><b>Duas categorias não podem ser excluídas, só renomeadas:</b> <i>Dívidas e empréstimos</i> (é nela que o app lança sozinho as parcelas de consignado e de dívidas) e <i>Outros</i> (é a reserva de quando ele não consegue classificar).</li>
+    <li><b>Renomear é seguro e vale para trás.</b> Tudo o que já estava ali passa a aparecer com o nome novo — nos meses fechados, nos gráficos do Painel, no 50-30-20 e na Consulta.</li>
+    <li><b>Mudar uma subcategoria de categoria leva junto</b> tudo o que já foi lançado nela.</li>
+    <li><b>Criar não mexe em nada.</b> A subcategoria ou categoria nova nasce vazia.</li>
+    <li><b>Excluir nunca deixa lançamento solto.</b> O app conta quantos lançamentos, gastos fixos e palavras aprendidas estão na subcategoria, mostra de que mês a que mês, e pede <b>para onde levar tudo</b>. Uma categoria só sai quando não tem mais subcategorias.</li>
+    <li><b>Duas subcategorias não podem ser excluídas, só renomeadas:</b> <i>Empréstimos e consignado</i> (é nela que o app lança sozinho as parcelas de consignado e de dívidas) e <i>Outros</i> (a reserva de quando ele não consegue classificar).</li>
   </ul>
 </div>
 
+<div class="dica">
+  <b>De onde vieram as subcategorias (versão 1.34.0)</b>
+  Até a 1.33.0 a lista era uma só, com 19 categorias. Na atualização, cada lançamento passou sozinho para a subcategoria nova pelas palavras da descrição — <i>Moradia e contas</i> com "luz" foi para <i>Energia</i>, com "aluguel" para <i>Aluguel e condomínio</i>; iFood para <i>Delivery</i>; Netflix para <i>Streaming</i>. O que não deu para saber ficou na subcategoria mais geral da categoria. Valores, datas e formas de pagamento não mudaram. O limite de uma categoria antiga passou para a categoria nova; categoria que você tinha criado continua, em <i>Outros</i> (ou juntou com a nova de mesmo nome).
+</div>
+
 <figure>
-  <img src="manual/cat-excluir.png" alt="Excluir uma categoria que tem lançamentos">
-  <figcaption>Ao excluir uma categoria que tem uso, o app mostra o que está nela — lançamentos, gastos fixos, palavras aprendidas — e de que mês a que mês, e pede para onde levar tudo. Nada é apagado.</figcaption>
+  <img src="manual/cat-excluir.png" alt="Excluir uma subcategoria que tem lançamentos">
+  <figcaption>Ao excluir uma subcategoria que tem uso, o app mostra o que está nela — lançamentos, gastos fixos, palavras aprendidas — e de que mês a que mês, e pede para onde levar tudo. Nada é apagado.</figcaption>
 </figure>
 
-<p><b>Para dividir uma categoria em duas ou três</b> — por exemplo trocar <i>Saúde e consultas</i> por <i>Farmácia</i> e <i>Consultas</i>:</p>
+<p><b>Para dividir uma subcategoria em duas ou três:</b></p>
 
 <ol class="passos">
-  <li><b>Crie as novas</b> em Ajustes → Categorias de gasto → <i>Adicionar</i>, já com o grupo do 50-30-20 e o limite, se quiser.</li>
-  <li><b>Vá na aba Consulta</b>, marque <b>só a categoria antiga</b> e escolha o período — <i>Tudo</i>, se quiser desde o começo.</li>
+  <li><b>Crie as novas</b> em Ajustes → Categorias de gasto → abra a categoria → <i>Nova subcategoria</i>, já com o grupo do 50-30-20 e o limite, se quiser.</li>
+  <li><b>Vá na aba Consulta</b>, toque na categoria, marque <b>só a subcategoria antiga</b> e escolha o período — <i>Tudo</i>, se quiser desde o começo.</li>
   <li><b>Toque em <i>Mudar a categoria</i></b> e escolha o destino. Ele troca de uma vez os lançamentos que estão na lista; valor, data e forma de pagamento ficam exatamente como estavam.</li>
   <li><b>Repita</b> com outro período ou outro filtro (por forma de pagamento, por exemplo) para a segunda parte. O que for caso a caso, toque na linha e mude ali mesmo.</li>
-  <li><b>Exclua a categoria antiga.</b> Se ainda tiver sobrado algo nela, o app pergunta para onde levar.</li>
+  <li><b>Exclua a subcategoria antiga.</b> Se ainda tiver sobrado algo nela, o app pergunta para onde levar.</li>
 </ol>
 
 <figure>
   <img src="manual/consulta-mudar.png" alt="Mudar a categoria dos lançamentos filtrados">
-  <figcaption><i>Mudar a categoria</i>, na Consulta, age exatamente sobre os lançamentos que estão na lista — os do período e dos filtros marcados. Só a categoria muda.</figcaption>
+  <figcaption><i>Mudar a categoria</i>, na Consulta, age exatamente sobre os lançamentos que estão na lista — os do período e dos filtros marcados. Só a subcategoria muda.</figcaption>
 </figure>
 
 <p><b>Para juntar duas em uma</b>, é o caminho inverso: exclua uma delas e mande tudo para a outra.</p>
@@ -1060,7 +1089,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div>
     <b>Caderneta</b>
     <span>App de uso pessoal e familiar, sem servidor e sem custo. Seus lançamentos ficam no aparelho e no seu Google Drive.</span>
-    <span>https://rgbittencourt.github.io/caderneta/ · outubro de 2026 · versão 1.33.0</span>
+    <span>https://rgbittencourt.github.io/caderneta/ · outubro de 2026 · versão 1.34.0</span>
   </div>
 </div>
 

@@ -3,11 +3,15 @@
 window.capSem=async(el,sel,nome)=>{ const es=[...el.querySelectorAll(sel)]; es.forEach(x=>{ x.dataset.dp2=x.style.display; x.style.display="none"; }); const r=await cap(el,nome); es.forEach(x=>{ x.style.display=x.dataset.dp2||""; }); return r; };
 window.capCurto=async(el,sel,max,nome)=>{ const es=[...el.querySelectorAll(sel)].slice(max); es.forEach(x=>{ x.dataset.dp3=x.style.display; x.style.display="none"; }); const r=await cap(el,nome); es.forEach(x=>{ x.style.display=x.dataset.dp3||""; }); return r; };
 /* foto com os <details> abertos (cap esconde todos): o marcador do summary vira "▾", que o html2canvas desenha certo */
-window.capAberto=async(el,nome)=>{ await carregaH2C(); el.querySelectorAll('details').forEach(d=>d.open=true);
-  const S2=[...el.querySelectorAll('summary')]; S2.forEach(x=>{ x.dataset.t=x.textContent; x.style.listStyle='none'; x.style.display='block'; x.textContent='▾ '+x.textContent; });
+window.capAberto=async(el,nome)=>{ el.querySelectorAll('details').forEach(d=>d.open=true); return capDetalhes(el,nome); };
+/* foto sem esconder os <details> (cap esconde), do jeito que estão abertos ou fechados */
+window.capDetalhes=async(el,nome)=>{ await carregaH2C();
+  /* só o summary com o marcador do navegador (list-item); o de .grp já desenha a própria seta */
+  const S2=[...el.querySelectorAll('summary')].filter(x=>getComputedStyle(x).display==="list-item");
+  S2.forEach(x=>{ x.style.listStyle='none'; x.style.display='block'; x.insertBefore(document.createTextNode('▾ '),x.firstChild); });
   el.scrollIntoView({block:"center"}); await espera(250);
   const c=await html2canvas(el,{scale:2,backgroundColor:getComputedStyle(document.body).backgroundColor,useCORS:true,onclone:semCorNova});
-  S2.forEach(x=>{ x.textContent=x.dataset.t; x.style.listStyle=''; x.style.display=''; });
+  S2.forEach(x=>{ x.removeChild(x.firstChild); x.style.listStyle=''; x.style.display=''; });
   const b=await new Promise(r=>c.toBlob(r,'image/png')); const res=await fetch('http://127.0.0.1:8767/save/'+nome+'.png',{method:'POST',body:b});
   return nome+": "+c.width+"x"+c.height+" "+res.status; };
 window.lotes={
@@ -43,7 +47,10 @@ window.lotes={
   await t(()=>cap(sec('ajustes',/Saldo de cada conta/),'ajustes-saldos'));
   S.cfg.extratosLidos={}; ["2026-04","2026-05","2026-06","2026-07","2026-08"].forEach(m=>{ S.cfg.extratosLidos["cc|"+m]="auto"; }); await saveCfg(); await irPara("ajustes");
   await t(()=>cap(sec('ajustes',/O que já foi importado/),'importacoes'));
-  await t(()=>capCurto(sec('ajustes',/Categorias de gasto/),'.linkrow',7,'cat-lista'));
+  /* categorias e subcategorias: Alimentação aberta, as seis primeiras categorias */
+  await t(()=>{ const s=sec('ajustes',/Categorias de gasto/), D=[...s.querySelectorAll('details')];
+    D.forEach((d,i)=>{ d.open=i===1; d.dataset.dp4=d.style.display; if(i>5) d.style.display="none"; });
+    return capDetalhes(s,'cat-lista').then(r=>{ D.forEach(d=>{ d.style.display=d.dataset.dp4||""; d.open=false; }); return r; }); });
   openSaldoInicial("cc"); await espera(400); await t(()=>cap(document.getElementById('sheet'),'ficha-saldo-inicial')); closeSheet(); await espera(200);
   openCorrigirSaldo("cc"); await espera(400); await t(()=>cap(document.getElementById('sheet'),'ficha-corrigir-saldo')); closeSheet(); await espera(200);
   openCorrigirFatura("visa"); await espera(400); await t(()=>cap(document.getElementById('sheet'),'ficha-corrigir-fatura')); closeSheet(); await espera(200);
@@ -67,9 +74,11 @@ window.lotes={
   openQuitacao((S.cfg.dividas||[]).find(x=>x.id==="dv2")); await espera(450);
   await t(()=>capCurto(document.getElementById('sheet'),'.set-f:last-child > div > div',6,'ficha-quitar')); closeSheet(); },
  consulta: async(t)=>{ await irPara("consulta");
-  S.ym="2026-09"; S.consulta={periodo:"mes",de:"2026-09-01",ate:todayISO(),cats:[],formas:[],tipo:"g"}; renderConsulta(); await espera(450);
+  /* Alimentação aberta, com Mercado e Padaria marcadas */
+  S.ym="2026-09"; S.consulta={periodo:"mes",de:"2026-09-01",ate:todayISO(),cats:["merc","padaria"],abertas:["p_alim"],formas:[],tipo:"g"}; renderConsulta(); await espera(450);
+  await t(()=>cap(document.querySelector('#p-consulta .sec .card'),'consulta-filtros'));
+  S.consulta.cats=[]; S.consulta.abertas=[]; renderConsulta(); await espera(350);
   const secsC=[...document.querySelectorAll('#p-consulta .sec')];
-  await t(()=>cap(secsC[0].querySelector('.card'),'consulta-filtros'));
   await t(()=>cap(secsC[1].querySelector('.grid'),'consulta-resumo'));
   await t(()=>capCurto(secsC[2],'.row',9,'consulta-lista'));
   S.ym="2026-02"; S.consulta.periodo="semana"; renderConsulta(); await espera(350);

@@ -631,34 +631,81 @@ const deacc = s => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 const norm  = s => deacc(String(s).toLowerCase()).replace(/[^\w$\s]/g," ").replace(/\s+/g," ").trim();
 
 /* ---- categorias de gasto ---- */
-const CATS = [
-  {id:"alim",n:"Alimentação fora"},{id:"merc",n:"Mercado"},{id:"comb",n:"Combustível"},
-  {id:"carro",n:"Carro e manutenção"},{id:"transp",n:"Transporte"},{id:"medic",n:"Medicamentos"},
-  {id:"saude",n:"Saúde e consultas"},{id:"casa",n:"Moradia e contas"},{id:"educ",n:"Educação"},
-  {id:"roupa",n:"Roupas e calçados"},{id:"lazer",n:"Lazer e viagens"},{id:"assin",n:"Assinaturas e telefone"},
-  {id:"pet",n:"Pets"},{id:"compras",n:"Compras e casa"},{id:"imposto",n:"Impostos e taxas"},
-  {id:"pessoal",n:"Cuidados pessoais"},{id:"presente",n:"Presentes e doações"},{id:"divida",n:"Dívidas e empréstimos"},{id:"outros",n:"Outros"}
+/* Categorias de gasto em dois níveis (pedido do dono, 13/10/2026): a CATEGORIA (Alimentação) agrupa as SUBCATEGORIAS
+   (Mercado, Padaria...). O lançamento guarda só a subcategoria (t.cat); cfg.cats é a lista das subcategorias, cada uma
+   com `pai` (a categoria, em cfg.catPais) e `grupo` do 50-30-20 — quem decide o 50-30-20 é a subcategoria.
+   As subcategorias que herdaram o id de uma categoria antiga ficaram com ele (alim, merc, casa...): lançamentos,
+   fixos e palavras aprendidas antigos continuam valendo. migrarCategorias() converte as configurações antigas. */
+const PAIS = [
+  {id:"p_casa",n:"Casa"},{id:"p_alim",n:"Alimentação"},{id:"p_veic",n:"Veículo"},{id:"p_transp",n:"Transporte e viagens"},
+  {id:"p_saude",n:"Saúde"},{id:"p_educ",n:"Educação"},{id:"p_pessoal",n:"Pessoal"},{id:"p_lazer",n:"Lazer"},
+  {id:"p_tel",n:"Telefone, internet e assinaturas"},{id:"p_fam",n:"Família"},{id:"p_compras",n:"Compras"},
+  {id:"p_imp",n:"Impostos e bancos"},{id:"p_div",n:"Dívidas"},{id:"p_outros",n:"Outros"}
 ];
+const CATS = [
+  {id:"aluguel",n:"Aluguel e condomínio",pai:"p_casa",g:"nec"},{id:"energia",n:"Energia",pai:"p_casa",g:"nec"},
+  {id:"agua",n:"Água e gás",pai:"p_casa",g:"nec"},{id:"casa",n:"Manutenção e serviços da casa",pai:"p_casa",g:"nec"},
+  {id:"lavand",n:"Lavanderia",pai:"p_casa",g:"nec"},{id:"moveis",n:"Móveis, eletro e utensílios",pai:"p_casa",g:"des"},
+  {id:"merc",n:"Mercado",pai:"p_alim",g:"nec"},{id:"padaria",n:"Padaria",pai:"p_alim",g:"nec"},{id:"feira",n:"Feira",pai:"p_alim",g:"nec"},
+  {id:"alim",n:"Restaurantes e lanches",pai:"p_alim",g:"des"},{id:"delivery",n:"Delivery",pai:"p_alim",g:"des"},
+  {id:"comb",n:"Combustível",pai:"p_veic",g:"nec"},{id:"carro",n:"Manutenção do veículo",pai:"p_veic",g:"nec"},
+  {id:"ipva",n:"IPVA, seguro e licenciamento",pai:"p_veic",g:"nec"},{id:"estac",n:"Estacionamento e pedágio",pai:"p_veic",g:"nec"},
+  {id:"transp",n:"Uber, táxi e ônibus",pai:"p_transp",g:"nec"},{id:"viagnec",n:"Viagens necessárias",pai:"p_transp",g:"nec"},
+  {id:"plano",n:"Plano de saúde",pai:"p_saude",g:"nec"},{id:"saude",n:"Consultas, exames e dentista",pai:"p_saude",g:"nec"},
+  {id:"medic",n:"Farmácia",pai:"p_saude",g:"nec"},{id:"academia",n:"Academia e esporte",pai:"p_saude",g:"des"},
+  {id:"educ",n:"Escola e faculdade",pai:"p_educ",g:"nec"},{id:"cursos",n:"Cursos, livros e material",pai:"p_educ",g:"nec"},
+  {id:"roupa",n:"Roupas e calçados",pai:"p_pessoal",g:"des"},{id:"pessoal",n:"Beleza e cuidados pessoais",pai:"p_pessoal",g:"des"},
+  {id:"lazer",n:"Passeios, bares e eventos",pai:"p_lazer",g:"des"},{id:"viaglazer",n:"Viagens de lazer",pai:"p_lazer",g:"des"},
+  {id:"celular",n:"Celular e telefone",pai:"p_tel",g:"nec"},{id:"internet",n:"Internet e TV",pai:"p_tel",g:"nec"},
+  {id:"assin",n:"Streaming e assinaturas digitais",pai:"p_tel",g:"des"},
+  {id:"filhos",n:"Filhos e mesada",pai:"p_fam",g:"nec"},{id:"pet",n:"Pets",pai:"p_fam",g:"nec"},{id:"presente",n:"Presentes e doações",pai:"p_fam",g:"des"},
+  {id:"compras",n:"Compras diversas",pai:"p_compras",g:"des"},
+  {id:"imposto",n:"Impostos e taxas",pai:"p_imp",g:"nec"},{id:"tarifas",n:"Tarifas bancárias, juros e anuidade",pai:"p_imp",g:"nec"},
+  {id:"divida",n:"Empréstimos e consignado",pai:"p_div",g:"fut"},{id:"financ",n:"Financiamentos",pai:"p_div",g:"fut"},
+  {id:"outros",n:"Outros",pai:"p_outros",g:"des"}
+];
+const PAI_PADRAO={}; CATS.forEach(c=>{ PAI_PADRAO[c.id]=c.pai; });
 const KW = {
-  alim:"almoco almocei janta jantar jantei cafe lanche lanchei restaurante churrascaria pizzaria pizza hamburguer lanchonete padaria confeitaria sorvete acai bar chopp cerveja ifood rappi marmita buffet doceria cafeteria salgado espetinho pastel sushi",
-  merc:"mercado supermercado atacado atacadao feira hortifruti sacolao acougue mercearia angeloni carrefour assai bistek giassi comper zaffari nacional big fort koch imperatriz",
+  aluguel:"aluguel condominio sindico portaria imobiliaria",
+  energia:"luz energia celesc cemig copel enel energisa equatorial coelba celpe cpfl",
+  agua:"agua casan sanepar sabesp copasa esgoto gas ultragaz liquigas supergasbras botijao",
+  casa:"faxina diarista jardineiro pedreiro reforma eletricista encanador pintor chaveiro dedetizacao construcao",
+  lavand:"lavanderia lavanderias laundry lavateria",
+  moveis:"movel moveis eletrodomestico eletrodomesticos panela panelas colchao decoracao utensilio utensilios geladeira fogao microondas",
+  merc:"mercado supermercado atacado atacadao acougue mercearia angeloni carrefour assai bistek giassi comper zaffari nacional big fort koch imperatriz",
+  padaria:"padaria panificadora confeitaria pao paes",
+  feira:"feira hortifruti sacolao fruteira verdurao",
+  alim:"almoco almocei janta jantar jantei cafe lanche lanchei restaurante churrascaria pizzaria pizza hamburguer lanchonete sorvete acai marmita buffet doceria cafeteria salgado espetinho pastel sushi",
+  delivery:"ifood rappi delivery aiqfome",
   comb:"gasolina etanol alcool diesel abastecimento abasteci combustivel posto ipiranga shell petrobras arla gnv",
-  carro:"carro veiculo automovel manutencao oficina mecanico mecanica pneu pneus revisao alinhamento balanceamento oleo lavagem lavacao borracharia funilaria guincho autopecas bateria embreagem freio vistoria licenciamento",
-  transp:"uber taxi onibus passagem pedagio estacionamento metro barca rodoviaria aeroporto voo",
+  carro:"carro veiculo automovel moto motocicleta manutencao oficina mecanico mecanica pneu pneus revisao alinhamento balanceamento oleo lavagem lavacao borracharia funilaria guincho autopecas bateria embreagem freio",
+  ipva:"ipva licenciamento vistoria seguro detran dpvat",
+  estac:"estacionamento pedagio parquimetro",
+  transp:"uber taxi onibus metro barca cabify passagem passagens rodoviaria",
+  plano:"unimed amil hapvida sulamerica notredame",
+  saude:"medico consulta dentista exame exames laboratorio clinica hospital fisioterapia psicologo psicologa terapia nutricionista oftalmo oculista dermato cirurgia vacina ressonancia",
   medic:"farmacia drogaria remedio remedios medicamento medicamentos panvel drogasil raia nissei dimed pacheco vitamina antibiotico",
-  saude:"medico consulta dentista exame exames laboratorio clinica hospital fisioterapia psicologo psicologa terapia nutricionista oftalmo oculista dermato unimed cirurgia vacina ressonancia",
-  casa:"aluguel condominio luz energia celesc cemig copel enel agua casan sanepar esgoto gas internet fibra iptu faxina diarista jardineiro pedreiro reforma sindico portaria",
-  educ:"escola colegio faculdade universidade mensalidade matricula curso apostila livro creche ingles udesc ufsc senai sesi sesc",
+  academia:"academia crossfit pilates natacao personal smartfit",
+  educ:"escola colegio faculdade universidade mensalidade matricula creche udesc ufsc",
+  cursos:"curso cursos apostila livro livros ingles senai sesi papelaria",
   roupa:"roupa roupas calcado calcados tenis sapato sandalia camisa camiseta calca bermuda vestido jaqueta casaco meia renner riachuelo hering zara pernambucanas havaianas centauro",
-  lazer:"cinema teatro show ingresso netflix spotify disney hbo max prime paramount deezer viagem hotel pousada airbnb passeio parque balada festa jogo videogame steam livraria",
-  assin:"assinatura plano celular telefone vivo claro tim oi recarga icloud google microsoft office dropbox chatgpt anuidade",
+  pessoal:"cabeleireiro barbeiro salao manicure pedicure estetica depilacao perfume cosmetico maquiagem boticario",
+  lazer:"cinema teatro show ingresso passeio parque balada festa jogo videogame steam livraria bar chopp cerveja sesc",
+  viaglazer:"viagem viagens hotel pousada airbnb booking aeroporto voo aerea resort",
+  celular:"celular telefone vivo claro tim oi recarga",
+  internet:"internet fibra provedor sky",
+  assin:"assinatura netflix spotify disney hbo max prime paramount deezer globoplay icloud google microsoft office dropbox chatgpt youtube",
+  filhos:"mesada filho filha filhos brinquedo brinquedos fralda fraldas",
   pet:"pet petshop racao veterinario veterinaria tosa cachorro gato antipulgas",
-  compras:"movel moveis eletrodomestico ferramenta ferramentas leroy havan magazine magalu americanas shopee amazon aliexpress panela colchao decoracao utensilio eletronico notebook",
-  imposto:"ipva imposto taxa cartorio multa detran darf inss juros tarifa",
-  pessoal:"cabeleireiro barbeiro salao manicure pedicure estetica depilacao academia crossfit pilates natacao personal perfume cosmetico maquiagem",
   presente:"presente lembranca doacao dizimo igreja vaquinha aniversario natal",
-  divida:"emprestimo emprestimos financiamento consignado divida acordo renegociacao cheque especial"
+  compras:"ferramenta ferramentas leroy havan magazine magalu americanas shopee amazon aliexpress eletronico notebook loja",
+  imposto:"imposto darf inss irpf iptu cartorio multa taxa",
+  tarifas:"tarifa tarifas juros iof anuidade encargos",
+  divida:"emprestimo emprestimos consignado divida acordo renegociacao cheque especial",
+  financ:"financiamento financiamentos consorcio"
 };
+/* viagem a trabalho, para tratamento ou por família é necessidade; a de passeio, desejo */
+const VIAGEM_NECESSARIA=/\b(trabalho|servico|congresso|tratamento|consulta|medico|hospital|familia|enterro|velorio)\b/;
 /* ---- categorias de entrada ---- */
 const ECATS = [
   {id:"sal",n:"Salário"},{id:"prol",n:"Pró-labore"},{id:"extra",n:"Extra / freela"},
@@ -699,7 +746,7 @@ const TEM_DESTINO = {transferencia:1, pix:1};
 
 const DEFAULTS = () => ({
   income:0, cap:0, mode:"teto", balanceGoal:0,
-  cats: CATS.map(c=>({...c, limit:0})), ecats: ECATS.map(c=>({...c})),
+  cats: CATS.map(c=>({id:c.id, n:c.n, pai:c.pai, limit:0})), catPais: PAIS.map(p=>({...p, limit:0})), ecats: ECATS.map(c=>({...c})),
   accounts: ACCTS.map(a=>({...a})), cards: CARDS.map(c=>({...c})), fixed:[],
   kwCat:{}, kwCard:{}, seen:false, goalName:"Reserva de emergência", goalTarget:0, deposits:[], metodo:{nec:50,des:30,fut:20}, dividas:[], plano:null
 });
@@ -711,7 +758,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="1.33.0";
+const VERSAO_APP="1.34.0";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -1311,7 +1358,13 @@ function guessCat(text,cfg,kind){
   if(!isE) Object.keys(cfg.kwCat||{}).forEach(w=>consider(cfg.kwCat[w],deacc(w.toLowerCase()),5000));
   Object.keys(dict).forEach(cid=>{ if(!list.some(c=>c.id===cid)) return;
     dict[cid].split(" ").forEach(w=>{ if(w.length>2) consider(cid,w,0); }); });
-  return best?best.id:(isE?"outrae":"outros"); }
+  let id=best?best.id:(isE?"outrae":"outros");
+  if(!isE){ const tem=x=>list.some(c=>c.id===x);
+    if(/ mercado ?livre /.test(s)&&tem("compras")) id="compras";                    /* a loja, não o supermercado */
+    /* "passagem" sozinha é ônibus; com avião, hotel ou "viagem" junto, é viagem */
+    if(id==="transp"&&/ (aerea|aereo|aereas|voo|aeroporto|hotel|pousada|airbnb|viagem|viagens) /.test(s)&&tem("viaglazer")) id="viaglazer";
+    if(id==="viaglazer"&&VIAGEM_NECESSARIA.test(s)&&tem("viagnec")) id="viagnec"; }
+  return id; }
 /* a data dita na frase. Sem mês, "dia 10" é o próximo dia 10 — mas até três dias para trás continua neste mês,
    porque quem fala "dia 23" no dia 25 está lançando o que já aconteceu. */
 const MESES_FALA={janeiro:1,fevereiro:2,marco:3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12,
@@ -1607,6 +1660,24 @@ const catLabel=t=>t.k==="e"?ecatName(t.cat):catName(t.cat);
 const cardName=id=>(S.cfg.cards.find(c=>c.id===id)||{n:""}).n;
 const acctName=id=>((S.cfg.accounts||[]).find(a=>a.id===id)||{n:"—"}).n;
 const catLimit=id=>((S.cfg.cats.find(c=>c.id===id)||{}).limit)||0;
+/* ---- categoria (pai) e subcategoria ---- */
+const listaPais=()=>(S.cfg.catPais&&S.cfg.catPais.length)?S.cfg.catPais:PAIS;
+const paiDe=id=>{ const c=(S.cfg.cats||[]).find(x=>x.id===id), p=(c&&c.pai)||PAI_PADRAO[id]||"p_outros";
+  return listaPais().some(x=>x.id===p)?p:"p_outros"; };
+const paiNome=pid=>(listaPais().find(p=>p.id===pid)||{n:"Outros"}).n;
+const subsDoPai=pid=>(S.cfg.cats||[]).filter(c=>paiDe(c.id)===pid);
+/* o limite da categoria: o dela mais o de cada subcategoria que tiver limite próprio */
+const limiteDoPai=pid=>((listaPais().find(p=>p.id===pid)||{}).limit||0)+subsDoPai(pid).reduce((s,c)=>s+(+c.limit||0),0);
+/* "Alimentação · Mercado" */
+const catCompleta=id=>{ const p=paiNome(paiDe(id)), n=catName(id); return p===n?n:p+" · "+n; };
+/* o gasto por subcategoria (byCat) somado por categoria, cada uma com as subcategorias dela, do maior para o menor */
+function porPai(byCat){
+  const m={}; Object.keys(byCat).forEach(id=>{ const p=paiDe(id); (m[p]=m[p]||{pid:p,v:0,subs:[]}); m[p].v+=byCat[id]; m[p].subs.push({id,v:byCat[id]}); });
+  return Object.values(m).map(x=>{ x.subs.sort((a,b)=>b.v-a.v); return x; }).sort((a,b)=>b.v-a.v); }
+/* <select> das subcategorias, separadas por categoria */
+function optCats(sel){
+  return listaPais().map(p=>{ const L=subsDoPai(p.id); if(!L.length) return "";
+    return '<optgroup label="'+esc(p.n)+'">'+L.map(c=>'<option value="'+c.id+'"'+(c.id===sel?" selected":"")+">"+esc(c.n)+"</option>").join("")+'</optgroup>'; }).join(""); }
 
 /* =================== insights =================== */
 function buildInsights(ym){
@@ -1651,9 +1722,9 @@ function buildInsights(ym){
         s:"A <b>"+fmt(Math.round(diario))+"</b> por dia, o mês fecha em <b>"+fmt(Math.round(st.pace))+"</b>."}); } }
 
   /* categorias com limite estourado */
-  const furados=ents.filter(e=>catLimit(e.id)>0&&e.v>catLimit(e.id));
+  const furados=porPai(st.byCat).filter(e=>limiteDoPai(e.pid)>0&&e.v>limiteDoPai(e.pid));
   if(furados.length) out.push({tone:"bad", t:furados.length===1?"1 categoria passou do limite":furados.length+" categorias passaram do limite",
-    s:furados.slice(0,3).map(e=>catName(e.id)+" <b>"+fmt(e.v)+"</b> de "+fmt(catLimit(e.id))).join(" · ")});
+    s:furados.slice(0,3).map(e=>paiNome(e.pid)+" <b>"+fmt(e.v)+"</b> de "+fmt(limiteDoPai(e.pid))).join(" · ")});
 
   /* parcelas comprometendo o futuro */
   const fut=futureMonths(6,ymShift(ymOf(todayISO()),1));
@@ -1846,7 +1917,7 @@ const DICAS={};
  ["Saldo hoje","O dinheiro que você tem agora, somando as contas."],
  ["Previsto dia","O saldo que o app espera para o último dia do mês: o de hoje (com os agendados até lá), mais o salário que ainda vai entrar, menos os fixos não lançados que saem da conta e as faturas do mês ainda não pagas."],
  ["Próximos vencimentos","Só o que ainda não foi pago e vence nos próximos dez dias (ou já venceu): faturas, gastos fixos e parcelas de dívida. O que já foi pago, debitado ou descontado do salário sai daqui; a lista completa do mês, com o que já foi pago, está em Ver todas."],
- ["Onde meu dinheiro está indo","As categorias do mês em ordem de valor. O traço cinza na barra é o limite que você definiu para aquela categoria em Ajustes."],
+ ["Onde meu dinheiro está indo","As categorias do mês em ordem de valor. Toque numa barra para ver as subcategorias de dentro dela. O traço cinza na barra é o limite que você definiu para a categoria em Ajustes."],
  ["Onde o dinheiro está","O saldo de cada conta hoje, uma por uma."],
  ["O que salta aos olhos","O diagnóstico do mês: o que passou do teto, o que fugiu do 50-30-20, gastos que parecem fixos e cartões perto do limite."],
  ["Ritmo do mês","A linha azul é quanto você já gastou, dia a dia. A cinza é o ritmo que cabe no teto. Acima da cinza, você está gastando mais rápido do que o mês aguenta."],
@@ -1986,6 +2057,23 @@ function resumoSerie(rows,opt){
   if(opt.fim) f.push(opt.fim);
   return '<div class="cardbox-s" style="margin:10px 0 0">'+f.join(" ")+' <i>Toque numa barra para entender aquele mês.</i></div>'; }
 /* fatias: o peso de cada uma dentro do total */
+/* barras por categoria: a leitura (toque) traz as subcategorias, a média dos meses fechados e o limite da categoria */
+function linhasDosPais(pais,tot,opt){
+  const hC=historicoPlano(), media=id=>{ const c=hC.cats.find(x=>x.id===id); return c?c.media:0; };
+  return pais.map((e,i)=>{ const nome=paiNome(e.pid), lim=limiteDoPai(e.pid);
+    const r={label:nome,v:e.v,pct:tot?Math.round(e.v/tot*100):0,limit:lim,
+      tip:nome+" — "+fmt(e.v)+"|"+e.subs.slice(0,4).map(x=>catName(x.id)+" "+fmtN(x.v)).join(" · ")+(lim?" · limite "+fmtN(lim):"")};
+    const g={}; e.subs.forEach(x=>{ const k=grupoDe(x.id); g[k]=(g[k]||0)+x.v; });
+    const grupos=Object.keys(g).map(k=>NOMES_GRUPO[k]+(Object.keys(g).length>1?" "+fmtN(g[k]):"")).join(", ");
+    r.leitura=leituraFatia(r,tot,{de:opt.de, media:e.subs.reduce((s,x)=>s+media(x.id),0),
+      lugar:i===0?"É a maior do mês.":(i+1)+"ª maior do mês.",
+      extra:(e.subs.length>1||catName(e.subs[0].id)!==nome?"Dentro dela: "+e.subs.map(x=>catName(x.id)+" "+fmtN(x.v)).join(" · ")+". ":"")+
+        "No método 50-30-20 conta como "+grupos+"."});
+    r.leituraT=nome; return r; }); }
+/* "Ver os números em tabela": cada subcategoria, com a categoria dela */
+function tabelaDosPais(pais,tot){
+  const L=[]; pais.forEach(p=>p.subs.forEach(x=>L.push([paiNome(p.pid),catName(x.id),fmtN(x.v),(tot?Math.round(x.v/tot*100):0)+"%"])));
+  return tableView(["Categoria","Subcategoria","Valor","% do total"],L); }
 function leituraFatia(r,total,opt){
   opt=opt||{}; const f=[];
   f.push(r.label+": "+fmt(r.v)+(total?", "+Math.round(r.v/total*100)+"% "+(opt.de||"do total do mês"):"")+".");
@@ -2245,29 +2333,21 @@ function renderPainel(){
 
   html+=htmlProximas(S.ym);
 
-  /* onde o dinheiro está indo */
-  const ents=Object.keys(st.byCat).map(id=>({id,v:st.byCat[id]})).sort((a,b)=>b.v-a.v);
-  const tot=ents.reduce((s,e)=>s+e.v,0);
-  /* média da categoria nos meses fechados, para a leitura comparar com o histórico */
-  const hCat=historicoPlano();
-  const mediaCat=id=>{ const c=hCat.cats.find(x=>x.id===id); return c?c.media:0; };
-  let rows=ents.slice(0,8).map((e,i)=>{ const r={label:catName(e.id),v:e.v,pct:tot?Math.round(e.v/tot*100):0,
-      limit:catLimit(e.id), tip:catName(e.id)+" — "+fmt(e.v)+(catLimit(e.id)?"|limite "+fmtN(catLimit(e.id)):"")};
-    r.leitura=leituraFatia(r,tot,{de:"de tudo o que saiu em "+ymLabel(S.ym), media:mediaCat(e.id),
-      lugar:i===0?"É a maior do mês.":(i+1)+"ª maior do mês.",
-      extra:"No método 50-30-20 ela conta como "+NOMES_GRUPO[grupoDe(e.id)]+"."});
-    return r; });
-  if(ents.length>8){ const resto=ents.slice(8).reduce((s,e)=>s+e.v,0);
-    rows.push({label:"Outras ("+(ents.length-8)+")",v:resto,pct:tot?Math.round(resto/tot*100):0,
+  /* onde o dinheiro está indo: por categoria; o toque na barra abre as subcategorias dela */
+  const pais=porPai(st.byCat), tot=pais.reduce((s,e)=>s+e.v,0);
+  /* até nove barras; com mais, as menores viram "Outras" (uma só sobrando aparece com o nome dela) */
+  let rows=linhasDosPais(pais,tot,{de:"de tudo o que saiu em "+ymLabel(S.ym)}).slice(0,pais.length>9?8:9);
+  if(pais.length>9){ const resto=pais.slice(8).reduce((s,e)=>s+e.v,0);
+    rows.push({label:"Outras ("+(pais.length-8)+")",v:resto,pct:tot?Math.round(resto/tot*100):0,
       tip:"Outras categorias — "+fmt(resto),
-      leitura:"As outras "+(ents.length-8)+" categorias somam "+fmt(resto)+", "+(tot?Math.round(resto/tot*100):0)+"% do mês. Nenhuma delas isolada chega às oito maiores."}); }
+      leitura:"As outras "+(pais.length-8)+" categorias ("+pais.slice(8).map(e=>paiNome(e.pid)).join(", ")+") somam "+fmt(resto)+", "+(tot?Math.round(resto/tot*100):0)+"% do mês. Nenhuma delas isolada chega às oito maiores."}); }
 
   html+='<div class="sec"><div class="grid g23">'+
     '<div class="card pad chart"><div class="ch-h"><span class="ch-t">Onde meu dinheiro está indo</span></div>'+
     '<div class="ch-s">'+esc(ymLabel(S.ym))+' · '+fmt(tot)+' no total. O traço cinza é o limite que você definiu para a categoria.</div>'+
     chartBarsH(rows,{alt:"Gastos por categoria"})+
     resumoFatias(rows,tot,{de:"do mês",fim:st.cap?("O mês todo soma "+fmtN(tot)+" contra um teto de "+fmtN(st.cap)+"."):""})+
-    tableView(["Categoria","Valor","% do total"],ents.map(e=>[catName(e.id),fmtN(e.v),(tot?Math.round(e.v/tot*100):0)+"%"]))+
+    tabelaDosPais(pais,tot)+
     '</div>'+
     '<div><div class="sec-h"><h2 class="sec-t">O que salta aos olhos</h2></div>'+insHTML(buildInsights(S.ym))+'</div>'+
     '</div></div>';
@@ -2571,14 +2651,9 @@ function renderMes(){
     htmlContas(S.ym)+
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Por categoria</h2>'+
     (st.fixPend>0?'<button class="sec-a" id="fixBtn">Lançar fixos</button>':'')+'</div>'+
-    '<div class="card pad chart">'+(()=>{ const hC=historicoPlano();
-      const L=ents.map((e,i)=>{ const r={label:catName(e.id),v:e.v,pct:tot?Math.round(e.v/tot*100):0,
-          limit:catLimit(e.id),tip:catName(e.id)+" — "+fmt(e.v)};
-        const h=hC.cats.find(x=>x.id===e.id);
-        r.leitura=leituraFatia(r,tot,{de:"do gasto de "+ymLabel(S.ym), media:h?h.media:0,
-          lugar:(i+1)+"ª maior do mês.", extra:"No 50-30-20 conta como "+NOMES_GRUPO[grupoDe(e.id)]+"."});
-        r.leituraT=r.label; return r; });
-      return chartBarsH(L,{alt:"Gastos por categoria"})+resumoFatias(L,tot,{de:"do mês"}); })()+'</div></div>'+
+    '<div class="card pad chart">'+(()=>{ const P=porPai(st.byCat);
+      const L=linhasDosPais(P,tot,{de:"do gasto de "+ymLabel(S.ym)});
+      return chartBarsH(L,{alt:"Gastos por categoria"})+resumoFatias(L,tot,{de:"do mês"})+tabelaDosPais(P,tot); })()+'</div></div>'+
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Extrato de '+esc(ymLabel(S.ym))+'</h2></div>'+
     (days.length?days.map(d=>{ const dt=new Date(d+"T12:00:00");
       const tg=byDay[d].filter(x=>x.k==="g").reduce((s,x)=>s+x.v,0);
@@ -2724,7 +2799,7 @@ function openTx(ym,id){
       ? '<div class="two"><div class="set-f"><label>Sai de</label><select id="tA"><option value="">Fora do app</option>'+optId(A,t.acct||"")+'</select></div>'+
         '<div class="set-f"><label>Vai para</label><select id="tB"><option value="">Fora do app</option>'+optId(A,t.acct2||"")+'</select></div></div>'
       : '<div class="two">'+
-        (kind==="p"?"":'<div class="set-f"><label>Categoria</label><select id="tC">'+optId(catList,t.cat)+'</select></div>')+
+        (kind==="p"?"":'<div class="set-f"><label>'+(kind==="e"?"Categoria":"Categoria e subcategoria")+'</label><select id="tC">'+(kind==="e"?optId(catList,t.cat):optCats(t.cat))+'</select></div>')+
         (kind==="g"
           ? '<div class="set-f"><label>Pagamento</label><select id="tP">'+optId(S.cfg.cards,t.card)+'</select></div>'
           : '<div class="set-f"><label>'+(kind==="e"?"Cai na conta":"Sai da conta")+'</label><select id="tA">'+optId(A,t.acct||acctOf(t.card))+'</select></div>')+
@@ -2773,7 +2848,7 @@ function openManual(kind){
     '<div class="two"><div class="set-f"><label>Valor</label><input id="mV" inputmode="decimal" placeholder="0,00"></div>'+
     '<div class="set-f"><label>Quando</label><input id="mDt" type="date" value="'+todayISO()+'"></div></div>'+
     '<div class="set-f"><label>Descrição</label><input id="mD" placeholder="'+(isE?"Salário de setembro":"Almoço")+'"></div>'+
-    '<div class="two"><div class="set-f"><label>Categoria</label><select id="mC">'+optId(catList,isE?"sal":"outros")+'</select></div>'+
+    '<div class="two"><div class="set-f"><label>'+(isE?"Categoria":"Categoria e subcategoria")+'</label><select id="mC">'+(isE?optId(catList,"sal"):optCats("outros"))+'</select></div>'+
     (isE?'<div class="set-f"><label>Cai em qual conta</label><select id="mA">'+optId(A,(A[0]||{}).id)+'</select></div>'
        :'<div class="set-f"><label>Pagamento</label><select id="mP">'+optId(S.cfg.cards,(S.cfg.cards[0]||{}).id)+'</select></div>')+
     '</div>'+
@@ -3385,7 +3460,18 @@ function renderConsulta(){
     '<div class="tile-l" style="margin-top:14px">O que mostrar</div>'+
     '<div class="segs" style="margin-top:8px">'+[["g","Gastos"],["e","Entradas"],["tudo","Tudo"]].map(x=>selo(c.tipo===x[0],x[1],'data-tipo="'+x[0]+'"')).join("")+'</div>'+
     '<div class="tile-l" style="margin-top:14px">Categorias <span style="text-transform:none;letter-spacing:0">'+(c.cats.length?"("+c.cats.length+" marcadas)":"(todas)")+'</span></div>'+
-    '<div class="segs" style="margin-top:8px">'+selo(!c.cats.length,"Todas",'data-cat=""')+cats.map(x=>selo(c.cats.indexOf(x.id)>=0,x.n,'data-cat="'+x.id+'"')).join("")+'</div>'+
+    (c.tipo==="e"
+      ? '<div class="segs" style="margin-top:8px">'+selo(!c.cats.length,"Todas",'data-cat=""')+cats.map(x=>selo(c.cats.indexOf(x.id)>=0,x.n,'data-cat="'+x.id+'"')).join("")+'</div>'
+      /* gastos: tocar na categoria abre as subcategorias dela; ali se marca a categoria inteira ("Todas de…")
+         ou só as subcategorias que quiser — pedido do dono: categoria, subcategoria, ou as duas */
+      : '<div class="segs" style="margin-top:8px">'+selo(!c.cats.length,"Todas",'data-cat=""')+
+          listaPais().filter(p=>subsDoPai(p.id).length).map(p=>{ const n=subsDoPai(p.id).filter(x=>c.cats.indexOf(x.id)>=0).length;
+            return selo(n>0,p.n+(n?" ("+n+")":"")+((c.abertas||[]).indexOf(p.id)>=0?" ▾":" ▸"),'data-catpai="'+p.id+'"'); }).join("")+'</div>'+
+        listaPais().map(p=>{ const L=subsDoPai(p.id); if(!L.length||(c.abertas||[]).indexOf(p.id)<0) return "";
+          const todas=L.every(x=>c.cats.indexOf(x.id)>=0);
+          return '<div class="say-hint" style="margin:10px 0 4px">'+esc(p.n)+'</div><div class="segs">'+
+            selo(todas,"Todas de "+p.n,'data-cattodas="'+p.id+'"')+
+            L.map(x=>selo(c.cats.indexOf(x.id)>=0,x.n,'data-cat="'+x.id+'"')).join("")+'</div>'; }).join(""))+
     '<div class="tile-l" style="margin-top:14px">Forma de pagamento '+(c.formas.length?'<span style="text-transform:none;letter-spacing:0">('+c.formas.length+" marcadas)"+'</span>':'<span style="text-transform:none;letter-spacing:0">(todas)</span>')+'</div>'+
     '<div class="segs" style="margin-top:8px">'+selo(!c.formas.length,"Todas",'data-forma=""')+formas.map(x=>selo(c.formas.indexOf(x.id)>=0,x.n,'data-forma="'+x.id+'"')).join("")+'</div>'+
     '</div></div>'+
@@ -3420,6 +3506,13 @@ function renderConsulta(){
   $$("[data-tipo]").forEach(b=>b.onclick=()=>{ c.tipo=b.dataset.tipo; c.cats=[]; renderConsulta(); });
   $$("[data-cat]").forEach(b=>b.onclick=()=>{ const id=b.dataset.cat;
     if(!id) c.cats=[]; else { const i=c.cats.indexOf(id); if(i>=0) c.cats.splice(i,1); else c.cats.push(id); }
+    renderConsulta(); });
+  /* a categoria abre (ou fecha) as subcategorias dela; "Todas de…" marca ou desmarca a categoria inteira */
+  $$("[data-catpai]").forEach(b=>b.onclick=()=>{ const A=c.abertas=c.abertas||[], id=b.dataset.catpai, i=A.indexOf(id);
+    if(i>=0) A.splice(i,1); else A.push(id); renderConsulta(); });
+  $$("[data-cattodas]").forEach(b=>b.onclick=()=>{ const ids=subsDoPai(b.dataset.cattodas).map(x=>x.id);
+    if(ids.every(id=>c.cats.indexOf(id)>=0)) c.cats=c.cats.filter(id=>ids.indexOf(id)<0);
+    else ids.forEach(id=>{ if(c.cats.indexOf(id)<0) c.cats.push(id); });
     renderConsulta(); });
   $$("[data-so]").forEach(b=>b.onclick=()=>{ const id=b.dataset.so;
     c.formas=[]; c.cats=id?[id]:[]; renderConsulta(); });
@@ -3636,14 +3729,18 @@ const AJUDA=[
   c:"Explica. Embaixo de cada gráfico há um parágrafo O que este gráfico diz, escrito com os seus próprios números: qual categoria pesa mais, quanto o mês subiu ou caiu, quantos meses passaram do teto, quando as parcelas afrouxam. E tocando em qualquer barra, ponto ou fatia, o app abre a leitura daquele dado — o valor, a comparação com o mês anterior e com a média, a posição em relação ao teto e o que muda dali para a frente.",a:"painel"},
  {g:"Lançar",t:"Falei \u201ctrinta e nove e noventa\u201d. Ele entende os centavos?",
   c:"Entende. Tanto faz dizer \u201ctrinta e nove e noventa\u201d, \u201ctrinta e nove reais e noventa\u201d ou \u201ctrinta e nove e noventa centavos\u201d: os três viram R$ 39,90. O app sabe que, em português, a conta só desce (cem, e vinte, e sete) — o que vem depois maior que isso já são os centavos.",a:"fala"},
+ {g:"No dia a dia",t:"Quais são as categorias e subcategorias?",
+  c:"São 14 categorias, cada uma com as suas subcategorias (N = necessidade, D = desejo, F = futuro no 50-30-20). Casa: Aluguel e condomínio N, Energia N, Água e gás N, Manutenção e serviços da casa N, Lavanderia N, Móveis, eletro e utensílios D. Alimentação: Mercado N, Padaria N, Feira N, Restaurantes e lanches D, Delivery D. Veículo: Combustível N, Manutenção do veículo N, IPVA, seguro e licenciamento N, Estacionamento e pedágio N. Transporte e viagens: Uber, táxi e ônibus N, Viagens necessárias N. Saúde: Plano de saúde N, Consultas, exames e dentista N, Farmácia N, Academia e esporte D. Educação: Escola e faculdade N, Cursos, livros e material N. Pessoal: Roupas e calçados D, Beleza e cuidados pessoais D. Lazer: Passeios, bares e eventos D, Viagens de lazer D. Telefone, internet e assinaturas: Celular e telefone N, Internet e TV N, Streaming e assinaturas digitais D. Família: Filhos e mesada N, Pets N, Presentes e doações D. Compras: Compras diversas D. Impostos e bancos: Impostos e taxas N, Tarifas bancárias, juros e anuidade N. Dívidas: Empréstimos e consignado F, Financiamentos F. Outros. Tudo dá para renomear, criar e mudar de lugar em Ajustes, Categorias de gasto.",a:"categorias"},
+ {g:"No dia a dia",t:"O que aconteceu com as minhas categorias antigas?",
+  c:"Na versão 1.34.0 a lista virou categorias com subcategorias. Os lançamentos passaram sozinhos para as subcategorias novas pelas palavras da descrição: o que estava em Moradia e contas com luz ou o nome da companhia de energia foi para Casa, Energia; com aluguel, para Aluguel e condomínio; Padaria saiu de Alimentação fora; iFood foi para Delivery; Netflix para Streaming; e assim por diante. O que não deu para saber ficou na subcategoria mais geral da categoria (Manutenção e serviços da casa, Restaurantes e lanches, Compras diversas...). Os valores, datas e formas de pagamento não mudaram, só a categoria. O limite que uma categoria antiga tinha passou para a categoria nova. Categoria que você tinha criado continua, dentro de Outros (em Ajustes dá para mudá-la para outra categoria); se tinha o mesmo nome de uma das novas, como Lavanderia, juntou com ela. Para corrigir um caso, toque no lançamento; para vários de uma vez, use a Consulta e Mudar a categoria.",a:"categorias"},
  {g:"No dia a dia",t:"Quero reorganizar as categorias. Vou bagunçar o que já lancei?",
-  c:"Não. Por dentro, cada lançamento está amarrado à categoria por um código, não pelo nome — então renomear é seguro e vale para trás: tudo o que já estava ali passa a aparecer com o nome novo, inclusive nos meses fechados, nos gráficos e no 50-30-20. Criar categoria nova também não mexe em nada (ela nasce vazia). E ao excluir, o app não deixa nada solto: ele conta quantos lançamentos, gastos fixos e palavras aprendidas estão naquela categoria e pede para onde levar tudo, antes de tirá-la da lista. Duas não podem ser excluídas, só renomeadas: Dívidas e empréstimos (o app lança nela sozinho, nos consignados) e Outros (é a reserva de quando ele não sabe classificar).",a:"categorias"},
+  c:"Não. Por dentro, cada lançamento está amarrado à subcategoria por um código, não pelo nome — então renomear é seguro e vale para trás: tudo o que já estava ali passa a aparecer com o nome novo, inclusive nos meses fechados, nos gráficos e no 50-30-20. Mudar uma subcategoria de categoria (na ficha dela, em Categoria) também leva junto tudo o que já foi lançado. Criar subcategoria ou categoria nova não mexe em nada (nasce vazia). E ao excluir uma subcategoria, o app não deixa nada solto: ele conta quantos lançamentos, gastos fixos e palavras aprendidas estão nela e pede para onde levar tudo, antes de tirá-la da lista. Uma categoria só sai quando não tem mais subcategorias. Duas subcategorias não podem ser excluídas, só renomeadas: Empréstimos e consignado (o app lança nela sozinho, nos consignados) e Outros (é a reserva de quando ele não sabe classificar).",a:"categorias"},
  {g:"No dia a dia",t:"Como divido uma categoria em duas ou três?",
-  c:"Em Ajustes, em Categorias, crie as novas (por exemplo Farmácia e Consultas no lugar de Saúde). Vá na aba Consulta, marque só a categoria antiga, escolha o período — Tudo, se quiser desde o começo — e toque em Mudar a categoria: ele troca de uma vez os lançamentos que estão na lista, e só a categoria muda (valor, data e forma de pagamento ficam iguais). Repita com outro período ou outro filtro para a segunda parte; o que for caso a caso, toque na linha e mude ali. No fim, exclua a categoria antiga — se ainda tiver sobrado algo nela, o app pergunta para onde levar. Para juntar duas em uma, é o contrário: exclua uma e mande tudo para a outra.",a:"categorias"},
+  c:"Em Ajustes, em Categorias de gasto, abra a categoria e toque em Nova subcategoria para criar as novas. Vá na aba Consulta, toque na categoria e marque só a subcategoria antiga, escolha o período — Tudo, se quiser desde o começo — e toque em Mudar a categoria: ele troca de uma vez os lançamentos que estão na lista, e só a categoria muda (valor, data e forma de pagamento ficam iguais). Repita com outro período ou outro filtro para a segunda parte; o que for caso a caso, toque na linha e mude ali. No fim, exclua a subcategoria antiga — se ainda tiver sobrado algo nela, o app pergunta para onde levar. Para juntar duas em uma, é o contrário: exclua uma e mande tudo para a outra.",a:"categorias"},
  {g:"Dívidas",t:"Financiamento do carro é dívida ou gasto com carro?",
-  c:"A parcela do financiamento é dívida: cadastre em Lançar, em Cadastrar dívidas, com o valor da parcela, o total de parcelas, a taxa de juros e o mês em que começou. Assim ela entra sozinha todo mês, aparece em Análises e no Futuro como renda comprometida, e o app calcula a quitação antecipada com desconto de juros. Carro e manutenção é para o custo de andar com ele: revisão, pneus, IPVA, seguro, lavagem, oficina — e o combustível tem categoria própria. No 50-30-20, a parcela da dívida conta como Futuro (pagar dívida é formar patrimônio); a manutenção conta como Necessidade.",a:"dividas"},
+  c:"A parcela do financiamento é dívida: cadastre em Lançar, em Cadastrar dívidas, com o valor da parcela, o total de parcelas, a taxa de juros e o mês em que começou. Assim ela entra sozinha todo mês, aparece em Análises e no Futuro como renda comprometida, e o app calcula a quitação antecipada com desconto de juros. Ela fica em Dívidas, Financiamentos. A categoria Veículo é para o custo de andar com ele: Combustível, Manutenção do veículo (revisão, pneus, lavação, oficina), IPVA, seguro e licenciamento, e Estacionamento e pedágio. No 50-30-20, a parcela da dívida conta como Futuro (pagar dívida é formar patrimônio); o resto do veículo conta como Necessidade.",a:"dividas"},
  {g:"Entender os números",t:"Como vejo quanto gastei numa categoria?",
-  c:"Na aba Consulta: escolha o período (hoje, semana, mês, mês passado, últimos 30 dias, ano, ou duas datas), marque as categorias e, se quiser, as formas de pagamento. Ele mostra o total, o valor por categoria e por forma de pagamento, e a lista com data, descrição e como foi pago. Dá para copiar tudo para uma planilha.",a:"consulta"},
+  c:"Na aba Consulta: escolha o período (hoje, semana, mês, mês passado, últimos 30 dias, ano, ou duas datas) e toque na categoria: abrem as subcategorias dela. Marque Todas de… para a categoria inteira, ou só as subcategorias que quiser; dá para juntar várias, de categorias diferentes. Se quiser, marque também as formas de pagamento. Ele mostra o total, o valor por categoria e por forma de pagamento, e a lista com data, descrição e como foi pago. Dá para copiar tudo para uma planilha.",a:"consulta"},
  {g:"Entender os números",t:"Como informo que guardei um dinheiro — e tiro da conta?",
   c:"Na aba Meta, botão Guardei um dinheiro. Diga o valor e a data e deixe marcado Tirar o dinheiro da conta agora: o app faz a transferência da conta do dia a dia para a conta onde o dinheiro vai ficar (Poupança, por exemplo). O saldo do Painel já não conta com ele, então você não gasta sem querer o que separou — e não conta como gasto, porque é o mesmo dinheiro em outro lugar. Desmarque se quiser só anotar, sem mexer nas contas. Corrigiu o valor depois? A transferência acompanha. Excluiu o registro? O dinheiro volta para a conta.",a:"futuro"},
  {g:"Entender os números",t:"Quero juntar um valor até uma data. Como faço?",
@@ -3684,7 +3781,7 @@ const AJUDA=[
  {g:"Dívidas",t:"O empréstimo apareceu como salário na minha renda",
   c:"Acontecia com o crédito do consignado no extrato do Banco do Brasil (Contr BB Consig em Folha): a palavra folha puxava a categoria para Salário, e o dinheiro emprestado inflava a renda do mês nas análises e no plano. Agora ele entra como Empréstimo recebido, que soma no saldo da conta mas não conta como renda. No Painel, Entrou no mês mostra o empréstimo separado, somado ao que entrou. Para corrigir o que já entrou: Ajustes, Dados, Revisar, e toque em Corrigir na linha dos empréstimos contados como salário.",a:"dividas"},
  {g:"Dívidas",t:"O consignado aparece como Sai do salário do mês, mas o salário já entrou",
-  c:"Acontecia quando o consignado era cadastrado depois de o salário do mês já estar no app (vindo do extrato, por exemplo). Desde a versão 1.31.1, com o salário do mês lançado, o app lança sozinho a parcela do consignado na data do salário, como descontada, em Dívidas e empréstimos. O valor do salário não muda, e o saldo da conta também não. Se você apagou a parcela de propósito, ela não volta.",a:"dividas"},
+  c:"Acontecia quando o consignado era cadastrado depois de o salário do mês já estar no app (vindo do extrato, por exemplo). Desde a versão 1.31.1, com o salário do mês lançado, o app lança sozinho a parcela do consignado na data do salário, como descontada, em Dívidas · Empréstimos e consignado. O valor do salário não muda, e o saldo da conta também não. Se você apagou a parcela de propósito, ela não volta.",a:"dividas"},
  {g:"Dívidas",t:"O desconto do consignado começou meses depois. Como informo?",
   c:"Na ficha da dívida há Primeiro desconto no salário de. A contagem das parcelas passa a valer desse mês. Se algumas já saíram antes deste mês, informe em Já descontadas antes deste mês.",a:"dividas"},
  {g:"Dívidas",t:"Quanto preciso para quitar hoje?",
@@ -3772,7 +3869,7 @@ function renderAjustes(){
     '<input id="sIncome" inputmode="decimal" value="'+(rendaDoMes(ymOf(todayISO()))?fmtN(rendaDoMes(ymOf(todayISO()))):"")+'" placeholder="0,00">'+historicoRendaHTML()+'</div>'+
     '<div class="two"><div class="set-f"><label for="sSalConta">O salário cai na conta</label><select id="sSalConta">'+optId(c.accounts||[],contaDoSalario())+'</select></div>'+
     '<div class="set-f"><label>Lançar sozinho</label><label style="display:flex;align-items:center;gap:9px;font-weight:500;color:var(--ink);min-height:38px"><input type="checkbox" id="sSalAuto" style="width:20px;height:20px"'+(c.salAuto!==false?" checked":"")+'>no 1º dia útil do mês</label></div></div>'+
-    '<div class="set-f"><span class="hint">Em mês com parcela de consignado, o salário entra já com a parcela descontada, e a parcela aparece em Dívidas e empréstimos.</span></div>'+
+    '<div class="set-f"><span class="hint">Em mês com parcela de consignado, o salário entra já com a parcela descontada, e a parcela aparece em Dívidas · Empréstimos e consignado.</span></div>'+
     '<div class="set-f"><label for="sMode">Como definir a meta</label><select id="sMode">'+
     '<option value="teto"'+(c.mode==="teto"?" selected":"")+'>Pelo teto de gastos</option>'+
     '<option value="saldo"'+(c.mode==="saldo"?" selected":"")+'>Pela sobra que quero</option></select></div>'+
@@ -3796,8 +3893,13 @@ function renderAjustes(){
       return linkrow(x.n,b.join(" · "),'data-card="'+x.id+'"'); }).join("")+'</div></div>'+
 
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Categorias de gasto</h2>'+
-    '<button class="sec-a" data-new="cat">Adicionar</button></div><div class="card pad">'+
-    c.cats.map(x=>linkrow(x.n,NOMES_GRUPO[grupoDe(x.id)]+" · "+(x.limit?("limite "+fmtN(x.limit)+" por mês"):"sem limite"),'data-cat="'+x.id+'"')).join("")+'</div></div>'+
+    '<button class="sec-a" data-new="cat">Adicionar</button></div>'+
+    '<div class="say-hint" style="margin:-4px 0 10px">Cada categoria agrupa subcategorias. O lançamento vai numa subcategoria, e é ela que decide o grupo do 50-30-20. Toque numa categoria para abrir.</div>'+
+    listaPais().map(p=>{ const L=subsDoPai(p.id), lim=limiteDoPai(p.id);
+      return '<details class="grp"><summary>'+esc(p.n)+'<span class="v">'+L.length+(L.length===1?" subcategoria":" subcategorias")+(lim?" · limite "+fmtN(lim):"")+'</span></summary><div class="in">'+
+        L.map(x=>linkrow(x.n,NOMES_GRUPO[grupoDe(x.id)]+(x.limit?" · limite "+fmtN(x.limit)+" por mês":""),'data-cat="'+x.id+'"')).join("")+
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"><button class="mini" data-pai="'+p.id+'">Editar a categoria</button>'+
+        '<button class="mini" data-novasub="'+p.id+'">Nova subcategoria</button></div></div></details>'; }).join("")+'</div>'+
 
     '<div class="sec"><div class="sec-h"><h2 class="sec-t">Categorias de entrada</h2>'+
     '<button class="sec-a" data-new="ecat">Adicionar</button></div><div class="card pad">'+
@@ -3854,6 +3956,8 @@ function renderAjustes(){
   $$("[data-acct]").forEach(b=>b.onclick=()=>openAcct(b.dataset.acct));
   $$("[data-card]").forEach(b=>b.onclick=()=>openCard(b.dataset.card));
   $$("[data-cat]").forEach(b=>b.onclick=()=>openCat(b.dataset.cat));
+  $$("[data-pai]").forEach(b=>b.onclick=()=>openPai(b.dataset.pai));
+  $$("[data-novasub]").forEach(b=>b.onclick=()=>openCat("",b.dataset.novasub));
   $$("[data-ecat]").forEach(b=>b.onclick=()=>openEcat(b.dataset.ecat));
   $$("[data-fix]").forEach(b=>b.onclick=()=>openFix(b.dataset.fix));
   $$("[data-new]").forEach(b=>b.onclick=()=>({acct:openAcct,card:openCard,cat:openCat,ecat:openEcat,fix:openFix}[b.dataset.new])(""));
@@ -3946,7 +4050,7 @@ function openMoverLinhas(L,tipo){
     '<div class="set"><div class="note"><b>'+quantos+'</b>São os que estão na lista da Consulta agora, de '+diaMesAno(L[L.length-1].d)+' a '+diaMesAno(L[0].d)+
     '. Só a categoria muda: valor, data e forma de pagamento ficam como estão.</div>'+
     '<div class="set-f"><label for="mvC">Nova categoria</label><select id="mvC">'+
-    lista.map(x=>'<option value="'+x.id+'">'+esc(x.n)+'</option>').join("")+'</select>'+
+    (tipo==="e"?lista.map(x=>'<option value="'+x.id+'">'+esc(x.n)+'</option>').join(""):optCats(""))+'</select>'+
     '<span class="hint">Se a categoria nova ainda não existe, crie em Ajustes, em Categorias, e volte aqui.</span></div></div>',
     '<button class="btn" id="mvOk">Mudar os '+L.length+'</button>');
   $("#mvOk").onclick=async()=>{
@@ -3962,30 +4066,56 @@ function openApagarCat(c,u){
     (u.meses.length?"De "+ymLabel(u.meses[0])+" a "+ymLabel(u.meses[u.meses.length-1])+". ":"")+
     'Nada é apagado: tudo isso passa para a categoria que você escolher aqui, e só depois a categoria '+esc(c.n)+' sai da lista.</div>'+
     '<div class="set-f"><label for="kMv">Levar tudo para</label><select id="kMv">'+
-    destinos.map(x=>'<option value="'+x.id+'">'+esc(x.n)+'</option>').join("")+'</select></div></div>',
+    optCats(destinos[0]?destinos[0].id:"").replace('<option value="'+c.id+'">'+esc(c.n)+'</option>',"")+'</select></div></div>',
     '<button class="btn danger" id="kMvOk">Mover e excluir</button>');
   $("#kMvOk").onclick=async()=>{
     const para=$("#kMv").value, n=await moverCategoria(c.id,para);
     S.cfg.cats=S.cfg.cats.filter(x=>x.id!==c.id); await saveCfg();
     closeSheet(); render(); toast(n?n+(n>1?" lançamentos foram para ":" lançamento foi para ")+catName(para)+".":"Categoria excluída."); }; }
-function openCat(id){
-  const c=S.cfg.cats.find(x=>x.id===id)||{id:"c"+uid(),n:"",limit:0};
-  const isNew=!S.cfg.cats.some(x=>x.id===c.id);
-  sheet(isNew?"Nova categoria":c.n,
-    '<div class="set"><div class="set-f"><label>Nome</label><input id="kN" value="'+esc(c.n)+'"></div>'+
-    '<div class="set-f"><label>Limite por mês</label><input id="kL" inputmode="decimal" value="'+(c.limit?fmtN(c.limit):"")+'" placeholder="0,00 = sem limite">'+
-    '<span class="hint">Aparece como um traço na barra da categoria e vira alerta no Painel quando estoura.</span></div>'+'<div class="set-f"><label>No método 50-30-20</label><select id="kG">'+opcoesGrupo(grupoDe(c.id))+'</select></div></div>',
+/* a categoria (o nível de cima): nome e limite do mês para ela inteira */
+function openPai(pid){
+  const L=S.cfg.catPais||(S.cfg.catPais=PAIS.map(x=>({...x,limit:0})));
+  const p=L.find(x=>x.id===pid); if(!p) return;
+  const subs=subsDoPai(pid);
+  sheet(p.n,
+    '<div class="set"><div class="set-f"><label for="pN">Nome da categoria</label><input id="pN" value="'+esc(p.n)+'"></div>'+
+    '<div class="set-f"><label for="pL">Limite por mês da categoria inteira</label><input id="pL" inputmode="decimal" value="'+(p.limit?fmtN(p.limit):"")+'" placeholder="0,00 = sem limite">'+
+    '<span class="hint">Soma o gasto de todas as subcategorias dela. Aparece como um traço na barra da categoria no Painel e vira alerta quando estoura.</span></div>'+
+    '<div class="set-f"><span class="hint">Subcategorias: '+(subs.length?subs.map(x=>esc(x.n)).join(", "):"nenhuma")+'.</span></div></div>',
+    (pid==="p_outros"?'':'<button class="btn danger" id="pKill">Excluir</button>')+'<button class="btn" id="pOk">Salvar</button>');
+  $("#pOk").onclick=()=>{ const n=$("#pN").value.trim(); if(!n){ toast("Dê um nome."); return; }
+    p.n=n; p.limit=toCents($("#pL").value); saveCfg(); closeSheet(); render(); toast("Salvo"); };
+  const k=$("#pKill");
+  if(k) k.onclick=()=>{ if(subsDoPai(pid).length){ toast("Antes, mude as subcategorias dela para outra categoria (em cada uma, Categoria) ou exclua."); return; }
+    S.cfg.catPais=L.filter(x=>x.id!==pid); saveCfg(); closeSheet(); render(); toast("Categoria excluída"); }; }
+function openCat(id,paiInicial){
+  const c=S.cfg.cats.find(x=>x.id===id)||{id:"c"+uid(),n:"",limit:0,pai:paiInicial||"p_outros"};
+  const isNew=!S.cfg.cats.some(x=>x.id===c.id), paiAtual=isNew?(paiInicial||"p_outros"):paiDe(c.id);
+  sheet(isNew?"Nova subcategoria":c.n,
+    '<div class="set"><div class="set-f"><label for="kP">Categoria</label><select id="kP">'+
+      listaPais().map(p=>'<option value="'+p.id+'"'+(p.id===paiAtual?" selected":"")+'>'+esc(p.n)+'</option>').join("")+
+      '<option value="__nova">+ Nova categoria…</option></select>'+
+      '<input id="kPN" placeholder="Nome da nova categoria" style="margin-top:8px" hidden></div>'+
+    '<div class="set-f"><label for="kN">Nome da subcategoria</label><input id="kN" value="'+esc(c.n)+'"></div>'+
+    '<div class="set-f"><label>Limite por mês só desta subcategoria</label><input id="kL" inputmode="decimal" value="'+(c.limit?fmtN(c.limit):"")+'" placeholder="0,00 = sem limite">'+
+    '<span class="hint">Opcional. O limite da categoria inteira fica em Editar a categoria; os dois se somam no Painel.</span></div>'+'<div class="set-f"><label>No método 50-30-20</label><select id="kG">'+opcoesGrupo(grupoDe(c.id))+'</select></div></div>',
     (isNew?"":'<button class="btn danger" id="kKill">Excluir</button>')+'<button class="btn" id="kOk">Salvar</button>');
+  $("#kP").onchange=()=>{ const nova=$("#kP").value==="__nova"; $("#kPN").hidden=!nova; if(nova) $("#kPN").focus(); };
   $("#kOk").onclick=()=>{
     const n=$("#kN").value.trim(); if(!n){ toast("Dê um nome."); return; }
+    let pai=$("#kP").value;
+    if(pai==="__nova"){ const pn=$("#kPN").value.trim(); if(!pn){ toast("Dê um nome para a categoria nova."); return; }
+      const L=S.cfg.catPais||(S.cfg.catPais=PAIS.map(x=>({...x,limit:0})));
+      const ja=L.find(x=>norm(x.n)===norm(pn));
+      if(ja) pai=ja.id; else { pai="p"+uid(); const io=L.findIndex(x=>x.id==="p_outros"); L.splice(io<0?L.length:io,0,{id:pai,n:pn,limit:0}); } }
     const i=S.cfg.cats.findIndex(x=>x.id===c.id);
-    if(i<0) S.cfg.cats.push({id:c.id,n,limit:toCents($("#kL").value),grupo:$("#kG").value});
-    else { S.cfg.cats[i].n=n; S.cfg.cats[i].limit=toCents($("#kL").value); S.cfg.cats[i].grupo=$("#kG").value; }
+    if(i<0) S.cfg.cats.push({id:c.id,n,pai,limit:toCents($("#kL").value),grupo:$("#kG").value});
+    else Object.assign(S.cfg.cats[i],{n,pai,limit:toCents($("#kL").value),grupo:$("#kG").value});
     saveCfg(); closeSheet(); render(); toast("Salvo"); };
   const k=$("#kKill");
   if(k) k.onclick=()=>{ if(S.cfg.cats.length<=2){ toast("Precisa de pelo menos duas categorias."); return; }
-    if(c.id==="divida"){ toast("Esta é a categoria das dívidas e consignados: o app lança nela sozinho. Dá para renomear, não para excluir."); return; }
-    if(c.id==="outros"){ toast("Outros é a categoria de reserva: cai aqui o que o app não consegue classificar. Dá para renomear, não para excluir."); return; }
+    if(c.id==="divida"){ toast("Esta é a subcategoria das dívidas e consignados: o app lança nela sozinho. Dá para renomear, não para excluir."); return; }
+    if(c.id==="outros"){ toast("Outros é a subcategoria de reserva: cai aqui o que o app não consegue classificar. Dá para renomear, não para excluir."); return; }
     const u=usosDaCategoria(c.id);
     if(u.n||u.fix||u.kw){ openApagarCat(c,u); return; }
     S.cfg.cats=S.cfg.cats.filter(x=>x.id!==c.id); saveCfg(); closeSheet(); render(); toast("Excluída"); }; }
@@ -4014,7 +4144,7 @@ function openFix(id){
     '<div class="set"><div class="set-f"><label>Nome</label><input id="fN" value="'+esc(f.name)+'" placeholder="Aluguel"></div>'+
     '<div class="two"><div class="set-f"><label id="fVL">'+(f.varia?"Valor previsto":"Valor")+'</label><input id="fV" inputmode="decimal" value="'+(f.amount?fmtN(f.amount):"")+'"></div>'+
     '<div class="set-f"><label>Dia do mês</label><input id="fD" inputmode="numeric" value="'+f.day+'"></div></div>'+
-    '<div class="two"><div class="set-f"><label>Categoria</label><select id="fC">'+optId(S.cfg.cats,f.cat)+'</select></div>'+
+    '<div class="two"><div class="set-f"><label>Categoria e subcategoria</label><select id="fC">'+optCats(f.cat)+'</select></div>'+
     '<div class="set-f"><label>Pagamento</label><select id="fP">'+optId(S.cfg.cards,f.card)+'</select></div></div>'+
     '<div class="set-f"><label style="display:flex;align-items:center;gap:9px;font-weight:500;color:var(--ink)"><input type="checkbox" id="fVar" style="width:20px;height:20px"'+(f.varia?" checked":"")+'>O valor varia todo mês (luz, água, telefone)</label>'+
       '<span class="hint" id="fVarH"></span></div>'+
@@ -4119,7 +4249,7 @@ async function aiParse(){
   const raw=$("#say").value.trim(); if(!raw) return;
   const b=$("#aiBtn"); b.textContent="Pensando…"; b.disabled=true;
   const prompt="Você extrai lançamentos financeiros de uma fala em português do Brasil.\n"+
-    "Categorias de GASTO (id=nome): "+S.cfg.cats.map(c=>c.id+"="+c.n).join("; ")+"\n"+
+    "Categorias de GASTO (id=categoria > subcategoria): "+S.cfg.cats.map(c=>c.id+"="+paiNome(paiDe(c.id))+" > "+c.n).join("; ")+"\n"+
     "Categorias de ENTRADA (id=nome): "+(S.cfg.ecats||ECATS).map(c=>c.id+"="+c.n).join("; ")+"\n"+
     "Pagamentos (id=nome): "+S.cfg.cards.map(c=>c.id+"="+c.n).join("; ")+
     '\nResponda SOMENTE um array JSON. Cada item: {"tipo":"gasto" ou "entrada","valor":number em reais,'+
@@ -4605,8 +4735,7 @@ function openDeposit(id){
 
 /* =================== método 50-30-20 =================== */
 const NOMES_GRUPO={nec:"Necessidades",des:"Desejos",fut:"Futuro"};
-const GRUPO_PADRAO={merc:"nec",comb:"nec",carro:"nec",transp:"nec",medic:"nec",saude:"nec",casa:"nec",educ:"nec",
-  assin:"nec",pet:"nec",imposto:"nec",divida:"fut"};
+const GRUPO_PADRAO={}; CATS.forEach(c=>{ GRUPO_PADRAO[c.id]=c.g; });
 const grupoDe=id=>{ const c=(S.cfg.cats||[]).find(x=>x.id===id); return (c&&c.grupo)||GRUPO_PADRAO[id]||"des"; };
 const opcoesGrupo=sel=>Object.keys(NOMES_GRUPO).map(g=>'<option value="'+g+'"'+(g===sel?" selected":"")+'>'+NOMES_GRUPO[g]+'</option>').join("");
 
@@ -4641,8 +4770,61 @@ function repararContas(){
     if(corrente) A.unshift(nova); else A.push(nova); nomes.push(nova.n); });
   return nomes.join(" e "); }
 
+/* Categorias antigas (até 1.33.0, uma lista só) → categorias e subcategorias (1.34.0). Cada categoria antiga que se
+   dividiu manda cada lançamento para a subcategoria cujas palavras aparecem na descrição; o que não der para saber fica
+   na subcategoria que herdou o id dela, a mais geral. O limite da categoria antiga passa para a categoria nova.
+   Categoria criada pelo dono continua, em Outros (ou junta com a nova de mesmo nome). O 50-30-20 de cada uma é o da lista nova. */
+const CATS_ANTIGAS=["alim","merc","comb","carro","transp","medic","saude","casa","educ","roupa","lazer","assin","pet","compras","imposto","pessoal","presente","divida","outros"];
+const DIVIDE_CATS={
+  casa:["aluguel","energia","agua","internet","lavand","moveis",["imposto","iptu"]],
+  alim:["padaria","delivery",["lazer","bar chopp cerveja balada"]],
+  merc:["feira","padaria"],
+  transp:["estac",["viaglazer","viagem viagens hotel pousada airbnb aeroporto voo aerea"]],
+  carro:["ipva"], saude:["plano"], educ:["cursos"], lazer:["viaglazer","assin"], assin:["celular","internet"],
+  compras:["moveis"], imposto:["ipva","tarifas"], pessoal:["academia"], divida:["financ"]};
+function subcatPelaDescricao(velho,texto){
+  const L=DIVIDE_CATS[velho]; if(!L) return velho;
+  const s=" "+norm(texto||"")+" "; let best=null;
+  L.forEach(x=>{ const id=Array.isArray(x)?x[0]:x, pal=Array.isArray(x)?x[1]:(KW[id]||"");
+    pal.split(" ").forEach(w=>{ if(w.length<2) return; const p=s.indexOf(" "+w+" "); if(p<0) return;
+      const sc=1000-p*3+w.length*2; if(!best||sc>best.sc) best={id,sc}; }); });
+  let id=best?best.id:velho;
+  if(id==="viaglazer"&&VIAGEM_NECESSARIA.test(s)) id="viagnec";
+  return id; }
+function migrarCategorias(c){
+  const velhas=c.cats||[], idsNovos=new Set(CATS.map(x=>x.id));
+  const pais=PAIS.map(p=>({...p,limit:0})), novas=CATS.map(x=>({id:x.id,n:x.n,pai:x.pai,limit:0}));
+  velhas.forEach(v=>{ if(CATS_ANTIGAS.indexOf(v.id)>=0&&+v.limit>0){ const p=pais.find(x=>x.id===PAI_PADRAO[v.id]); if(p) p.limit+=+v.limit; } });
+  /* criada pelo dono: com o nome de uma das novas, junta nela; senão continua, em Outros */
+  const novoDe={};
+  velhas.forEach(v=>{ if(CATS_ANTIGAS.indexOf(v.id)>=0||idsNovos.has(v.id)) return;
+    const igual=novas.find(x=>norm(x.n)===norm(v.n));
+    if(igual){ novoDe[v.id]=igual.id; igual.limit=(+igual.limit||0)+(+v.limit||0); }
+    else novas.splice(novas.length-1,0,Object.assign({id:v.id,n:v.n,pai:"p_outros",limit:+v.limit||0},v.grupo?{grupo:v.grupo}:{})); });
+  const fixPara={};
+  (c.fixed||[]).forEach(f=>{ let para=novoDe[f.cat]||f.cat;
+    if(DIVIDE_CATS[para]) para=subcatPelaDescricao(para,f.name);
+    if(f.cat==="divida"&&f.divida){ const dv=(c.dividas||[]).find(x=>x.id===f.divida); if(dv&&dv.tipo==="financiamento") para="financ"; }
+    if(para!==f.cat){ fixPara[f.id]={de:f.cat,para}; f.cat=para; } });
+  Object.keys(c.kwCat||{}).forEach(w=>{ const v=c.kwCat[w], para=novoDe[v]||(DIVIDE_CATS[v]?subcatPelaDescricao(v,w):v); if(para!==v) c.kwCat[w]=para; });
+  const meses=new Set(), agora=Date.now(); let n=0;
+  Object.keys(S.months||{}).forEach(ym=>{ const tx=(S.months[ym]||{}).tx||{};
+    Object.keys(tx).forEach(id=>{ const t=tx[id]; if(!t||t.del||(t.k||"g")!=="g"||t.cons) return;
+      let para=novoDe[t.cat]||t.cat; const fx=t.fix&&fixPara[t.fix];
+      if(fx&&fx.de===t.cat) para=fx.para;
+      else if(DIVIDE_CATS[para]) para=subcatPelaDescricao(para,t.desc);
+      if(para!==t.cat){ t.cat=para; t.u=agora; meses.add(ym); n++; } }); });
+  c.cats=novas; c.catPais=pais;
+  return {n,meses}; }
+
 function migrarCfg(){
   const c=S.cfg; if(!c) return; migrar2(c);
+  /* categorias antigas: só depois de juntar com o Drive (conta Google), para não regravar por cima de um lançamento
+     mudado em outro aparelho; conta local, na hora */
+  if((c.cats||[]).length&&!c.cats.some(x=>x.pai)&&(!(S.user&&S.user.kind==="google")||S.sincronizado)){
+    const r=migrarCategorias(c);
+    setTimeout(()=>{ saveCfg(); r.meses.forEach(ym=>saveMonth(ym)); render();
+      toast("Categorias novas, com subcategorias"+(r.n?": "+r.n+(r.n>1?" lançamentos foram para as subcategorias.":" lançamento foi para a subcategoria."):".")); },300); }
   const volta=repararContas();
   /* extrato e fatura importados antes de o app registrar isso (v40): reconhece pelos próprios lançamentos */
   /* base ainda vazia (aparelho novo ou dados limpos): não marca nada e, principalmente, não carimba
@@ -4757,7 +4939,7 @@ function render5030(){
     const vazio=!L.length&&!(k==="fut"&&guardado>0);
     return '<details class="grp"><summary><span class="sw" style="background:'+cor[k]+'"></span>'+NOMES_GRUPO[k]+'<span class="v">'+fmtN(tot)+'</span></summary><div class="in">'+
       (vazio?'<div class="empty" style="padding:12px">Nada neste grupo em '+esc(ymLabel(S.ym))+'.</div>'
-        : L.map(x=>linhaCat(catName(x.id),x.v)).join("")+(k==="fut"&&guardado>0?linhaCat("Guardado ou transferido para poupança",guardado):"")+
+        : L.map(x=>linhaCat(catCompleta(x.id),x.v)).join("")+(k==="fut"&&guardado>0?linhaCat("Guardado ou transferido para poupança",guardado):"")+
           (top.length?'<div class="sec-t" style="margin:14px 0 4px">Maiores lançamentos</div>'+top.map(rowHTML).join(""):""))+
       '</div></details>'; };
   box.innerHTML='<div class="sec-h"><h2 class="sec-t">Método 50-30-20 · '+esc(ymLabel(S.ym))+'</h2><button class="sec-a" id="m5030Aj">Ajustar</button></div>'+
@@ -4780,10 +4962,12 @@ function openMetodo(){
     '<div class="set"><div class="set-f"><span class="hint">Quanto da renda líquida vai para cada grupo. O método é um guia, não uma prisão: ajuste à sua realidade. A soma precisa dar 100%.</span></div>'+
     '<div class="two" style="grid-template-columns:repeat(3,1fr)">'+["nec","des","fut"].map(k=>
       '<div class="set-f"><label>'+NOMES_GRUPO[k]+' (%)</label><input id="mP_'+k+'" inputmode="numeric" value="'+m[k]+'"></div>').join("")+'</div>'+
-    '<div class="set-f"><label>Em qual grupo entra cada categoria</label><div class="card pad">'+
-    S.cfg.cats.map(c=>'<div class="linkrow"><div class="m"><div class="t">'+esc(c.n)+'</div></div>'+
+    '<div class="set-f"><label>Em qual grupo entra cada subcategoria</label><div class="card pad">'+
+    listaPais().map(p=>{ const L=subsDoPai(p.id); if(!L.length) return "";
+      return '<div class="sec-t" style="margin:10px 0 2px">'+esc(p.n)+'</div>'+
+      L.map(c=>'<div class="linkrow"><div class="m"><div class="t">'+esc(c.n)+'</div></div>'+
       '<select data-grp="'+c.id+'" style="width:auto;padding:6px 8px;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-sm)">'+
-      opcoesGrupo(grupoDe(c.id))+'</select></div>').join("")+'</div>'+
+      opcoesGrupo(grupoDe(c.id))+'</select></div>').join(""); }).join("")+'</div>'+
     '<span class="hint">Futuro é o que você guarda ou usa para pagar dívidas. O que você marca em “Guardei um dinheiro” ou transfere para poupança e investimento também entra no Futuro.</span></div></div>',
     '<button class="btn ghost" id="mpX">Cancelar</button><button class="btn" id="mpOk">Salvar</button>');
   $("#mpX").onclick=closeSheet;
@@ -5513,8 +5697,8 @@ function diagnostico(ym){
   recorrentes().slice(0,3).forEach(r=>add("","Parece gasto fixo: "+r.t.desc,
     "Apareceu em "+r.meses+" meses seguidos, sempre perto de <b>"+fmt(r.media)+"</b>. Como fixo, ele entra no teto dos próximos meses.",
     [{rotulo:"Marcar como fixo",fn:()=>tornarFixo(r.t)}]));
-  const ass=st.byCat.assin||0;
-  if(ass>0) add("","Assinaturas e telefone: "+fmt(ass*12)+" por ano","<b>"+fmt(ass)+"</b> neste mês. Vale revisar o que não usa.");
+  const ass=subsDoPai("p_tel").reduce((s,c)=>s+(st.byCat[c.id]||0),0);
+  if(ass>0) add("",paiNome("p_tel")+": "+fmt(ass*12)+" por ano","<b>"+fmt(ass)+"</b> neste mês. Vale revisar o que não usa.");
   const vistosLim=new Set();
   creditCards().forEach(c=>{ if(c.limit>0){ if(c.limUnico){ if(vistosLim.has("u")) return; vistosLim.add("u"); }
     const o=usadoNoLimite(c), u=o/c.limit, nome=c.limUnico&&creditCards().filter(x=>x.limUnico).length>1?"O limite único dos cartões":c.n;
@@ -5742,7 +5926,7 @@ function openDivida(id){
       '<div class="set-f"><label>Dia do vencimento</label><input id="dvD" inputmode="numeric" value="'+(dv.dia||1)+'"></div></div>'+
       '<div class="set-f" id="dvVai"><label>Data da 1ª parcela</label><input id="dvI" type="date" value="'+(!nova&&sit==="vai"&&!ehConsSal(dv)?vencDivida(dv,1):"")+'"></div>'+
       '<div class="set-f"><label>Paga com</label><select id="dvC">'+optId(S.cfg.cards,dv.card||padrao)+'</select>'+
-      '<span class="hint">A parcela entra nos gastos fixos, na categoria Dívidas e empréstimos, até a última.</span></div>'+
+      '<span class="hint">A parcela entra nos gastos fixos, na categoria Dívidas (financiamento em Financiamentos; o resto em Empréstimos e consignado), até a última.</span></div>'+
     '</div>'+
     '<div class="set-f"><label>Juros ao mês (%)</label><input id="dvJ" inputmode="decimal" value="'+(dv.juros===""||dv.juros==null?"":String(dv.juros).replace(".",","))+'" placeholder="opcional, ex.: 1,85">'+
     '<span class="hint" id="dvJH"></span></div></div>',
@@ -5790,7 +5974,7 @@ function openDivida(id){
     Object.assign(dv,{nome,tipo:$("#dvT").value,parcela:P,total:tot,inicio,dia,juros:J,folha:false,card:$("#dvC").value});
     ["restantes","desde","modo","valor","data","conta","jaDesc","criado","depId"].forEach(k=>delete dv[k]);
     let fx=F.find(f=>f.id===dv.fixId); if(!fx){ fx={id:uid()}; F.push(fx); dv.fixId=fx.id; }
-    Object.assign(fx,{name:nome,amount:P,day:dia,cat:"divida",card:dv.card,desde:inicio,ate,divida:dv.id});
+    Object.assign(fx,{name:nome,amount:P,day:dia,cat:dv.tipo==="financiamento"&&S.cfg.cats.some(c=>c.id==="financ")?"financ":"divida",card:dv.card,desde:inicio,ate,divida:dv.id});
     if(nova) L.push(dv);
     saveCfg(); closeSheet(); render();
     toast("Dívida salva. A parcela entra nos gastos fixos até "+ymLabel(ate)+"."); };
@@ -6230,7 +6414,7 @@ async function descontarConsignados(ym,txId){
   const cheio=liq>0&&Math.abs(sal.v-liq)<Math.abs(sal.v-(liq-P));
   if(cheio){ sal.v=Math.max(0,sal.v-P); sal.u=Date.now(); await saveMonth(ym); }
   for(const x of L) await lancarDesconto(x.dv,ym,x.e,sal.d);
-  const msg="Salário de "+fmt(sal.v)+", já sem o consignado de "+fmt(P)+" — a parcela foi para Dívidas e empréstimos";
+  const msg="Salário de "+fmt(sal.v)+", já sem o consignado de "+fmt(P)+" — a parcela foi para Dívidas · Empréstimos e consignado";
   setTimeout(()=>toast(msg),2900); }
 
 /* salário já lançado e o desconto do consignado não: o consignado foi cadastrado depois de o salário entrar
@@ -6429,7 +6613,7 @@ function camposDoRascunho(d){
     '<div class="f"><label>Fatura de</label><input type="month" data-k="ref" value="'+(d.ref||ymShift(ymOf(d.date||todayISO()),-1))+'"></div>';
   if(d.k==="t") return '<div class="f"><label>Sai de</label><select data-k="acct">'+fora+optId(A,d.acct||"")+'</select></div>'+
     '<div class="f"><label>Vai para</label><select data-k="acct2">'+fora+optId(A,d.acct2||"")+'</select></div>';
-  const cat='<div class="f"><label>Categoria</label><select data-k="cat">'+optId(d.k==="e"?(S.cfg.ecats||ECATS):S.cfg.cats,d.cat)+'</select></div>';
+  const cat='<div class="f"><label>Categoria</label><select data-k="cat">'+(d.k==="e"?optId(S.cfg.ecats||ECATS,d.cat):optCats(d.cat))+'</select></div>';
   if(d.k==="e") return cat+'<div class="f"><label>Cai em qual conta</label><select data-k="acct">'+optId(A,d.acct||acctOf(d.cardId))+'</select></div>';
   /* "Débito · Conta corrente", "Boleto · Conta corrente": deixa claro de que conta o dinheiro sai */
   const formas=S.cfg.cards.map(c=>/^(debito|boleto|pix)$/.test(c.type)?Object.assign({},c,{n:c.n+" · "+((A.find(a=>a.id===acctOf(c.id))||{}).n||"conta")}):c);

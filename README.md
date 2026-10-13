@@ -59,7 +59,7 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **Bancos que o app lê:** Banco do Brasil (extrato em PDF ou CSV, fatura em PDF), Nubank (extrato e fatura em PDF) e Bradesco (extrato em PDF). O banco é reconhecido pelo texto, e a leitura se confere com os totais que o banco imprime. Pix entre contas da mesma pessoa vira transferência, não gasto.
 
-**Versão:** 1.33.0. A numeração segue o Versionamento Semântico (MAIOR.MENOR.CORREÇÃO): o segundo número sobe a cada função nova, o terceiro a cada correção. A versão em uso aparece em Ajustes → Dados → *Versão do app*.
+**Versão:** 1.34.0. A numeração segue o Versionamento Semântico (MAIOR.MENOR.CORREÇÃO): o segundo número sobe a cada função nova, o terceiro a cada correção. A versão em uso aparece em Ajustes → Dados → *Versão do app*.
 
 **Conta pelo código de barras:** na caixa de fala, *Código de barras* abre a câmera ao vivo e lê sozinho, em qualquer celular (zxing-cpp em WebAssembly, além do leitor do aparelho); lido o código, o app pergunta se já pagou ou se paga no vencimento e lança como Boleto, saindo da conta corrente. *Tirar foto* e *Digitar a linha* ficam de reserva.
 
@@ -100,7 +100,7 @@ Teve aumento ou correção? Mude o valor em Ajustes: o app pergunta a partir de 
 
 **Consulta** (aba própria): escolha o período — hoje, semana, mês, mês passado, últimos 30 dias, ano ou duas datas —, marque categorias e formas de pagamento, e veja o total, o resumo por categoria e por forma, e a lista com data, descrição e como foi pago. *Escolher datas* abre um calendário para marcar o dia de início e outro para o dia do fim, sem digitar nada. Todos os períodos seguem o mês da barra de cima: num mês passado, o dia de referência é o último dia dele e os botões dizem isso (*Dia 28/02*, *Semana até 28/02*). Dá para copiar para uma planilha e para *Mudar a categoria* de todos os lançamentos da lista de uma vez.
 
-**Categorias:** renomear é seguro e vale para trás (o vínculo é interno, não pelo nome); excluir pergunta para onde levar os lançamentos, os gastos fixos e as palavras aprendidas que estavam ali. Para dividir uma categoria em duas, crie as novas, filtre a antiga na Consulta e use *Mudar a categoria*.
+**Categorias e subcategorias** (1.34.0): 14 categorias (Casa, Alimentação, Veículo, Transporte e viagens, Saúde, Educação, Pessoal, Lazer, Telefone/internet/assinaturas, Família, Compras, Impostos e bancos, Dívidas, Outros) com 39 subcategorias; o lançamento vai na subcategoria, que decide o grupo do 50-30-20. O Painel mostra as categorias e abre as subcategorias; a Consulta filtra pela categoria inteira ou só por subcategorias. Renomear é seguro e vale para trás (o vínculo é interno, não pelo nome); excluir pergunta para onde levar os lançamentos, os gastos fixos e as palavras aprendidas que estavam ali. Para dividir uma subcategoria em duas, crie as novas, filtre a antiga na Consulta e use *Mudar a categoria*.
 
 **Manual:** [manual.html](https://rgbittencourt.github.io/caderneta/manual.html) para ler na tela e [manual.pdf](https://rgbittencourt.github.io/caderneta/manual.pdf) para imprimir ou guardar — 59 páginas em A4, com as telas de cada parte do app (todas com dados inventados).
 

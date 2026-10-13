@@ -24,17 +24,19 @@ window.semear = async function(){
     {id:"transf",n:"Transferência", type:"transferencia", acct:"cc"},
     {id:"din",   n:"Dinheiro",   type:"dinheiro", acct:"cart"},
     {id:"boleto",n:"Boleto",     type:"boleto",  acct:"cc"}];
-  const lim = {merc:90000, alim:35000, lazer:30000, comb:45000};
-  c.cats.forEach(x=>{ x.limit = lim[x.id]||0; });
+  /* categorias e subcategorias (1.34.0): o limite fica na categoria inteira */
+  c.cats = CATS.map(x=>({id:x.id, n:x.n, pai:x.pai, limit:0}));
+  const lim = {p_alim:135000, p_lazer:35000, p_veic:60000};
+  c.catPais = PAIS.map(x=>({...x, limit:lim[x.id]||0}));
   c.kwCat = {"bom preco":"merc","napoli":"alim","avenida":"comb","sao joao":"medic","petisco":"pet"};
   c.fixed = [
-    {id:"fx1", name:"Aluguel",  amount:145000, day:5,  cat:"casa",  card:"boleto"},
+    {id:"fx1", name:"Aluguel",  amount:145000, day:5,  cat:"aluguel", card:"boleto"},
     {id:"fx2", name:"Escola",   amount:48000,  day:8,  cat:"educ",  card:"deb"},
-    {id:"fx3", name:"Internet", amount:12000,  day:10, cat:"assin", card:"deb"},
-    {id:"fx4", name:"Energia",  amount:21000,  day:15, cat:"casa",  card:"deb"},
-    {id:"fx6", name:"Plano de saúde", amount:62000, day:10, cat:"saude", card:"deb"},
-    {id:"fx7", name:"Celular",  amount:18000,  day:18, cat:"assin", card:"deb"}];
-  c.fixed.push({id:"fx5", name:"Financiamento do carro", amount:89000, day:12, cat:"divida", card:"deb", divida:"dv2"});
+    {id:"fx3", name:"Internet", amount:12000,  day:10, cat:"internet", card:"deb"},
+    {id:"fx4", name:"Energia",  amount:21000,  day:15, cat:"energia", card:"deb", varia:true},
+    {id:"fx6", name:"Plano de saúde", amount:62000, day:10, cat:"plano", card:"deb"},
+    {id:"fx7", name:"Celular",  amount:18000,  day:18, cat:"celular", card:"deb"}];
+  c.fixed.push({id:"fx5", name:"Financiamento do carro", amount:89000, day:12, cat:"financ", card:"deb", divida:"dv2"});
   c.dividas = [
     {id:"dv1", nome:"Consignado do banco", parcela:32000, total:12, i:1.7, folha:true,
      tipo:"consignado", data:"2026-05-20", inicio:"2026-06", card:"deb"},
@@ -58,32 +60,32 @@ window.semear = async function(){
                    "2026-06":[[4,44100],[12,29870],[21,33260]], "2026-07":[[6,47320],[15,38510],[25,29940]],
                    "2026-08":[[5,39680],[14,42230],[23,27510]], "2026-09":[[3,43770],[12,36150],[23,24980]]};
   const soltos = {
-    "2026-04":[[3,8990,"Padaria da esquina","alim","deb"],[9,21400,"Posto Avenida","comb","visa"],
+    "2026-04":[[3,8990,"Padaria da esquina","padaria","deb"],[9,21400,"Posto Avenida","comb","visa"],
                [11,3990,"Streaming de filmes","assin","master"],[17,15900,"Pizzaria Napoli","alim","elo"],
                [19,7650,"Farmácia São João","medic","deb"],[26,12800,"Cinema com as crianças","lazer","master"]],
-    "2026-05":[[2,9450,"Padaria da esquina","alim","deb"],[8,23100,"Posto Avenida","comb","visa"],
+    "2026-05":[[2,9450,"Padaria da esquina","padaria","deb"],[8,23100,"Posto Avenida","comb","visa"],
                [11,3990,"Streaming de filmes","assin","master"],[16,18700,"Restaurante do Zé","alim","elo"],
                [18,4300,"Ração do Petisco","pet","deb"],[27,9900,"Parque aquático","lazer","visa"]],
-    "2026-06":[[5,8100,"Padaria da esquina","alim","deb"],[10,19800,"Posto Avenida","comb","visa"],
+    "2026-06":[[5,8100,"Padaria da esquina","padaria","deb"],[10,19800,"Posto Avenida","comb","visa"],
                [11,3990,"Streaming de filmes","assin","master"],[14,22400,"Churrascaria","alim","elo"],
                [20,13500,"Camisa e tênis","roupa","visa"],[28,6400,"Sorveteria","lazer","din"]],
-    "2026-07":[[4,10200,"Padaria da esquina","alim","deb"],[9,24600,"Posto Avenida","comb","visa"],
+    "2026-07":[[4,10200,"Padaria da esquina","padaria","deb"],[9,24600,"Posto Avenida","comb","visa"],
                [11,3990,"Streaming de filmes","assin","master"],[13,31200,"Pizzaria Napoli","alim","elo"],
-               [19,8800,"Farmácia São João","medic","deb"],[24,19900,"Viagem de fim de semana","lazer","visa"]],
-    "2026-08":[[3,9100,"Padaria da esquina","alim","deb"],[7,22700,"Posto Avenida","comb","visa"],
+               [19,8800,"Farmácia São João","medic","deb"],[24,19900,"Viagem de fim de semana","viaglazer","visa"]],
+    "2026-08":[[3,9100,"Padaria da esquina","padaria","deb"],[7,22700,"Posto Avenida","comb","visa"],
                [11,3990,"Streaming de filmes","assin","master"],[15,16400,"Restaurante do Zé","alim","elo"],
                [18,5200,"Ração do Petisco","pet","deb"],[22,11300,"Cinema com as crianças","lazer","master"],
                [26,14900,"Consulta do dentista","saude","pix"]],
-    "2026-09":[[2,8700,"Padaria da esquina","alim","deb"],[8,21900,"Posto Avenida","comb","visa"],
+    "2026-09":[[2,8700,"Padaria da esquina","padaria","deb"],[8,21900,"Posto Avenida","comb","visa"],
                [11,3990,"Streaming de filmes","assin","master"],[14,17600,"Pizzaria Napoli","alim","elo"],
                [17,6900,"Farmácia São João","medic","deb"],[21,9800,"Presente de aniversário","presente","din"],
                [24,13200,"Cinema com as crianças","lazer","master"]]};
 
   /* os fixos de cada mês, já lançados (o de setembro só até hoje) */
-  const FIX=[["fx1",145000,5,"Aluguel","casa","boleto"],["fx2",48000,8,"Escola","educ","deb"],
-             ["fx3",12000,10,"Internet","assin","deb"],["fx4",21000,15,"Energia","casa","deb"],
-             ["fx5",89000,12,"Financiamento do carro","divida","deb"],
-             ["fx6",62000,10,"Plano de saúde","saude","deb"],["fx7",18000,18,"Celular","assin","deb"]];
+  const FIX=[["fx1",145000,5,"Aluguel","aluguel","boleto"],["fx2",48000,8,"Escola","educ","deb"],
+             ["fx3",12000,10,"Internet","internet","deb"],["fx4",21000,15,"Energia","energia","deb"],
+             ["fx5",89000,12,"Financiamento do carro","financ","deb"],
+             ["fx6",62000,10,"Plano de saúde","plano","deb"],["fx7",18000,18,"Celular","celular","deb"]];
   for(const ym of M) FIX.forEach(([id,v,dia,nome,cat,card])=>{
     const d=ym+"-"+String(dia).padStart(2,"0");
     if(d<=hoje) lista.push(T(d,v,nome,cat,card,{fix:id})); });
@@ -92,7 +94,7 @@ window.semear = async function(){
     lista.push(E(ym+"-05", ym>="2026-06"?740000:690000, "Salário", "sal"));
     if(ym==="2026-07") lista.push(E(ym+"-20", 96000, "Reembolso do plano de saúde", "reemb"));
     if(ym==="2026-05") lista.push(T(ym+"-18", 145000, "Revisão e pneus do carro", "carro", "visa"));
-    if(ym==="2026-07") lista.push(T(ym+"-22", 240000, "Viagem de férias", "lazer", "visa"));
+    if(ym==="2026-07") lista.push(T(ym+"-22", 240000, "Viagem de férias", "viaglazer", "visa"));
     if(ym==="2026-09") lista.push(E(ym+"-10", 42000, "Venda da bicicleta antiga", "venda"));
     mercado[ym].forEach(([d,v])=>lista.push(T(ym+"-"+String(d).padStart(2,"0"), v, "Mercado Bom Preço", "merc", d%2?"deb":"visa")));
     soltos[ym].forEach(([d,v,desc,cat,card])=>lista.push(T(ym+"-"+String(d).padStart(2,"0"), v, desc, cat, card)));
@@ -105,7 +107,7 @@ window.semear = async function(){
 
   /* parceladas: o app agenda sozinho as parcelas seguintes */
   await commit(T("2026-08-09",126000,"Notebook da escola","educ","visa",{n:3,i:1,total:126000}));
-  await commit(T("2026-07-12",189000,"Sofá da sala","compras","master",{n:10,i:1,total:189000}));
+  await commit(T("2026-07-12",189000,"Sofá da sala","moveis","master",{n:10,i:1,total:189000}));
   await commit(T("2026-09-06",110000,"Pneus novos","carro","visa",{n:4,i:1,total:110000}));
 
   /* faturas pagas: cada fatura que já venceu é paga no valor exato, no dia do vencimento (v92: a fatura tem o nome
