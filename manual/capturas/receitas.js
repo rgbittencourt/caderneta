@@ -2,10 +2,18 @@
    (telas de computador) ou 375x812 (lote "celular"). Tudo com dados inventados. */
 window.capSem=async(el,sel,nome)=>{ const es=[...el.querySelectorAll(sel)]; es.forEach(x=>{ x.dataset.dp2=x.style.display; x.style.display="none"; }); const r=await cap(el,nome); es.forEach(x=>{ x.style.display=x.dataset.dp2||""; }); return r; };
 window.capCurto=async(el,sel,max,nome)=>{ const es=[...el.querySelectorAll(sel)].slice(max); es.forEach(x=>{ x.dataset.dp3=x.style.display; x.style.display="none"; }); const r=await cap(el,nome); es.forEach(x=>{ x.style.display=x.dataset.dp3||""; }); return r; };
+/* foto com os <details> abertos (cap esconde todos): o marcador do summary vira "▾", que o html2canvas desenha certo */
+window.capAberto=async(el,nome)=>{ await carregaH2C(); el.querySelectorAll('details').forEach(d=>d.open=true);
+  const S2=[...el.querySelectorAll('summary')]; S2.forEach(x=>{ x.dataset.t=x.textContent; x.style.listStyle='none'; x.style.display='block'; x.textContent='▾ '+x.textContent; });
+  el.scrollIntoView({block:"center"}); await espera(250);
+  const c=await html2canvas(el,{scale:2,backgroundColor:getComputedStyle(document.body).backgroundColor,useCORS:true,onclone:semCorNova});
+  S2.forEach(x=>{ x.textContent=x.dataset.t; x.style.listStyle=''; x.style.display=''; });
+  const b=await new Promise(r=>c.toBlob(r,'image/png')); const res=await fetch('http://127.0.0.1:8767/save/'+nome+'.png',{method:'POST',body:b});
+  return nome+": "+c.width+"x"+c.height+" "+res.status; };
 window.lotes={
  painel: async(t)=>{ S.ym="2026-09"; await irPara("painel");
   await t(()=>cap([...document.querySelectorAll('#p-painel .sec')][0],'painel-banco'));
-  await t(()=>cap([...document.querySelectorAll('#p-painel .sec')][2],'painel-teto'));
+  await t(()=>capAberto([...document.querySelectorAll('#p-painel .sec')][2],'painel-teto'));
   await t(()=>cap(sec('painel',/Próximos vencimentos/),'painel-vencimentos'));
   await t(()=>cap(cardCom('painel',/Onde meu dinheiro está indo/),'painel-categorias'));
   await t(()=>cap(cardCom('painel',/Últimos 6 meses/),'painel-6meses'));

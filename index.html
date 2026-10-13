@@ -279,6 +279,12 @@ main{padding:0 16px calc(76px + env(safe-area-inset-bottom,0px));max-width:680px
 .hero-v{font-size:48px;line-height:1.02;font-weight:600;letter-spacing:-.03em;display:block}
 @media (min-width:960px){.hero-v{font-size:56px}}
 .hero-s{font-size:12.5px;color:var(--ink-3);margin-top:7px}
+.hero-conta{margin-top:12px;border-top:1px solid var(--line)}
+.hero-conta>div,.hero-itens>div{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:13px;color:var(--ink-2);border-bottom:1px solid var(--line)}
+.hero-conta b,.hero-itens b{font-family:var(--f-m);font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.hero-itens>div{font-size:12px;padding:4px 0}
+.hero-itens>div span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hero-sub{font-size:11.5px;font-weight:600;color:var(--ink-2);margin-top:8px}
 .tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;
   box-shadow:var(--shadow);min-width:0}
 .tile-l{font-size:11.5px;font-weight:500;color:var(--ink-2);margin-bottom:5px}
@@ -705,7 +711,7 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="1.31.1";
+const VERSAO_APP="1.32.0";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
 const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
@@ -1812,11 +1818,15 @@ const DICAS={};
 [["No banco hoje","O saldo de todas as contas somadas, hoje. O dinheiro da carteira aparece à parte, porque não está no banco."],
  ["Faturas dos cartões que vencem em","A fatura de cada cartão que vence neste mês, com o dia do vencimento — a fatura tem o nome do mês em que vence, como o banco faz. O valor grande é o que ainda falta pagar; a fatura já paga fica na lista com o selo paga, fora da soma. Compra no crédito só sai da conta quando a fatura é paga."],
  ["Melhor cartão","O cartão cuja fatura fecha mais longe: comprando com ele hoje, você fica mais tempo com o dinheiro na conta. Depende do dia de fechamento de cada cartão, informado em Ajustes."],
- ["Disponível até o fim","Conta de orçamento, não de dinheiro no banco: o teto do mês menos o que já foi gasto (o crédito conta no dia da compra) e menos o que ainda está reservado no mês — fixos não lançados, consignado ainda não descontado, parcelas e agendados com data à frente. Fatura não entra: as compras dela já contaram quando foram feitas."],
- ["Gasto no mês","Tudo o que saiu neste mês, inclusive as compras no crédito — elas contam no dia da compra, mesmo que o dinheiro só saia na fatura."],
+ ["Disponível até o fim","Dinheiro de verdade: o que está no banco hoje (sem a carteira), menos o que ainda falta pagar até o fim do mês — faturas que vencem no mês, contas e fixos ainda não pagos, lançamentos com data à frente —, mais o que ainda vai entrar. Compra no crédito não entra aqui: entra a fatura, quando vence. Toque em Ver o que falta pagar para ver a lista."],
+ ["Gasto no mês","As compras do mês: tudo o que foi gasto, inclusive no crédito, que conta no dia da compra. Pagamento de fatura não entra, porque as compras dela já contaram."],
+ ["Teto de compras do mês","O teto que você definiu para as compras do mês (Ajustes, Meta do mês), contra o que já foi comprado (o crédito no dia da compra) e o que ainda vem no mês (fixos não lançados, parcelas e agendados). Cabem é o que ainda pode comprar; Passou é quanto passou do teto. Não tem nada a ver com o dinheiro no banco: isso é o Disponível."],
+ ["Falta pagar até","O que ainda vai sair do banco até o fim do mês: faturas que vencem no mês e ainda não foram pagas, contas e gastos fixos não pagos e lançamentos com data à frente. Consignado não entra (sai do salário). Fixo no cartão de crédito também não: vai para a fatura."],
+ ["No banco no fim de","O saldo das contas no último dia do mês, sem a carteira."],
+ ["Ficou sem pagar","Contas, fixos e faturas daquele mês que não têm pagamento no app."],
  ["Entrou no mês","Tudo o que entrou neste mês: salário, outras entradas e o empréstimo recebido (consignado), que aparece separado embaixo. Nas análises de renda o empréstimo fica de fora: é dinheiro que entra, mas não é renda."],
  ["Saldo hoje","O dinheiro que você tem agora, somando as contas."],
- ["Previsto dia","Conta de dinheiro, não de orçamento: o saldo que o app espera para o último dia do mês — o de hoje (com os agendados até lá), mais o salário que ainda vai entrar, menos os fixos não lançados que saem da conta e as faturas do mês ainda não pagas. Não depende do teto, por isso não é igual ao Disponível."],
+ ["Previsto dia","O saldo que o app espera para o último dia do mês: o de hoje (com os agendados até lá), mais o salário que ainda vai entrar, menos os fixos não lançados que saem da conta e as faturas do mês ainda não pagas."],
  ["Próximos vencimentos","Só o que ainda não foi pago e vence nos próximos dez dias (ou já venceu): faturas, gastos fixos e parcelas de dívida. O que já foi pago, debitado ou descontado do salário sai daqui; a lista completa do mês, com o que já foi pago, está em Ver todas."],
  ["Onde meu dinheiro está indo","As categorias do mês em ordem de valor. O traço cinza na barra é o limite que você definiu para aquela categoria em Ajustes."],
  ["Onde o dinheiro está","O saldo de cada conta hoje, uma por uma."],
@@ -2143,30 +2153,76 @@ function htmlBancoCartoes(){
       :'<div class="empty" style="padding:14px">Cadastre seus cartões em Ajustes.</div>')+
     '</div></div></div>'; }
 
+/* O dinheiro de verdade (pedido do dono, 13/10/2026: "quero ter uma visão real do que está acontecendo, não só do
+   planejado"): o que está no banco hoje, menos o que ainda vai sair até o fim do mês — faturas (não as compras no
+   crédito), contas e fixos ainda não pagos, lançamentos com data à frente —, mais o que ainda vai entrar. Carteira fora,
+   como em "No banco hoje". Consignado não entra: sai do salário, não da conta. Mês à frente: soma os meses até ele. */
+function dinheiroDoMes(ym){
+  const hoje=todayISO(), cur=ymOf(hoje), last=ym+"-"+pad(daysIn(ym));
+  const A=(S.cfg.accounts||[]).filter(a=>a.type!=="carteira"), noBanco=id=>A.some(a=>a.id===id);
+  const banco=d=>A.reduce((s,a)=>s+balanceOf(a.id,d),0);
+  if(ym<cur){ const L=contasDoMes(ym).filter(x=>!x.pago&&x.tipo!=="folha");
+    return {passado:true, fim:banco(last), pagar:L, totPagar:L.reduce((s,x)=>s+x.v,0)}; }
+  const pagar=[], entrar=[];
+  /* lançamentos com data à frente (agendados, fixos lançados para o dia deles): o efeito de cada um no banco */
+  allTx().forEach(t=>{ if(t.d<=hoje||t.d>last) return; let ef=0;
+    if(t.k==="t"){ if(noBanco(t.acct)) ef-=t.v; if(noBanco(t.acct2)) ef+=t.v; }
+    else { if(!noBanco(t.acct||acctOf(t.card))) return;
+      if(t.k==="e") ef=t.v; else if(t.k==="p") ef=-t.v; else if(t.method!=="credito"&&t.method!=="folha") ef=-t.v; }
+    if(ef<0) pagar.push({tipo:"agendado",nome:t.desc||"Lançamento",v:-ef,d:t.d});
+    else if(ef>0) entrar.push({tipo:"agendado",nome:t.desc||"Entrada",v:ef,d:t.d}); });
+  for(let m=cur;m<=ym;m=ymShift(m,1)){
+    /* o que vence no mês e não foi pago — o fixo no cartão de crédito vai para a fatura, não sai da conta agora */
+    contasDoMes(m).forEach(x=>{ if(x.pago||x.tipo==="folha") return;
+      if(x.tipo==="fixo"){ const f=(S.cfg.fixed||[]).find(y=>y.id===x.id), c=f&&cartaoPorId(f.card);
+        if(c&&c.type==="credito") return; }
+      pagar.push(x); });
+    /* salário que ainda vai entrar: o previsto, enquanto o do mês não foi lançado */
+    if(!salarioDoMes(m)&&!S.cfg.salPausa){ const v=Math.max(0,rendaPrevista(m)-monthStats(m).income);
+      if(v>0) entrar.push({tipo:"renda",nome:"Salário previsto",v,d:primeiroDiaUtil(m)}); } }
+  const totPagar=pagar.reduce((s,x)=>s+x.v,0), totEntrar=entrar.reduce((s,x)=>s+x.v,0), hojeB=banco(hoje);
+  pagar.sort((a,b)=>a.d.localeCompare(b.d)); entrar.sort((a,b)=>a.d.localeCompare(b.d));
+  return {passado:false, hoje:hojeB, pagar, entrar, totPagar, totEntrar, last, disp:hojeB-totPagar+totEntrar}; }
+
 function renderPainel(){
-  const st=monthStats(S.ym), pr=projectMonth(S.ym);
-  const usado=st.spent+st.commit, pctTeto=st.cap?Math.min(100,usado/st.cap*100):0;
-  const cls=st.cap?tone(usado,st.cap):"";
-  const availColor=st.avail<0?"var(--bad)":"var(--ink)";
+  const st=monthStats(S.ym), din=dinheiroDoMes(S.ym), goal=S.cfg.balanceGoal||0;
+  const dm=d=>d.slice(8,10)+"/"+d.slice(5,7);
+  const conta=(rot,v,sinal)=>'<div><span>'+rot+'</span><b>'+sinal+fmtN(v)+'</b></div>';
+  const itens=L=>L.map(x=>'<div><span>'+dm(x.d)+' · '+esc(x.nome)+'</span><b>'+fmtN(x.v)+'</b></div>').join("");
+  const valorCor=v=>'<span class="hero-v" style="color:'+(v<0?"var(--bad)":"var(--ink)")+'">'+fmt(v)+'</span>';
+  /* teto de compras: o que foi comprado no mês (crédito no dia da compra) e o que ainda vem, contra o teto */
+  const rest=st.cap-st.spent-st.commit;
+  /* falta pagar, por tipo, para a linha de baixo da caixa */
+  const porTipo=t=>din.pagar.filter(x=>x.tipo===t).reduce((s,x)=>s+x.v,0);
+  const partes=[["faturas",porTipo("fatura")],["contas",porTipo("fixo")],["agendados",porTipo("agendado")]].filter(x=>x[1]>0)
+    .map(x=>x[0]+" "+fmtN(x[1])).join(" · ");
 
   /* o mais básico primeiro: dinheiro no banco e o que já está lançado em cada cartão */
   let html=htmlBancoCartoes()+htmlMelhorCartao();
 
-  /* hero + tiles */
-  html+='<div class="sec"><div class="grid g23">'+
-    '<div class="hero"><div class="hero-l">Disponível até o fim de '+esc(ymLabel(S.ym))+'</div>'+
-    '<span class="hero-v" style="color:'+availColor+'">'+fmt(st.avail)+'</span>'+
-    '<div class="hero-s">'+(st.cap?("Teto de "+fmt(st.cap)+" · já usou "+fmt(usado)):"Defina seu teto em Ajustes")+'</div>'+
-    (st.cap?'<div style="margin-top:13px"><div class="meter"><i class="'+cls+'" style="width:'+pctTeto+'%"></i></div>'+
-      '<div class="meter-s"><span>'+Math.round(pctTeto)+'% do teto</span><span>'+
-      (st.isCur&&st.left>0?fmt(Math.max(0,Math.round(st.perDay)))+" por dia · "+st.left+" dias":"")+'</span></div></div>':'')+
-    '</div>'+
+  /* a caixa grande é dinheiro de verdade: no banco hoje − falta pagar até o fim do mês + o que ainda entra */
+  const hero=din.passado
+    ? '<div class="hero"><div class="hero-l">No banco no fim de '+esc(ymLabel(S.ym))+'</div>'+valorCor(din.fim)+
+      '<div class="hero-s">O saldo das contas no último dia do mês, sem a carteira.</div>'+
+      (din.pagar.length?'<div class="hero-conta">'+conta("Ficou sem pagar no mês",din.totPagar,"")+'</div>'+
+        '<details class="tv"><summary>Ver o que ficou sem pagar ('+din.pagar.length+')</summary><div class="hero-itens">'+itens(din.pagar)+'</div></details>':'')+'</div>'
+    : '<div class="hero"><div class="hero-l">Disponível até o fim de '+esc(ymLabel(S.ym))+'</div>'+valorCor(din.disp)+
+      '<div class="hero-s">O que sobra no banco depois de pagar o que ainda falta até '+dm(din.last)+'. Compra no crédito não entra aqui: entra a fatura, quando vence.</div>'+
+      '<div class="hero-conta">'+conta("No banco hoje",din.hoje,"")+conta("Falta pagar até "+dm(din.last),din.totPagar,"− ")+
+        (din.totEntrar?conta("Ainda entra até "+dm(din.last),din.totEntrar,"+ "):"")+
+        (goal?conta((din.disp>=goal?"Acima":"Abaixo")+" da meta de saldo ("+fmtN(goal)+")",Math.abs(din.disp-goal),din.disp>=goal?"+ ":"− "):"")+'</div>'+
+      (din.pagar.length?'<details class="tv"><summary>Ver o que falta pagar ('+din.pagar.length+')</summary><div class="hero-itens">'+itens(din.pagar)+
+        (din.entrar.length?'<div class="hero-sub">Ainda entra</div>'+itens(din.entrar):'')+'</div></details>':'')+'</div>';
+  html+='<div class="sec"><div class="grid g23">'+hero+
     '<div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));align-content:start">'+
-      tile("Gasto no mês",fmt(st.spent),st.dayNow>0?("Fecha em "+fmt(Math.round(st.pace))):"",st.cap&&st.pace>st.cap?"up":"flat")+
+      tile("Gasto no mês",fmt(st.spent),"compras do mês; crédito no dia da compra","flat")+
       tile("Entrou no mês",st.income+st.emprest?"+"+fmt(st.income+st.emprest):fmt(0),
-        st.emprest?("Renda "+fmtN(st.income)+" + empréstimo "+fmtN(st.emprest)):S.cfg.income&&!S.cfg.salPausa?("Previsto "+fmt(rendaPrevista(S.ym))):"","down")+
-      tile("Saldo hoje",fmt(pr.hoje),(S.cfg.accounts||[]).length+" contas","flat")+
-      tile("Previsto dia "+daysIn(S.ym),fmt(pr.fim),pr.goal?("Meta "+fmt(pr.goal)):"",pr.goal?(pr.fim>=pr.goal?"down":"up"):"flat")+
+        st.emprest?("Renda "+fmtN(st.income)+" + empréstimo "+fmtN(st.emprest)):S.cfg.income&&!S.cfg.salPausa&&!din.passado&&!salarioDoMes(S.ym)?("Previsto "+fmt(rendaPrevista(S.ym))):"","down")+
+      (st.cap?tile("Teto de compras do mês",rest>=0?"Cabem "+fmt(rest):"Passou "+fmt(-rest),
+        "teto "+fmtN(st.cap)+" · comprado "+fmtN(st.spent)+(st.commit?" · ainda vem "+fmtN(st.commit):""),rest>=0?"flat":"up",rest<0?"var(--bad)":"")
+        :tile("Teto de compras do mês","Sem teto","defina em Ajustes → Meta do mês","flat"))+
+      (din.passado?tile("Ficou sem pagar",fmt(din.totPagar),din.pagar.length?din.pagar.length+(din.pagar.length>1?" contas":" conta"):"tudo pago","flat")
+        :tile("Falta pagar até "+dm(din.last),fmt(din.totPagar),partes||"nada a pagar",din.totPagar?"flat":"down"))+
     '</div></div></div>';
 
   html+=htmlProximas(S.ym);
@@ -2236,8 +2292,8 @@ function renderPainel(){
     setTimeout(()=>{ const x=$("#extSec"); if(x) x.scrollIntoView({behavior:"smooth",block:"start"}); },60); });
   bindTips($("#p-painel"));
 }
-function tile(l,v,d,dir){
-  return '<div class="tile"><div class="tile-l">'+esc(l)+'</div><span class="tile-v">'+esc(v)+'</span>'+
+function tile(l,v,d,dir,cor){
+  return '<div class="tile"><div class="tile-l">'+esc(l)+'</div><span class="tile-v"'+(cor?' style="color:'+cor+'"':'')+'>'+esc(v)+'</span>'+
     (d?'<div class="tile-d '+(dir||"flat")+'">'+esc(d)+'</div>':'')+'</div>'; }
 function insHTML(list){
   const ic={good:'<path d="M20 6L9 17l-5-5"/>',warn:'<path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
@@ -3581,13 +3637,13 @@ const AJUDA=[
  {g:"Entender os números",t:"O que é o método 50-30-20?",
   c:"Na aba Meta: divide a renda em Necessidades (50%), Desejos (30%) e Futuro (20%). A rosca mostra a meta e para onde a renda foi. Necessidades e Desejos são tetos; Futuro é piso. Os percentuais e o grupo de cada categoria são ajustáveis.",a:"futuro"},
  {g:"Entender os números",t:"O que é o teto de gastos?",
-  c:"É quanto você decidiu gastar no mês, informado em Ajustes → Meta do mês. O Painel mostra o disponível até o fim do mês descontando o que já foi gasto e o que está comprometido.",a:"painel"},
+  c:"É quanto você decidiu gastar em compras no mês, informado em Ajustes → Meta do mês. No Painel, a caixa Teto de compras do mês compara o teto com o que já foi comprado (o crédito conta no dia da compra) e o que ainda vem no mês, e diz quanto ainda cabe ou quanto passou. O teto não mexe no Disponível, que é dinheiro de verdade.",a:"painel"},
  {g:"Entender os números",t:"Como o Painel calcula cada número do mês?",
-  c:"Disponível até o fim do mês: o teto menos o que já foi gasto e menos o que ainda está reservado no mês (fixos não lançados, consignado ainda não descontado, parcelas e agendados com data à frente). É conta de orçamento: a compra no crédito conta no dia em que foi feita, e a fatura não entra de novo. Gasto no mês: tudo o que saiu até hoje, crédito inclusive; o Fecha em embaixo é a projeção para o fim do mês no ritmo atual. Entrou no mês: salário, outras entradas e o empréstimo recebido, que aparece separado embaixo. Saldo hoje: a soma das contas. Previsto no último dia: o saldo de hoje, mais o salário que ainda vai entrar, menos os fixos não lançados que saem da conta e as faturas do mês ainda não pagas. Pare o mouse três segundos em cima de cada título para ver a explicação.",a:"painel"},
- {g:"Entender os números",t:"Por que o Previsto do último dia não é igual ao Disponível?",
-  c:"Porque medem coisas diferentes. O Disponível é orçamento: quanto ainda cabe no teto que você escolheu. O Previsto é dinheiro: quanto deve sobrar nas contas no último dia. Os dois só dariam igual se o teto fosse exatamente o que você tem para gastar no mês. Um gasto no crédito, por exemplo, tira do Disponível no dia da compra, mas só tira do Previsto no mês em que a fatura vence.",a:"painel"},
+  c:"Disponível até o fim do mês: o que está no banco hoje (sem a carteira), menos o que ainda falta pagar até o último dia, mais o que ainda vai entrar. Toque em Ver o que falta pagar para ver cada item. Falta pagar: faturas que vencem no mês e ainda não foram pagas, contas e gastos fixos não pagos e lançamentos com data à frente; a compra no crédito não entra, entra a fatura quando vence; consignado também não, porque sai do salário. Gasto no mês: as compras do mês, crédito incluído, no dia da compra; pagamento de fatura não entra. Entrou no mês: salário, outras entradas e o empréstimo recebido, separado embaixo. Teto de compras do mês: o teto contra o que já foi comprado e o que ainda vem; diz quanto ainda cabe ou quanto passou.",a:"painel"},
+ {g:"Entender os números",t:"Qual a diferença entre o Disponível e o Teto de compras?",
+  c:"O Disponível é dinheiro: quanto sobra no banco no fim do mês depois de pagar o que falta, faturas incluídas. O Teto de compras é orçamento: quanto você ainda pode comprar no mês dentro do limite que escolheu, com o crédito contando no dia da compra. Uma compra no crédito hoje tira do Teto agora e só tira do Disponível no mês em que a fatura vence.",a:"painel"},
  {g:"Entender os números",t:"Paguei a fatura. Ela ainda aparece no Painel?",
-  c:"Aparece, com o selo paga e a data, para você ver o mês inteiro, mas fica fora do valor grande, que é o que ainda falta pagar (o já pago aparece embaixo dele). O Previsto também só desconta as faturas ainda não pagas. Se a fatura paga continua sem o selo, o pagamento não está no app, ou está ligado a outra fatura: abra o cartão em Contas.",a:"painel"},
+  c:"Aparece, com o selo paga e a data, para você ver o mês inteiro, mas fica fora do valor grande, que é o que ainda falta pagar (o já pago aparece embaixo dele). O Falta pagar e o Disponível também só contam as faturas ainda não pagas. Se a fatura paga continua sem o selo, o pagamento não está no app, ou está ligado a outra fatura: abra o cartão em Contas.",a:"painel"},
  {g:"Entender os números",t:"Paguei uma conta fixa e ela continua em Próximos vencimentos",
   c:"Desde a versão 1.31.1 o app reconhece sozinho a conta fixa paga fora dele, por débito automático ou boleto, quando ela chega pelo extrato ou é lançada: o nome do lançamento tem as palavras do fixo e o valor é parecido (até 30% de diferença). Ela sai de Próximos vencimentos e deixa de ser contada duas vezes. Se o nome do banco é muito diferente do nome do fixo, toque no lançamento e use Tornar fixo, ou mude o nome do fixo em Ajustes para o que vem no extrato.",a:"painel"},
 

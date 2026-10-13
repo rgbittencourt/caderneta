@@ -153,7 +153,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div>
     <h2 class="titulo">Manual de uso</h2>
     <p class="sub">Controle de gastos por fala, leitura de extratos e faturas em PDF, cartões e faturas, dívidas com quitação, plano para juntar dinheiro e o método 50-30-20.</p>
-    <span class="edicao">Edição de outubro de 2026 · aplica-se à versão 1.31.1 em diante</span>
+    <span class="edicao">Edição de outubro de 2026 · aplica-se à versão 1.32.0 em diante</span>
   </div>
 
   <div class="pe">
@@ -207,9 +207,9 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 </nav>
 
 <div class="dica">
-  <b>Novidades desta edição (da versão 1.26.0 à 1.31.1)</b>
+  <b>Novidades desta edição (da versão 1.26.0 à 1.32.0)</b>
   <ul style="margin:6px 0 0;padding-left:18px">
-    <li><b>Painel mais certo</b> — fatura paga com selo e fora do total; conta fixa paga pelo extrato e consignado já descontado saem dos Próximos vencimentos; o empréstimo recebido aparece em Entrou no mês; e uma tabela de como cada número é calculado (seção 3).</li>
+    <li><b>Painel com o dinheiro de verdade</b> — o Disponível passa a ser o que está no banco menos o que falta pagar até o fim do mês (faturas, não as compras no crédito), com a lista do que falta; o teto virou a caixa <i>Teto de compras do mês</i>; fatura paga com selo e fora do total; conta fixa paga pelo extrato e consignado já descontado saem dos Próximos vencimentos; o empréstimo recebido aparece em Entrou no mês (seção 3).</li>
     <li><b>Juntar contas</b> — quando a mesma conta aparece duas vezes (como a <i>Conta recuperada</i> e a <i>BB Rende Fácil</i>), a Revisão junta num toque; e em Editar há <i>Juntar com outra conta</i> (seção 12).</li>
     <li><b>Outros bancos</b> — além do Banco do Brasil, o app lê o extrato e a fatura do <b>Nubank</b> e o extrato do <b>Bradesco</b>, reconhecendo o banco sozinho e conferindo com os totais impressos; Pix entre contas da mesma pessoa vira transferência (seções 6 e 7).</li>
     <li><b>Extrato do Banco do Brasil em CSV</b> — lê igual ao PDF (seção 6).</li>
@@ -303,23 +303,23 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 </figure>
 
 <figure>
-  <img src="manual/painel-teto.png" alt="Disponível até o fim do mês">
-  <figcaption><b>Disponível até o fim do mês</b> é o teto menos o que já foi gasto e o que está comprometido (parcelas e fixos ainda por lançar). Ao lado, quatro números do mês: gasto, entrada, saldo de hoje e saldo previsto para o último dia.</figcaption>
+  <img src="manual/painel-teto.png" alt="Disponível até o fim do mês e os números do mês">
+  <figcaption><b>Disponível até o fim do mês</b> é dinheiro de verdade: o que está no banco hoje, menos o que ainda falta pagar até o último dia, mais o que ainda vai entrar. <b>Ver o que falta pagar</b> abre a lista, item por item. Ao lado, quatro números do mês: gasto, entrada, teto de compras e o que falta pagar.</figcaption>
 </figure>
 
 <p>Como cada número é calculado:</p>
 <table>
   <tr><th>Caixa</th><th>Conta</th></tr>
-  <tr><td><b>Disponível até o fim do mês</b></td><td>Teto do mês − o que já foi gasto − o que ainda está reservado no mês (fixos não lançados, consignado ainda não descontado, parcelas e agendados com data à frente). A compra no crédito conta no dia em que foi feita; a fatura não entra de novo.</td></tr>
-  <tr><td><b>Gasto no mês</b></td><td>Tudo o que saiu até hoje, crédito inclusive. <i>Fecha em</i> é a projeção para o fim do mês no ritmo atual (fixos e parcelas contam uma vez só).</td></tr>
+  <tr><td><b>Disponível até o fim do mês</b></td><td>No banco hoje (sem a carteira) − falta pagar até o último dia + o que ainda entra (salário que ainda não caiu, entradas com data à frente). Compra no crédito não entra aqui: entra a fatura, quando vence.</td></tr>
+  <tr><td><b>Falta pagar até o último dia</b></td><td>Faturas que vencem no mês e ainda não foram pagas + contas e gastos fixos não pagos + lançamentos com data à frente. Consignado não entra (sai do salário, não da conta), nem fixo no cartão de crédito (vai para a fatura).</td></tr>
+  <tr><td><b>Gasto no mês</b></td><td>As compras do mês, crédito incluído, no dia da compra. Pagamento de fatura não entra, porque as compras dela já contaram.</td></tr>
   <tr><td><b>Entrou no mês</b></td><td>Salário, outras entradas e o empréstimo recebido (consignado), que aparece separado embaixo. Nas análises de renda o empréstimo fica de fora: é dinheiro que entra, mas não é renda.</td></tr>
-  <tr><td><b>Saldo hoje</b></td><td>A soma das contas hoje.</td></tr>
-  <tr><td><b>Previsto no último dia</b></td><td>Saldo de hoje (com os agendados até lá) + salário que ainda vai entrar − fixos não lançados que saem da conta − faturas do mês ainda não pagas.</td></tr>
+  <tr><td><b>Teto de compras do mês</b></td><td>Teto (Ajustes → Meta do mês) − o que já foi comprado − o que ainda vem no mês (fixos não lançados, parcelas e agendados). Mostra <i>Cabem R$ …</i> ou, em vermelho, <i>Passou R$ …</i>.</td></tr>
 </table>
 
 <div class="dica">
-  <b>Por que o Previsto não é igual ao Disponível?</b>
-  Porque medem coisas diferentes. O <b>Disponível</b> é orçamento: quanto ainda cabe no teto que você escolheu. O <b>Previsto</b> é dinheiro: quanto deve sobrar nas contas no último dia. Uma compra no crédito, por exemplo, tira do Disponível no dia da compra, mas só tira do Previsto no mês em que a fatura vence.
+  <b>Disponível e Teto de compras: qual a diferença?</b>
+  O <b>Disponível</b> é dinheiro: quanto sobra no banco no fim do mês depois de pagar o que falta, faturas incluídas. O <b>Teto de compras</b> é orçamento: quanto você ainda pode comprar no mês dentro do limite que escolheu. Uma compra no crédito hoje tira do Teto agora e só tira do Disponível no mês em que a fatura vence. Num mês que já passou, a caixa grande mostra o saldo no último dia e o que ficou sem pagar.
 </div>
 
 <figure>
@@ -1054,7 +1054,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div>
     <b>Caderneta</b>
     <span>App de uso pessoal e familiar, sem servidor e sem custo. Seus lançamentos ficam no aparelho e no seu Google Drive.</span>
-    <span>https://rgbittencourt.github.io/caderneta/ · outubro de 2026 · versão 1.31.1</span>
+    <span>https://rgbittencourt.github.io/caderneta/ · outubro de 2026 · versão 1.32.0</span>
   </div>
 </div>
 
