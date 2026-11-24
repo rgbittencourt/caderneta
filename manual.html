@@ -112,10 +112,10 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   .barra{display:none}
   .pagina{max-width:none;margin:0;padding:0}
   h1{font-size:24pt}
-  h2{font-size:15pt;page-break-before:always;break-before:page;padding-top:0;border-top:0;margin:0 0 6pt}
+  h2{font-size:15pt;page-break-before:always;break-before:page;page-break-after:avoid;break-after:avoid-page;padding-top:0;border-top:0;margin:0 0 6pt}
   h2#sobre,h2:first-of-type{page-break-before:avoid;break-before:avoid}
-  h3{font-size:12pt;margin:14pt 0 4pt}
-  figure img{border:1px solid #ccc}
+  h3{font-size:12pt;margin:14pt 0 4pt;page-break-after:avoid;break-after:avoid-page}
+  figure img{border:1px solid #ccc;max-height:215mm;max-width:100%;width:auto;object-fit:contain}
   figure{max-width:none}
   figure.telefone{max-width:62mm}
   figure.ficha{max-width:110mm}
@@ -153,7 +153,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
   <div>
     <h2 class="titulo">Manual de uso</h2>
     <p class="sub">Controle de gastos por fala, leitura de extratos e faturas em PDF, cartões e faturas, dívidas com quitação, plano para juntar dinheiro e o método 50-30-20.</p>
-    <span class="edicao">Edição de outubro de 2026 · aplica-se à versão 1.34.0 em diante</span>
+    <span class="edicao">Edição de novembro de 2026 · aplica-se à versão 1.34.1 em diante</span>
   </div>
 
   <div class="pe">
@@ -207,8 +207,11 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 </nav>
 
 <div class="dica">
-  <b>Novidades desta edição (da versão 1.26.0 à 1.34.0)</b>
+  <b>Novidades desta edição (da versão 1.26.0 à 1.34.1)</b>
   <ul style="margin:6px 0 0;padding-left:18px">
+    <li><b>Sincronização e recuperação mais seguras</b> — cada navegador mantém uma réplica própria no Drive; alterações em aparelhos diferentes são combinadas. Um cache local danificado não é sobrescrito sem aviso, e os dados podem ser restaurados de um backup ou recuperados do Drive.</li>
+    <li><b>Saldo inicial protegido ao juntar contas</b> — o app só junta contas com a mesma data de saldo inicial. Datas diferentes precisam ser alinhadas com os saldos correspondentes antes, para não mudar os saldos históricos.</li>
+    <li><b>Leitura mais confiável</b> — PDFs longos são lidos até a última página, datas impossíveis são ignoradas e valores inválidos digitados na conferência não são salvos.</li>
     <li><b>Categorias e subcategorias</b> — 14 categorias com 39 subcategorias (Padaria, Feira, Lavanderia, Delivery, Viagens de lazer e necessárias…); a subcategoria decide o 50-30-20; o Painel mostra as categorias e abre as subcategorias; a Consulta filtra por uma ou por outra; os lançamentos antigos foram convertidos sozinhos (seção 21).</li>
     <li><b>Conta fixa que varia</b> — luz, água e telefone com a marca <i>O valor varia todo mês</i>: previsão pela média dos últimos 3 meses, extrato reconhecido com qualquer valor e o <i>Lançar</i> pergunta quanto veio (seção 10).</li>
     <li><b>Painel com o dinheiro de verdade</b> — o Disponível passa a ser o que está no banco menos o que falta pagar até o fim do mês (faturas, não as compras no crédito), com a lista do que falta; o teto virou a caixa <i>Teto de compras do mês</i>; fatura paga com selo e fora do total; conta fixa paga pelo extrato e consignado já descontado saem dos Próximos vencimentos; o empréstimo recebido aparece em Entrou no mês (seção 3).</li>
@@ -654,7 +657,7 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <div class="dica">
   <b>A mesma conta aparece duas vezes? Junte.</b>
-  Em <b>Editar</b>, numa conta, há <b>Juntar com outra conta</b>: escolha a que fica e toque em <b>Juntar</b> (dois toques). Os lançamentos, os cartões que tiravam dinheiro dela e o saldo inicial passam para a escolhida, e a outra deixa de existir. A <b>Revisão</b> (Ajustes → Dados → Revisar) também avisa quando uma conta é repetição de uma aplicação — o caso da <i>Conta recuperada</i> com os meses antigos do <i>BB Rende Fácil</i> — e junta num toque.
+  Em <b>Editar</b>, numa conta, há <b>Juntar com outra conta</b>: escolha a que fica e toque em <b>Juntar</b> (dois toques). Os lançamentos, os cartões que tiravam dinheiro dela e o saldo inicial passam para a escolhida, e a outra deixa de existir. As duas contas precisam ter a mesma data de saldo inicial; se forem diferentes, ajuste ambas para a mesma data usando os saldos correspondentes. Se não souber os saldos nessa data, mantenha as contas separadas. A <b>Revisão</b> (Ajustes → Dados → Revisar) também avisa quando uma conta é repetição de uma aplicação — o caso da <i>Conta recuperada</i> com os meses antigos do <i>BB Rende Fácil</i> — e junta num toque.
 </div>
 
 <figure class="ficha">
@@ -1026,12 +1029,18 @@ td.valor{font-family:var(--f-m);text-align:right;white-space:nowrap}
 
 <h2 id="dados">24. Dados, backup e privacidade</h2>
 <ul>
-  <li>Os dados ficam <b>no aparelho</b> e no <b>seu Google Drive</b>, numa pasta chamada Caderneta. Não existe servidor: ninguém mais tem acesso.</li>
+  <li>Os dados ficam <b>no aparelho</b> e no <b>seu Google Drive</b>, numa pasta chamada Caderneta. O Drive contém o arquivo principal, réplicas de sincronização por navegador/perfil e cópias mensais.</li>
   <li>Os documentos que você lê (PDF, foto) <b>não saem do aparelho</b> — a leitura acontece ali mesmo.</li>
   <li>Em <b>Ajustes → Dados</b>: <i>Levar para uma planilha</i> (CSV), <i>Backup completo</i> (JSON), <i>Restaurar de um backup</i> e <i>Recomeçar os lançamentos</i>.</li>
   <li>Sem internet funciona normalmente; a sincronização acontece quando a conexão volta.</li>
+  <li>Em mais de um aparelho, cada navegador escreve sua própria réplica antes de atualizar o arquivo principal. O app combina as réplicas no próximo sync; evite editar o mesmo lançamento em dois aparelhos enquanto os dois estão offline.</li>
   <li>O acesso ao Drive dura cerca de uma hora; depois aparece <i>Sincronizar</i> no alto — um toque e pronto.</li>
 </ul>
+
+<div class="aviso">
+  <b>Se aparecer “Os dados locais não puderam ser lidos”.</b>
+  O app não vai gravar por cima desse cache. Em <i>Ajustes → Dados → Restaurar de um backup</i>, use um arquivo ou uma cópia do Drive. Se você entra com Google e há uma cópia de sincronização no Drive, toque em <i>Sincronizar</i> para recuperá-la.
+</div>
 
 <div class="nota">
   <b>Backup completo: arquivo ou texto.</b>

@@ -32,10 +32,10 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 **Importar meses anteriores** (extratos e faturas em PDF):
 1. **Recomece** (recomendado): Ajustes → *Recomeçar os lançamentos*. O app sincroniza com o Drive, guarda um backup lá e apaga, em todos os aparelhos, os lançamentos, os gastos fixos e as dívidas (dá para manter os dois últimos, e os gastos em dinheiro, desmarcando/marcando na ficha). Ficam contas, cartões, categorias, renda, teto e metas. Ali mesmo, informe a data do primeiro extrato (01/01/2026) e o saldo de cada conta no dia anterior — o *saldo anterior* que aparece nesse extrato. O salário automático fica pausado até você importar o extrato do mês atual.
 2. Para acertar o saldo inicial depois: Ajustes → *Saldo de cada conta e cartão* → **Saldo inicial**.
-3. Em Ajustes, confira os cartões (dia de fechamento e de vencimento) e as contas, inclusive poupança ou investimento.
+3. Em Ajustes, confira os cartões (dia de fechamento e de vencimento) e as contas, inclusive poupança ou investimento. Para juntar duas contas, as datas do saldo inicial precisam ser iguais; se forem diferentes, ajuste ambas para a mesma data com os saldos correspondentes antes de juntar.
 4. Cadastre os consignados com a data real do empréstimo e 0 parcelas já descontadas, e desmarque *Lançar o depósito* — ele virá no extrato.
 5. Teste com um documento só (o extrato de janeiro). Se não ler, mande a amostra sem dados.
-6. Os extratos da conta corrente, **do mais antigo para o mais novo** (Ajustes → *Importar extrato da conta*). Depois, as faturas de cada cartão (Lançar → *Importar fatura do cartão*), em qualquer ordem. Nada é descontado duas vezes: as compras da fatura não tiram dinheiro da conta, e o pagamento do extrato não conta como gasto.
+6. Os extratos da conta corrente, **do mais antigo para o mais novo** (Lançar → *Importar extrato da conta*). Depois, as faturas de cada cartão (Lançar → *Importar fatura do cartão*), em qualquer ordem. Nada é descontado duas vezes: as compras da fatura não tiram dinheiro da conta, e o pagamento do extrato não conta como gasto.
 7. O BB escreve só "Pagto cartão crédito", sem dizer o cartão. Se a fatura ainda não foi importada, a conferência avisa *confira o cartão*; quando a fatura chegar, o app liga o pagamento ao cartão cuja fatura tem o mesmo valor. O extrato de janeiro traz o pagamento das faturas de dezembro: ele sai da conta corrente e não mexe no limite do cartão. Não precisa importar as faturas de dezembro.
 8. Depois de cada extrato da conta, a conferência do saldo deve dizer "está batendo". Se não bater, falta ou sobra algo naquele mês.
 9. No extrato, pagamento de fatura e aplicação ou resgate não contam como gasto nem renda. Parcelas que o app já reservou vêm desmarcadas sozinhas. O salário do extrato precisa estar na categoria *Salário* para o desconto do consignado ser registrado.
@@ -59,7 +59,7 @@ Controle de gastos por fala, para uso pessoal e familiar. **Um app só:** cada p
 
 **Bancos que o app lê:** Banco do Brasil (extrato em PDF ou CSV, fatura em PDF), Nubank (extrato e fatura em PDF) e Bradesco (extrato em PDF). O banco é reconhecido pelo texto, e a leitura se confere com os totais que o banco imprime. Pix entre contas da mesma pessoa vira transferência, não gasto.
 
-**Versão:** 1.34.0. A numeração segue o Versionamento Semântico (MAIOR.MENOR.CORREÇÃO): o segundo número sobe a cada função nova, o terceiro a cada correção. A versão em uso aparece em Ajustes → Dados → *Versão do app*.
+**Versão:** 1.34.1. A numeração segue o Versionamento Semântico (MAIOR.MENOR.CORREÇÃO): o segundo número sobe a cada função nova, o terceiro a cada correção. A versão em uso aparece em Ajustes → Dados → *Versão do app*.
 
 **Conta pelo código de barras:** na caixa de fala, *Código de barras* abre a câmera ao vivo e lê sozinho, em qualquer celular (zxing-cpp em WebAssembly, além do leitor do aparelho); lido o código, o app pergunta se já pagou ou se paga no vencimento e lança como Boleto, saindo da conta corrente. *Tirar foto* e *Digitar a linha* ficam de reserva.
 
@@ -102,7 +102,7 @@ Teve aumento ou correção? Mude o valor em Ajustes: o app pergunta a partir de 
 
 **Categorias e subcategorias** (1.34.0): 14 categorias (Casa, Alimentação, Veículo, Transporte e viagens, Saúde, Educação, Pessoal, Lazer, Telefone/internet/assinaturas, Família, Compras, Impostos e bancos, Dívidas, Outros) com 39 subcategorias; o lançamento vai na subcategoria, que decide o grupo do 50-30-20. O Painel mostra as categorias e abre as subcategorias; a Consulta filtra pela categoria inteira ou só por subcategorias. Renomear é seguro e vale para trás (o vínculo é interno, não pelo nome); excluir pergunta para onde levar os lançamentos, os gastos fixos e as palavras aprendidas que estavam ali. Para dividir uma subcategoria em duas, crie as novas, filtre a antiga na Consulta e use *Mudar a categoria*.
 
-**Manual:** [manual.html](https://rgbittencourt.github.io/caderneta/manual.html) para ler na tela e [manual.pdf](https://rgbittencourt.github.io/caderneta/manual.pdf) para imprimir ou guardar — 59 páginas em A4, com as telas de cada parte do app (todas com dados inventados).
+**Manual:** [manual.html](https://rgbittencourt.github.io/caderneta/manual.html) para ler na tela e [manual.pdf](https://rgbittencourt.github.io/caderneta/manual.pdf) para imprimir ou guardar — 70 páginas em A4, com as telas de cada parte do app (todas com dados inventados).
 
 **Ícone:** a caderneta de capa preta com a fita marcadora dourada (`icons/`, incluindo a versão *maskable* do Android e o favicon de 32 px). O nome do app não entra no ícone: o sistema já o escreve embaixo.
 
@@ -123,7 +123,7 @@ Teve aumento ou correção? Mude o valor em Ajustes: o app pergunta a partir de 
   - **Consignado:** informe o valor do empréstimo, a data, a conta onde caiu, o número de parcelas, o valor da parcela e **em que mês começou o desconto no salário** (o banco costuma começar meses depois). O empréstimo entra no saldo da conta, sem contar como renda. A partir do salário seguinte, o salário entra já com a parcela descontada, e a parcela aparece em *Dívidas e empréstimos* — uma vez por mês, até a última. Se ele já vinha sendo descontado, diga quantas parcelas saíram antes deste mês. Sem o juro, o app calcula.
   - **Empréstimo ou financiamento pago por boleto ou débito:** diga *Já estou pagando* — "parcela 4 de 12" — ou *Ainda vou começar*, com a data da primeira. A parcela entra sozinha nos gastos fixos até a última.
 
-**Extrato** (aba Contas): é o lugar de ver os movimentos. Toque numa conta ou em *Ver fatura* de um cartão. Na conta, aparece o saldo anterior, cada entrada e saída com o saldo depois dela, e o saldo no fim do mês — só o que sai da conta, sem as compras no crédito. No cartão, a fatura daquele mês, com compras que podem ser do mês anterior. Toque em qualquer linha para corrigir o lançamento. Importar e acertar saldo ficam em Ajustes (extrato) e em Lançar (fatura).
+**Extrato** (aba Contas): é o lugar de ver os movimentos. Toque numa conta ou em *Ver fatura* de um cartão. Na conta, aparece o saldo anterior, cada entrada e saída com o saldo depois dela, e o saldo no fim do mês — só o que sai da conta, sem as compras no crédito. No cartão, a fatura daquele mês, com compras que podem ser do mês anterior. Toque em qualquer linha para corrigir o lançamento. Importar extratos e faturas fica em Lançar; saldos e acertos, em Ajustes.
 - **Conferência do saldo:** depois de importar um extrato, quando ele traz o saldo impresso pelo banco, o app compara com o que calculou, mostra a diferença e pergunta se pode acertar.
 - **Repetidos** (no alto do extrato): procura, no mês, dois lançamentos iguais no mesmo lugar. Mostra os dois lado a lado, com a fatura que cada um abate e de onde veio, e você escolhe: são diferentes, apagar o primeiro ou apagar o segundo. Ele mostra os dois lado a lado e pergunta se é a mesma coisa; só apaga se você mandar. Parcelas de compras parceladas ficam de fora dessa busca.
 
@@ -135,9 +135,11 @@ Teve aumento ou correção? Mude o valor em Ajustes: o app pergunta a partir de 
 
 **Sem internet** funciona normalmente: tudo é salvo no aparelho e vai para o Drive quando a conexão volta. O acesso ao Drive dura cerca de uma hora; depois disso aparece *Sincronizar* no topo — um toque e pronto.
 
+**Mais de um aparelho**: cada navegador mantém sua própria cópia de sincronização no Drive. A Caderneta combina essas cópias ao sincronizar; alterações em lançamentos diferentes se juntam, e uma edição concorrente do mesmo campo usa a alteração mais recente. Evite editar o mesmo lançamento em dois aparelhos enquanto ambos estão sem internet.
+
 ## Onde ficam os dados
 
-No aparelho e no Google Drive de cada pessoa, numa pasta chamada **Caderneta** (`caderneta-dados.json`, mais uma cópia por mês, `backup-AAAA-MM.json`). Não existe servidor. O app só enxerga os arquivos que ele mesmo criou no Drive. Detalhes na [política de privacidade](privacidade.html).
+No aparelho e no Google Drive de cada pessoa, numa pasta chamada **Caderneta** (`caderneta-dados.json`, réplicas `caderneta-replica-…json` e uma cópia por mês, `backup-AAAA-MM.json`). Não existe servidor. O app só enxerga os arquivos que ele mesmo criou no Drive. Detalhes na [política de privacidade](privacidade.html).
 
 ## Atualizações
 
@@ -164,3 +166,8 @@ Pelo Claude Code, numa conversa aberta na pasta deste repositório, em portuguê
 | `privacidade.html`, `termos.html` | Páginas cadastradas na tela de consentimento do Google |
 | `icons/` | Ícones do app |
 | `CLAUDE.md` | Guia técnico para quem for mexer no código, inclusive o Claude |
+
+
+## Testes de regressão
+
+Com Node.js 18 ou mais recente, execute `node --test tests/regression.test.cjs`. A suíte usa apenas dados sintéticos e cobre o fluxo de sincronização de dois aparelhos, merge de configurações e lançamentos, CSV, valores, datas, extratos Bradesco, junção de contas e PDFs com mais de 15 páginas.

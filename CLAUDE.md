@@ -135,7 +135,7 @@ Outros arquivos:
   - Formato da primeira versão (`restantes`/`desde`) vira o novo na leitura, em `normDivida`: `total = restantes`, `inicio = desde`.
   - Saldo pela tabela Price: `S = P·(1 − (1+i)^−n)/i`; juros que faltam = `P·n − S`. Sem juro informado: saldo = `P·n` e nenhuma simulação.
   - Simulação: adiantar 20% da parcela (mínimo R$ 50, arredondado em R$ 10). Meses até quitar pagando `Q`: `m = −ln(1 − S·i/Q)/ln(1+i)`. Economia = juros com `P` − juros com `P + E`.
-- **Junção entre aparelhos** (`mergeData`): lançamentos pela união por id; em conflito vence o `u` maior. O `cfg` inteiro vence pelo `u` maior. Toda escrita precisa passar por `commit`, `saveCfg` ou `saveMonth`, que atualizam `u` e agendam a sincronização.
+- **Junção entre aparelhos** (`mergeData`): lançamentos pela união por id; em conflito vence o `u` maior e exclusões ficam como lápides. Configurações usam `cfgBase` como ancestral comum e se combinam por campo; conflito no mesmo campo vence pelo `cfg.u` mais recente. Cada navegador/perfil grava primeiro sua réplica `caderneta-replica-<id>.json`; em seguida o app relê as réplicas antes de atualizar `caderneta-dados.json`. A API do Drive não documenta garantia de escrita condicional atômica para substituição de mídia: a réplica de cada aparelho preserva suas alterações se outro gravar após a releitura, e elas entram no próximo sync. Toda escrita local passa por `commit`, `saveCfg` ou `saveMonth`, que atualizam `u` e agendam a sincronização.
 - Método 50-30-20: `cfg.metodo = {nec, des, fut}` (percentuais que somam 100) e `cats[].grupo` (`nec`, `des` ou `fut`; sem grupo vale `GRUPO_PADRAO`, e o resto é Desejo). Futuro realizado = gastos das categorias `fut` (inclusive `divida`) + o maior entre o que foi marcado em *Guardei um dinheiro* e o transferido para contas de poupança/investimento no mês — costumam ser o mesmo dinheiro. Necessidades e Desejos são tetos; Futuro é piso.
 - Configuração que já existe nos aparelhos e ganha algo novo: acrescente em `migrarCfg()` sob uma marca nova (`cfg.m1`, `cfg.m2`…), sem desfazer escolha do dono.
 - Campo novo: sempre com valor padrão em `DEFAULTS()`. Os dados antigos entram por `Object.assign(DEFAULTS(), cfg)`.
@@ -163,7 +163,7 @@ Cada achado tem gravidade (crítico, atenção, informação, boa notícia), um 
 - Branding: página inicial `/caderneta/`, `privacidade.html`, `termos.html`, domínio autorizado `rgbittencourt.github.io`. **Sem logotipo** — com logotipo o Google exige verificação.
 - `privacidade.html` e `termos.html`: não renomeie nem remova; mantenha o texto fiel ao que o app faz.
 - Login pelo *token client* do Google Identity Services (janela pop-up). `requestAccessToken` precisa ser chamado direto do toque, senão o navegador bloqueia a janela. O token dura cerca de uma hora; depois o selo mostra *Sincronizar* e um toque renova.
-- Drive: pasta `Caderneta` criada pelo app, com `caderneta-dados.json` (atual) e `backup-AAAA-MM.json` (uma cópia por mês).
+- Drive: pasta `Caderneta` criada pelo app, com `caderneta-dados.json`, uma réplica `caderneta-replica-<id>.json` por navegador/perfil e `backup-AAAA-MM.json` (uma cópia mensal).
 - **Ainda não testado:** o login no iPhone com o app instalado na tela de início.
 
 ## Visual
@@ -275,7 +275,7 @@ Desde 12/10/2026 (pedido do dono, que trouxe a metodologia: "vamos passar a adot
 - Uma publicação = um número novo, sempre. `VERSAO` (sw.js) = `caderneta-` + número; `VERSAO_APP` (index.html) = número; etiqueta git `v` + número. O `sw.js` apaga, na ativação, toda cópia `caderneta-*` que não seja a atual, as fontes ou as bibliotecas.
 - **Ponto de partida:** a `caderneta-v14` (15/09/2026), a versão em uso quando o projeto veio do PC com Windows para o Mac, vale **1.0.0** (as v1–v14 não têm registro versão a versão). As publicações seguintes foram reclassificadas pelo que cada uma fez (os commits); as notas antigas deste arquivo continuam falando em "vNN". Equivalência:
 v14=1.0.0 · v15=1.1.0 · v16=1.2.0 · v17=1.2.1 · v18=1.3.0 · v19=1.3.1 · v20=1.4.0 · v21=1.4.1 · v22=1.4.2 · v23=1.4.3 · v24=1.4.4 · v25=1.4.5 · v26=1.4.6 · v27=1.4.7 · v28=1.4.8 · v29=1.5.0 · v30=1.6.0 · v31=1.7.0 · v32=1.7.1 · v33=1.7.2 · v34=1.7.3 · v35=1.8.0 · v36=1.8.1 · v37=1.9.0 · v38=1.10.0 · v39=1.10.1 · v40=1.11.0 · v41=1.11.1 · v42=1.11.2 · v43=1.11.3 · v44=1.11.4 · v45=1.12.0 · v46=1.12.1 · v47=1.13.0 · v48=1.13.1 · v49=1.14.0 · v50=1.14.1 · v51=1.15.0 · v52=1.16.0 · v53=1.16.1 · v54=1.16.2 · v55=1.16.3 · v56=1.17.0 · v57=1.18.0 · v58=1.18.1 · v59=1.18.2 · v60=1.18.3 · v61=1.18.4 · v62=1.18.5 · v63=1.18.6 · v64=1.18.7 · v65=1.18.8 · v66=1.18.9 · v67=1.18.10 · v68=1.19.0 · v69=1.19.1 · v70=1.20.0 · v71=1.20.1 · v72=1.20.2 · v73=1.20.3 · v74=1.20.4 · v75=1.21.0 · v76=1.21.1 · v77=1.21.2 · v78=1.21.3 · v79=1.21.4 · v80=1.21.5 · v81=1.21.6 · v82=1.22.0 · v83=1.22.1 · v84=1.23.0 · v85=1.24.0 · v86=1.25.0 · v87=1.25.1 · v88=1.26.0 · v89=1.27.0 · v90=1.28.0 · v91=1.28.1 · v92=1.28.2 · v93=1.28.3 · v94=1.29.0 · v95=1.29.1 · v96=1.30.0 · v97=1.30.1.
-- A **1.30.1** (12/10/2026) é a primeira publicada com o número novo: o conteúdo da v97 mais a troca da numeração. Depois: **1.31.0** (13/10/2026, juntar contas — função nova) **1.31.1** (13/10/2026, consertos do Painel) **1.32.0** (13/10/2026, Painel com o dinheiro de verdade) **1.32.1** (13/10/2026, topo das colunas) **1.33.0** (13/10/2026, fixo com valor que varia) e **1.34.0** (13/10/2026, categorias e subcategorias). Próxima função nova: 1.35.0; próxima correção: 1.34.1.
+- A **1.30.1** (12/10/2026) é a primeira publicada com o número novo: o conteúdo da v97 mais a troca da numeração. Depois: **1.31.0** (13/10/2026, juntar contas — função nova) **1.31.1** (13/10/2026, consertos do Painel) **1.32.0** (13/10/2026, Painel com o dinheiro de verdade) **1.32.1** (13/10/2026, topo das colunas) **1.33.0** (13/10/2026, fixo com valor que varia) e **1.34.0** (13/10/2026, categorias e subcategorias). Preparada localmente: 1.34.1 (correções de segurança dos dados, sincronização e leitura de documentos); próxima função nova: 1.35.0; próxima correção após esta: 1.34.2.
 
 ## Publicar
 
@@ -289,6 +289,7 @@ Primeira publicação num computador novo: o dono autoriza no navegador (Git Cre
 
 ## Testar
 
+- Rode `node --test tests/regression.test.cjs` (dados sintéticos: fluxo de sincronização simulado de dois aparelhos, merge, CSV, validação monetária, datas, Bradesco sem saldo inicial, PDF de 16 páginas, junção com datas incompatíveis/compatíveis e snapshot inválido).
 - O service worker só funciona em `localhost` ou HTTPS. Sirva a pasta do repositório:
   - Mac ou Linux: `python3 -m http.server 8765`
   - Windows: um servidor estático qualquer em `localhost`
@@ -304,7 +305,7 @@ Primeira publicação num computador novo: o dono autoriza no navegador (Git Cre
 
 ## Situação e próximos passos
 
-- **Publicado:** **1.34.0** (`caderneta-1.34.0`, 13/10/2026). O que existe está descrito acima.
+- **Última publicação confirmada:** **1.34.0** (`caderneta-1.34.0`, 13/10/2026). A correção **1.34.1** está preparada e testada localmente; ainda não foi publicada nem enviada ao GitHub.
 - **Histórico do GitHub reiniciado (05/10/2026, a pedido do dono):** as versões antigas e as mensagens de commit tinham valores reais dele (faturas, saldos, salário, lojas). O repositório recomeçou com um commit só, já limpo; a ordem do que foi feito antes está nesta página. **Daqui em diante, nenhum valor, loja, cartão ou empregador do dono em arquivo ou mensagem de commit.**
 - **Conferência completa (05/10/2026):** o dono deu acesso a `~/Documents/Extratos` (10 extratos do BB, 9 faturas Elo, 9 Visa, 9 Mastercard, contracheques e comprovantes). Com a v73, faturas e extratos fecham com o papel do banco — a medição está no item *Tudo fecha* acima. **Os PDFs não estão no repositório e não podem entrar.** Para repetir a medição: sirva o repositório em `localhost`, copie os PDFs para uma pasta `docs/` fora do repositório, abra o app numa conta *só deste aparelho* e importe com `Leitor.ler` + `rascunhosDoc` + `saveDrafts`, mês a mês; apague as cópias no fim.
 - **Atenção ao nome dos arquivos dele:** `Extrato Outubro.pdf` é o extrato **de setembro** (período 01 a 30/09) e `Extrato setembro.pdf` é um extrato **parcial** (01 a 11/09) que o de outubro substitui. As faturas são nomeadas pelo mês de **vencimento**: `MASTER Jan.pdf` é a fatura que fechou em 22/12/2025 e vence em 05/01/2026 — no app ela é a fatura de dez/2025.

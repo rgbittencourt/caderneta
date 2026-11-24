@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacidade · Caderneta</title>
-<meta name="description" content="Como a Caderneta trata os seus dados: ficam no seu aparelho e no seu próprio Google Drive. Não há servidor e ninguém mais tem acesso.">
+<meta name="description" content="Como a Caderneta trata os seus dados: ficam no seu aparelho e, se você escolher, no seu próprio Google Drive. O desenvolvedor não recebe seus dados financeiros.">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=54">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
@@ -32,9 +32,9 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:v
 <main>
   <a class="back" href="./">← Voltar para a Caderneta</a>
   <h1>Política de privacidade</h1>
-  <p class="date">Atualizada em 11 de setembro de 2026</p>
+  <p class="date">Atualizada em 24 de novembro de 2026</p>
 
-  <div class="sum"><p><strong>Em resumo:</strong> seus dados ficam no seu aparelho e no seu próprio Google Drive. A Caderneta não tem servidor, não vende nada e ninguém além de você tem acesso ao que você registra.</p></div>
+  <div class="sum"><p><strong>Em resumo:</strong> seus dados ficam no seu aparelho e, se você escolher entrar com Google, na sua própria conta do Drive. A Caderneta não tem servidor e o desenvolvedor não recebe nem acessa seus dados financeiros.</p></div>
 
   <h2>O que é a Caderneta</h2>
   <p>Um app gratuito de controle de gastos, feito para uso pessoal e familiar por Rogério Bittencourt. Não é uma empresa e não tem fins comerciais.</p>
@@ -45,14 +45,15 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:v
   <h2>Onde os seus dados ficam</h2>
   <ul>
     <li><strong>No seu aparelho</strong>, no armazenamento do navegador, para o app funcionar sem internet.</li>
-    <li><strong>No seu Google Drive</strong>, se você entrar com a sua conta Google: numa pasta chamada <em>Caderneta</em>, criada pelo app, com o arquivo <code>caderneta-dados.json</code> e uma cópia por mês (<code>backup-AAAA-MM.json</code>).</li>
+    <li><strong>No seu Google Drive</strong>, se você entrar com a sua conta Google: numa pasta chamada <em>Caderneta</em>, criada pelo app, com o arquivo de dados, uma réplica por navegador/perfil usado e cópias mensais (<code>backup-AAAA-MM.json</code>).</li>
   </ul>
-  <p>Não existe servidor da Caderneta. O desenvolvedor não recebe, não vê e não tem como acessar os seus dados. Cada pessoa que usa o app só enxerga os próprios lançamentos.</p>
+  <p>Não existe servidor da Caderneta. O desenvolvedor não recebe, não vê e não tem como acessar os seus dados. O Google fornece o armazenamento do Drive conforme a conta e os termos do próprio Google.</p>
 
   <h2>O que o app acessa na sua conta Google</h2>
   <ul>
     <li><strong>Nome, e-mail e identificador da conta</strong> — só para saber de quem são os dados guardados naquele aparelho.</li>
     <li><strong>Google Drive, com o escopo <code>drive.file</code></strong> — o mais restrito que o Google oferece: o app só enxerga os arquivos que ele mesmo criou. Não lê, não lista e não altera nenhum outro arquivo do seu Drive.</li>
+    <li><strong>Token de acesso</strong> — é temporário e fica apenas na memória da página; a Caderneta não o grava no armazenamento local do navegador.</li>
   </ul>
   <p>O uso e a transferência, para qualquer outro app, de informações recebidas das APIs do Google seguem a <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Política de Dados do Usuário dos Serviços de API do Google</a>, incluindo os requisitos de Uso Limitado. Na prática: essas informações não são transferidas para ninguém.</p>
 
@@ -63,11 +64,12 @@ footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:v
   <ul>
     <li><strong>Google</strong> — login, Google Drive e as fontes tipográficas (Google Fonts), baixadas dos servidores do Google.</li>
     <li><strong>GitHub Pages</strong> — hospeda os arquivos do app. O GitHub pode registrar dados técnicos de acesso, como o endereço IP, conforme a política dele.</li>
+    <li><strong>Cloudflare cdnjs e jsDelivr</strong> — fornecem as bibliotecas de leitura de PDF e OCR, baixadas quando usadas. O documento continua sendo processado no aparelho e não é enviado a esses serviços pela Caderneta.</li>
   </ul>
   <p>Não há anúncios, rastreadores nem estatísticas de uso.</p>
 
   <h2>Compartilhamento</h2>
-  <p>Nenhum. Os seus dados não são vendidos, cedidos nem compartilhados com ninguém.</p>
+  <p>O desenvolvedor não recebe nem compartilha os seus dados financeiros. Se você autorizar a sincronização, o app grava os arquivos na sua própria conta do Google Drive; isso é necessário para usar o Drive como armazenamento e segue os termos e a política do Google.</p>
 
   <h2>Como apagar tudo</h2>
   <ol>

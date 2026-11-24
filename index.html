@@ -603,16 +603,22 @@ const INT = new Intl.NumberFormat("pt-BR", { maximumFractionDigits:0 });
 const fmt  = c => BRL.format((c || 0) / 100);
 const fmtN = c => NUM.format((c || 0) / 100);
 const fmtK = c => { const v = (c||0)/100; return Math.abs(v) >= 1000 ? (v/1000).toFixed(Math.abs(v)>=10000?0:1).replace(".",",")+"k" : INT.format(v); };
-function toCents(str){
-  if (typeof str === "number") return Math.round(str * 100);
-  let s = String(str || "").trim().replace(/r\$\s*/i,"").replace(/\s/g,"");
-  if (!s) return 0;
-  const neg = /^-/.test(s); s = s.replace(/^-/,"");
-  if (s.includes(",")) s = s.replace(/\./g,"").replace(",",".");
-  else if (/^\d+\.\d{3}$/.test(s)) s = s.replace(".","");
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : (neg ? -1 : 1) * Math.round(n * 100);
-}
+function parseCentsInput(str){
+  if(typeof str==="number") return Number.isFinite(str)&&Number.isSafeInteger(Math.round(str*100))
+    ?{ok:true,cents:Math.round(str*100)}:{ok:false,cents:0};
+  let s=String(str==null?"":str).trim().replace(/^r\$\s*/i,"").replace(/\s/g,"");
+  if(!s) return {ok:true,cents:0};
+  const neg=s[0]==="-"; if(neg) s=s.slice(1);
+  let n;
+  if(s.includes(",")){
+    if(!/^\d+(?:\.\d{3})*,\d{1,2}$/.test(s)) return {ok:false,cents:0};
+    n=Number(s.replace(/\./g,"").replace(",","."));
+  }else if(/^\d{1,3}(?:\.\d{3})+$/.test(s)) n=Number(s.replace(/\./g,""));
+  else if(/^\d+(?:\.\d{1,2})?$/.test(s)) n=Number(s);
+  else return {ok:false,cents:0};
+  const cents=Math.round(n*100)*(neg?-1:1);
+  return Number.isSafeInteger(cents)?{ok:true,cents}:{ok:false,cents:0}; }
+function toCents(str){ const p=parseCentsInput(str); return p.ok?p.cents:0; }
 
 /* ---- datas ---- */
 const MES  = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
@@ -758,33 +764,83 @@ const DEFAULTS = () => ({
 const CFG=window.CADERNETA_CONFIG||{};
 /* a versão que está rodando. Sobe junto com VERSAO do sw.js a cada publicação: "Versão do app" mostra esta,
    e não a última cópia baixada — que pode estar esperando sem ter sido aplicada. */
-const VERSAO_APP="1.34.0";
+const VERSAO_APP="1.34.1";
 const SCOPE_DRIVE="https://www.googleapis.com/auth/drive.file";
 const DRIVE="https://www.googleapis.com/drive/v3", UPLOAD="https://www.googleapis.com/upload/drive/v3";
-const S={cfg:DEFAULTS(),months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
-  user:null,token:null,tokenExp:0,folderId:null,snap:null,sync:{state:"idle",last:0,err:""},dirty:false};
-const K={ativa:"caderneta:ativa",contas:"caderneta:contas",dados:id=>"caderneta:dados:"+id,tk:id=>"caderneta:tk:"+id};
+const S={cfg:DEFAULTS(),cfgBase:null,months:{},ym:ymOf(todayISO()),view:"painel",drafts:[],ai:null,mode:"local",
+  user:null,token:null,tokenExp:0,folderId:null,snap:null,deviceId:null,localCorrupt:false,localWarned:false,
+  sync:{state:"idle",last:0,err:""},dirty:false};
+const K={ativa:"caderneta:ativa",contas:"caderneta:contas",dados:id=>"caderneta:dados:"+id,tk:id=>"caderneta:tk:"+id,
+  device:id=>"caderneta:device:"+id};
 const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } };
 const lsSet=(k,v)=>{ try{ localStorage.setItem(k,v); return true; }catch(e){ return false; } };
 const lsDel=k=>{ try{ localStorage.removeItem(k); }catch(e){} };
 
 function loadLocal(){
-  S.cfg=DEFAULTS(); S.months={}; S.sync.last=0; S.dirty=false;
+  S.cfg=DEFAULTS(); S.cfgBase=null; S.months={}; S.sync.last=0; S.sync.state="idle"; S.sync.err=""; S.dirty=false;
+  S.localCorrupt=false; S.localWarned=false;
   if(!S.user) return;
-  try{ const d=JSON.parse(lsGet(K.dados(S.user.id))||"null"); if(!d) return;
-    S.cfg=Object.assign(DEFAULTS(),d.cfg||{}); S.months=d.months||{};
-    S.sync.last=d.syncedAt||0; S.dirty=!!d.dirty; }catch(e){} S.sincronizado=false; migrarCfg(); }
+  const raw=lsGet(K.dados(S.user.id));
+  try{ const d=JSON.parse(raw||"null"); if(!d) return;
+    if(!isPlainObject(d)||(d.cfg!=null&&!isPlainObject(d.cfg))||(d.cfgBase!=null&&!isPlainObject(d.cfgBase))||
+      (d.months!=null&&!isPlainObject(d.months))||Object.values(d.months||{}).some(m=>!isPlainObject(m)||(m.tx!=null&&!isPlainObject(m.tx))))
+      throw new Error("Formato local inválido");
+    S.cfg=Object.assign(DEFAULTS(),d.cfg||{}); S.cfgBase=d.cfgBase||null; S.months=d.months||{};
+    S.sync.last=d.syncedAt||0; S.dirty=!!d.dirty;
+  }catch(e){ S.localCorrupt=true; S.localWarned=false; S.sync.err="Os dados locais não puderam ser lidos; não vou sobrescrevê-los."; }
+  S.sincronizado=false; migrarCfg(); }
 function saveLocal(){
-  if(!S.user) return;
-  if(!lsSet(K.dados(S.user.id),JSON.stringify({cfg:S.cfg,months:S.months,syncedAt:S.sync.last,dirty:S.dirty})))
-    toast("O aparelho está sem espaço para salvar."); }
-function touch(){ S.dirty=true; saveLocal(); renderSyncBadge(); scheduleSync(); }
-async function saveCfg(){ S.cfg.u=Date.now(); touch(); }
-async function saveMonth(){ touch(); }
+  if(!S.user||S.localCorrupt) return false;
+  if(!lsSet(K.dados(S.user.id),JSON.stringify({cfg:S.cfg,cfgBase:S.cfgBase,months:S.months,syncedAt:S.sync.last,dirty:S.dirty}))){
+    toast("O aparelho está sem espaço para salvar."); return false; }
+  return true; }
+function warnLocalCorrupt(){
+  if(!S.localCorrupt) return false;
+  if(!S.localWarned){ toast("Os dados locais parecem danificados. Não vou gravar por cima; restaure um backup ou sincronize se houver cópia no Drive."); S.localWarned=true; }
+  return true; }
+function touch(){ if(warnLocalCorrupt()) return; S.dirty=true; saveLocal(); renderSyncBadge(); scheduleSync(); }
+async function saveCfg(){ if(warnLocalCorrupt()) return; S.cfg.u=Date.now(); touch(); }
+async function saveMonth(){ if(warnLocalCorrupt()) return; touch(); }
 function warn(e){ console.warn(e); }
 
-/* junta duas versões: lançamentos pela união; em conflito, vence o mais recente */
-function mergeData(a,b){
+const cloneJSON=x=>x==null?x:JSON.parse(JSON.stringify(x));
+const stableJSON=x=>x===undefined||x===null?"null":Array.isArray(x)?"["+x.map(stableJSON).join(",")+"]":
+  typeof x==="object"?"{"+Object.keys(x).sort().map(k=>JSON.stringify(k)+":"+stableJSON(x[k])).join(",")+"}":JSON.stringify(x);
+const sameJSON=(a,b)=>stableJSON(a)===stableJSON(b);
+const isPlainObject=x=>!!x&&typeof x==="object"&&!Array.isArray(x);
+function arrayKeyField(arrays){
+  for(const key of ["id","desde"]){
+    const listas=arrays.filter(Array.isArray), todas=listas.flat();
+    if(todas.length&&todas.every(x=>isPlainObject(x)&&x[key]!=null)&&
+      listas.every(L=>{ const ids=L.map(x=>String(x[key])); return new Set(ids).size===ids.length; })) return key;
+  }
+  return ""; }
+/* Merge de configuração: campos e entidades independentes não se apagam entre aparelhos; conflitos no mesmo campo
+   continuam usando o carimbo mais recente. `base` é a última configuração comum confirmada no Drive. */
+function mergeCfgValue(base,a,b,ta,tb){
+  if(sameJSON(a,b)) return cloneJSON(a);
+  if(sameJSON(a,base)) return cloneJSON(b);
+  if(sameJSON(b,base)) return cloneJSON(a);
+  if(Array.isArray(a)&&Array.isArray(b)){
+    const key=arrayKeyField([base,a,b]);
+    if(!key) return cloneJSON(tb>ta?b:a);
+    const toMap=L=>new Map((Array.isArray(L)?L:[]).map(x=>[String(x[key]),x]));
+    const bm=toMap(base), am=toMap(a), cm=toMap(b), order=[];
+    [base,a,b].forEach(L=>(Array.isArray(L)?L:[]).forEach(x=>{ const k=String(x[key]); if(!order.includes(k)) order.push(k); }));
+    const out=[];
+    for(const k of order){ const v=mergeCfgValue(bm.get(k),am.get(k),cm.get(k),ta,tb); if(v!==undefined) out.push(v); }
+    return out; }
+  if(isPlainObject(a)&&isPlainObject(b)){
+    const bo=isPlainObject(base)?base:{}, keys=new Set([...Object.keys(bo),...Object.keys(a),...Object.keys(b)]), out={};
+    keys.forEach(k=>{ const v=mergeCfgValue(bo[k],a[k],b[k],ta,tb); if(v!==undefined) out[k]=v; });
+    return out; }
+  return cloneJSON(tb>ta?b:a); }
+function mergeCfg(base,a,b){
+  const ca=a||{}, cb=b||{}, ta=+ca.u||0, tb=+cb.u||0;
+  const out=mergeCfgValue(base||{},ca,cb,ta,tb)||{}; out.u=Math.max(ta,tb); return out; }
+
+/* Junta lançamentos pela união por id e mantém lápides; conflito de lançamento vence pelo carimbo mais recente. */
+function mergeData(a,b,baseCfg){
   const out={months:{}}, A=a.months||{}, B=b.months||{};
   new Set(Object.keys(A).concat(Object.keys(B))).forEach(ym=>{
     const x=(A[ym]&&A[ym].tx)||{}, y=(B[ym]&&B[ym].tx)||{}, tx={};
@@ -792,7 +848,7 @@ function mergeData(a,b){
       const p=x[id], q=y[id]; tx[id]=!p?q:!q?p:((q.u||0)>(p.u||0)?q:p); });
     out.months[ym]={tx}; });
   const ca=a.cfg||{}, cb=b.cfg||{};
-  out.cfg=(cb.u||0)>(ca.u||0)?cb:ca;
+  out.cfg=baseCfg?mergeCfg(baseCfg,ca,cb):((cb.u||0)>(ca.u||0)?cb:ca);
   return out; }
 
 /* ---- contas usadas neste aparelho ---- */
@@ -801,7 +857,7 @@ function rememberUser(u){ const L=knownUsers().filter(x=>x.id!==u.id);
   L.unshift({id:u.id,email:u.email,name:u.name,full:u.full||"",kind:u.kind});
   lsSet(K.contas,JSON.stringify(L.slice(0,6))); lsSet(K.ativa,u.id); }
 function useUser(u){
-  S.user=u; rememberUser(u); S.token=null; S.tokenExp=0; S.folderId=null; S.snap=null;
+  S.user=u; rememberUser(u); S.token=null; S.tokenExp=0; S.folderId=null; S.snap=null; S.deviceId=null;
   loadLocal(); restoreToken(); S.mode=u.kind==="google"?"nuvem":"local"; S.view="painel";
   setTimeout(garantirNomeCompleto,600);
   /* pagamento de fatura que o extrato trouxe sem dizer o cartão: agora que as faturas estão aqui,
@@ -817,7 +873,7 @@ function useUser(u){
 function signOut(){
   if(S.user) lsDel(K.tk(S.user.id));
   lsDel(K.ativa); S.user=null; S.token=null; S.tokenExp=0; S.folderId=null; S.snap=null;
-  S.cfg=DEFAULTS(); S.months={}; closeSheet(); render(); showGate(); }
+  S.cfg=DEFAULTS(); S.cfgBase=null; S.months={}; S.deviceId=null; S.localCorrupt=false; closeSheet(); render(); showGate(); }
 
 /* ---- login com Google (Google Identity Services) ---- */
 let tokenClient=null, tokenWait=null;
@@ -852,10 +908,9 @@ function getToken(interactive){
     const known=S.user&&S.user.kind==="google";
     tokenClient.requestAccessToken({prompt:known?"":"select_account",
       login_hint:known?S.user.email:undefined, hint:known?S.user.email:undefined}); }); }
-function saveToken(){ if(S.user) lsSet(K.tk(S.user.id),JSON.stringify({t:S.token,e:S.tokenExp})); }
-function restoreToken(){ if(!S.user) return;
-  try{ const d=JSON.parse(lsGet(K.tk(S.user.id))||"null");
-    if(d&&d.t&&Date.now()<d.e-60000){ S.token=d.t; S.tokenExp=d.e; } }catch(e){} }
+/* Access token de curta duração fica só na memória; remove o valor em localStorage criado por versões antigas. */
+function saveToken(){ if(S.user) lsDel(K.tk(S.user.id)); }
+function restoreToken(){ if(S.user){ lsDel(K.tk(S.user.id)); S.token=null; S.tokenExp=0; } }
 function authMsg(e){ const c=e&&e.code;
   if(c==="noclient") return "O login com Google ainda não foi configurado neste app.";
   if(c==="gis") return "Não consegui carregar o login do Google. Verifique a internet e tente de novo.";
@@ -867,6 +922,8 @@ function authMsg(e){ const c=e&&e.code;
   if(c==="auth"&&e.msg==="access_denied") return "Você não autorizou o acesso na tela do Google. Sem ele, os dados não vão para o seu Drive.";
   if(c==="auth") return "O Google não liberou o acesso"+(e.msg?" ("+e.msg+")":"")+".";
   if(c==="http") return "O Drive respondeu com erro "+e.status+". Tente de novo em instantes.";
+  if(c==="data") return "O arquivo de dados no Drive não parece válido. Não gravei por cima; restaure um backup ou confira o arquivo no Drive.";
+  if(c==="localcorrupt") return "Os dados locais estão danificados e não encontrei uma cópia no Drive. Restaure um backup antes de continuar.";
   return "Algo deu errado. Tente de novo."; }
 async function whoAmI(){
   const r=await fetch("https://www.googleapis.com/oauth2/v3/userinfo",{headers:{Authorization:"Bearer "+S.token}});
@@ -903,6 +960,17 @@ async function findFile(name,parent,folder){
   if(parent) q.push("'"+parent+"' in parents");
   const r=await gfetch(DRIVE+"/files?spaces=drive&pageSize=5&fields=files(id,name)&q="+encodeURIComponent(q.join(" and ")));
   return ((await r.json()).files||[])[0]||null; }
+async function listReplicaFiles(parent){
+  const all=[]; let page="";
+  do{
+    const q="'"+parent+"' in parents and name contains 'caderneta-replica-' and trashed=false";
+    const url=DRIVE+"/files?spaces=drive&pageSize=100&fields="+encodeURIComponent("nextPageToken,files(id,name,modifiedTime)")+
+      "&q="+encodeURIComponent(q)+(page?"&pageToken="+encodeURIComponent(page):"");
+    const d=await (await gfetch(url)).json();
+    (d.files||[]).filter(f=>/^caderneta-replica-[a-z0-9-]+\.json$/i.test(f.name||"")).forEach(f=>all.push(f));
+    page=d.nextPageToken||"";
+  }while(page);
+  return all; }
 async function ensureFolder(){
   if(S.folderId) return S.folderId;
   let f=await findFile("Caderneta",null,true);
@@ -919,6 +987,23 @@ async function writeJson(name,parent,data,id){
   const r=await gfetch(UPLOAD+"/files?uploadType=multipart&fields=id",{method:"POST",headers:{"Content-Type":"multipart/related; boundary="+b},body:mp});
   return (await r.json()).id; }
 
+function replicaDeviceId(){
+  if(S.deviceId) return S.deviceId;
+  const k="caderneta:device:"+(S.user&&S.user.id||"local");
+  try{
+    const store=navigator.locks&&navigator.locks.request?localStorage:sessionStorage;
+    let id=store.getItem(k);
+    if(!id){ id="d-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,10); store.setItem(k,id); }
+    S.deviceId=id;
+  }catch(e){ S.deviceId="d-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,10); }
+  return S.deviceId; }
+function validSnapshot(d){
+  return !!d&&/^(caderneta|caderneta-casa|meu-caixa)$/.test(d.app||"")&&isPlainObject(d.cfg)&&isPlainObject(d.months)&&
+    (d.cfgBase==null||isPlainObject(d.cfgBase))&&
+    !Object.values(d.months).some(m=>!isPlainObject(m)||(m.tx!=null&&!isPlainObject(m.tx))); }
+function snapshotData(d){ return {cfg:Object.assign(DEFAULTS(),d.cfg||{}),months:d.months||{}}; }
+function sameSnapshot(a,b){ return sameJSON({cfg:a.cfg,months:a.months},{cfg:b.cfg,months:b.months}); }
+
 /* ---- sincronização ---- */
 let syncTimer=null, syncing=false, syncAgain=false;
 function scheduleSync(){ if(!S.user||S.user.kind!=="google") return;
@@ -934,31 +1019,64 @@ async function garantirNomeCompleto(){
 
 async function syncNow(){
   if(!S.user||S.user.kind!=="google") return;
+  if(!navigator.onLine||!tokenOk()){ renderSyncBadge(); return; }
+  const who=S.user.id;
+  if(navigator.locks&&typeof navigator.locks.request==="function")
+    return navigator.locks.request("caderneta-drive-sync:"+who,()=>syncNowUnlocked(who));
+  return syncNowUnlocked(who); }
+async function syncNowUnlocked(who){
+  if(!S.user||S.user.kind!=="google"||S.user.id!==who) return;
   if(syncing){ syncAgain=true; return; }
   if(!navigator.onLine||!tokenOk()){ renderSyncBadge(); return; }
   syncing=true; S.sync.state="sync"; renderSyncBadge();
-  const who=S.user.id, marca=()=>JSON.stringify(S.months)+"|"+(S.cfg.u||0), antes=marca();
+  const marca=()=>JSON.stringify({cfg:S.cfg,months:S.months}), antes=marca();
   try{
     const pasta=await ensureFolder();
-    const f=await findFile("caderneta-dados.json",pasta);
-    const remoto=f?await readJson(f.id):null;
+    let f=await findFile("caderneta-dados.json",pasta);
+    let files=await listReplicaFiles(pasta), docs=[];
+    if(f) docs.push(await readJson(f.id));
+    for(const rf of files) docs.push(await readJson(rf.id));
     if(!S.user||S.user.id!==who) return;
+    if(docs.some(d=>!validSnapshot(d))) throw {code:"data"};
+    const remotos=docs.map(snapshotData);
+    const baseRemoto=docs.filter(d=>d.cfgBase).sort((a,b)=>String(b.salvoEm||"").localeCompare(String(a.salvoEm||"")))[0];
+    const baseCfg=S.cfgBase||baseRemoto&&baseRemoto.cfgBase||null;
     /* aparelho zerado (reinstalou, limpou os dados, trocou de celular): o que está no Drive é a verdade.
        Sem isso, a configuração em branco poderia vencer pela data e apagar cartões, categorias e fixos. */
     const baseVazia=!Object.keys(S.months||{}).length&&!S.cfg.seen&&!(S.cfg.dividas||[]).length;
-    const junto=!remoto?{cfg:S.cfg,months:S.months}
-      :baseVazia?{cfg:remoto.cfg||S.cfg,months:remoto.months||{}}
-      :mergeData({cfg:S.cfg,months:S.months},remoto);
-    const pacote={app:"caderneta",v:2,conta:S.user.email,salvoEm:new Date().toISOString(),cfg:junto.cfg,months:junto.months};
-    await writeJson("caderneta-dados.json",pasta,pacote,f&&f.id);
+    if(S.localCorrupt&&!remotos.length) throw {code:"localcorrupt"};
+    let junto=S.localCorrupt?cloneJSON(remotos[0]):(baseVazia&&remotos.length?cloneJSON(remotos[0]):{cfg:S.cfg,months:S.months});
+    remotos.forEach(r=>{ junto=mergeData(junto,r,baseCfg); });
+    const replica="caderneta-replica-"+replicaDeviceId()+".json";
+    let replicaFile=await findFile(replica,pasta), replicaId=replicaFile&&replicaFile.id;
+    const pacote=()=>({app:"caderneta",v:2,conta:S.user.email,salvoEm:new Date().toISOString(),
+      cfg:junto.cfg,cfgBase:cloneJSON(junto.cfg),months:junto.months});
+    const gravarReplica=async()=>{ replicaId=await writeJson(replica,pasta,pacote(),replicaId); };
+    await gravarReplica();
+    /* Relê as réplicas antes do arquivo compatível. Isto fecha a janela de concorrência comum; se outro aparelho
+       gravar depois desta leitura, os dados dele continuam em sua réplica e entram no próximo sync. */
+    for(let tentativa=0;tentativa<3;tentativa++){
+      f=await findFile("caderneta-dados.json",pasta); files=await listReplicaFiles(pasta);
+      const atuais=[];
+      if(f) atuais.push(await readJson(f.id));
+      for(const rf of files) atuais.push(await readJson(rf.id));
+      if(atuais.some(d=>!validSnapshot(d))) throw {code:"data"};
+      let unido=cloneJSON(junto);
+      atuais.forEach(d=>{ unido=mergeData(unido,snapshotData(d),baseCfg); });
+      if(sameSnapshot(unido,junto)) break;
+      junto=unido; await gravarReplica();
+    }
+    f=await findFile("caderneta-dados.json",pasta);
+    await writeJson("caderneta-dados.json",pasta,pacote(),f&&f.id);
     const nome="backup-"+ymOf(todayISO())+".json";           /* uma cópia por mês = histórico */
     if(!S.snap||S.snap.name!==nome){ const sf=await findFile(nome,pasta); S.snap={name:nome,id:sf&&sf.id}; }
-    S.snap.id=await writeJson(nome,pasta,pacote,S.snap.id);
+    S.snap.id=await writeJson(nome,pasta,pacote(),S.snap.id);
     if(!S.user||S.user.id!==who) return;
     const mudouNoMeio=marca()!==antes;                        /* lançou algo enquanto sincronizava */
-    const fim=baseVazia?junto:mergeData({cfg:S.cfg,months:S.months},junto);
-    const chegouNovidade=JSON.stringify(fim.months)!==JSON.stringify(S.months)||(fim.cfg.u||0)!==(S.cfg.u||0);
-    S.cfg=Object.assign(DEFAULTS(),fim.cfg); S.months=fim.months; S.sincronizado=true; migrarCfg(); setTimeout(()=>garantirSalario(),0);
+    const fim=mudouNoMeio&&!S.localCorrupt?mergeData(junto,{cfg:S.cfg,months:S.months},baseCfg):junto;
+    const chegouNovidade=!sameSnapshot(fim,{cfg:S.cfg,months:S.months});
+    S.cfg=Object.assign(DEFAULTS(),fim.cfg); S.months=fim.months; S.cfgBase=cloneJSON(junto.cfg);
+    S.localCorrupt=false; S.localWarned=false; S.sincronizado=true; migrarCfg(); setTimeout(()=>garantirSalario(),0);
     S.sync.last=Date.now(); S.sync.state="ok"; S.sync.err=""; S.dirty=mudouNoMeio; saveLocal();
     garantirNomeCompleto();
     if(chegouNovidade) safeRender(); else renderSyncBadge();
@@ -1131,9 +1249,13 @@ function installHTML(){
 function bindInstall(){
   const b=$("#instBtn"); if(b) b.onclick=async()=>{ if(!deferredInstall) return; const ev=deferredInstall; deferredInstall=null;
     ev.prompt(); try{ await ev.userChoice; }catch(e){} safeRender(); };
-  const n=$("#nSync"); if(n) n.onclick=syncTap; }
+  const n=$("#nSync"); if(n) n.onclick=syncTap;
+  const r=$("#localRestore"); if(r) r.onclick=openRestore; }
 function topNotices(){
   let h=""; const ins=installHTML(); if(ins) h+='<div class="sec">'+ins+'</div>';
+  if(S.localCorrupt) h+='<div class="sec"><div class="note"><b>Os dados locais não puderam ser lidos</b>'+
+    'Eles não serão substituídos. Restaure um backup; se houver uma cópia no Drive, toque em Sincronizar para recuperá-la.'+
+    '<br><button class="btn sm" id="localRestore" style="margin-top:9px">Restaurar backup</button></div></div>';
   if(S.user&&S.user.kind==="google"&&navigator.onLine&&!tokenOk()&&(S.dirty||Date.now()-(S.sync.last||0)>6*3600e3))
     h+='<div class="sec"><div class="note"><b>'+(S.dirty?"Há lançamentos que ainda não foram para o seu Drive":"Buscar novidades dos seus outros aparelhos")+'</b>'+
       'Última sincronização: '+esc(quando(S.sync.last))+'.<br><button class="btn sm" id="nSync" style="margin-top:9px">Sincronizar agora</button></div></div>';
@@ -1474,7 +1596,7 @@ const firstOfMonth=(ym,src)=>ym+"-"+pad(Math.min(+src.slice(8,10),daysIn(ym)));
 async function commit(d){
   const kind=d.k||"g";
   const n=kind==="g"?Math.max(1,Math.min(60,+d.n||1)):1;
-  const total=Math.abs(d.v); if(!total) return false;
+  const total=Math.abs(Number(d.v)); if(!Number.isSafeInteger(total)||!total) return false;
   const i0=Math.max(1,Math.min(n,+d.i0||1)); const porParcela=i0>1||!!d.porParcela;   /* na fatura, 01/03 100,00 é o valor de cada parcela; na fala, é o total */
   const parts=porParcela?new Array(n).fill(total):splitCents(total,n); const planTotal=porParcela?total*n:total;
   /* a compra parcelada já está no app e só falta esta parcela: entra nela, em vez de abrir um plano novo
@@ -2048,14 +2170,14 @@ function resumoSerie(rows,opt){
   opt=opt||{}; if(rows.length<2) return "";
   const vs=rows.map(r=>r.v), m=media(vs), u=rows[rows.length-1], a=rows[rows.length-2];
   const max=rows.reduce((x,y)=>y.v>x.v?y:x), min=rows.reduce((x,y)=>y.v<x.v?y:x);
-  const f=["<b>O que este gráfico diz</b>"];
+  const f=[];
   f.push((u.nome||u.label)+" fechou em "+fmtN(u.v)+", "+maisOuMenos(u.v,a.v)+" de "+(a.nome||a.label)+
     " e "+maisOuMenos(u.v,m)+" da média do período ("+fmtN(m)+").");
   if(max.v!==min.v) f.push("O maior foi "+(max.nome||max.label)+" ("+fmtN(max.v)+") e o menor, "+(min.nome||min.label)+" ("+fmtN(min.v)+").");
   if(opt.ref>0){ const passou=rows.filter(r=>r.v>opt.ref).length;
     f.push(passou?passou+(passou>1?" desses meses passaram":" desses meses passou")+" do teto de "+fmtN(opt.ref)+".":"Nenhum deles passou do teto de "+fmtN(opt.ref)+"."); }
   if(opt.fim) f.push(opt.fim);
-  return '<div class="cardbox-s" style="margin:10px 0 0">'+f.join(" ")+' <i>Toque numa barra para entender aquele mês.</i></div>'; }
+  return '<div class="cardbox-s" style="margin:10px 0 0"><b>O que este gráfico diz</b> '+f.map(esc).join(" ")+' <i>Toque numa barra para entender aquele mês.</i></div>'; }
 /* fatias: o peso de cada uma dentro do total */
 /* barras por categoria: a leitura (toque) traz as subcategorias, a média dos meses fechados e o limite da categoria */
 function linhasDosPais(pais,tot,opt){
@@ -2086,13 +2208,13 @@ function resumoFatias(rows,total,opt){
   opt=opt||{}; if(!rows.length) return "";
   const o=rows.slice().sort((a,b)=>b.v-a.v), top=o[0];
   const tres=o.slice(0,3), soma=tres.reduce((s,r)=>s+r.v,0);
-  const f=["<b>O que este gráfico diz</b>"];
+  const f=[];
   f.push("O maior peso é "+top.label+", com "+fmtN(top.v)+(total?" ("+Math.round(top.v/total*100)+"% "+(opt.de||"do mês")+")":"")+".");
   if(o.length>2&&total) f.push("As três maiores — "+tres.map(r=>r.label).join(", ")+" — somam "+fmtN(soma)+", "+Math.round(soma/total*100)+"% do total.");
   const estourou=rows.filter(r=>r.limit>0&&r.v>r.limit);
   if(estourou.length) f.push(estourou.length===1?estourou[0].label+" passou do limite que você definiu.":estourou.length+" categorias passaram do limite que você definiu.");
   if(opt.fim) f.push(opt.fim);
-  return '<div class="cardbox-s" style="margin:10px 0 0">'+f.join(" ")+' <i>Toque numa barra para entender aquela categoria.</i></div>'; }
+  return '<div class="cardbox-s" style="margin:10px 0 0"><b>O que este gráfico diz</b> '+f.map(esc).join(" ")+' <i>Toque numa barra para entender aquela categoria.</i></div>'; }
 function openLeitura(titulo,texto){
   sheet(titulo||"O que isto quer dizer",
     '<div class="set"><div class="note"><b>'+esc(titulo||"")+'</b>'+esc(texto)+'</div></div>',
@@ -2104,8 +2226,8 @@ function bindTips(root){
     let tip=box.querySelector(".tip");
     if(!tip){ tip=document.createElement("div"); tip.className="tip"; tip.hidden=true; box.appendChild(tip); }
     const show=ev=>{ const el=ev.target.closest("[data-tip]"); if(!el){ tip.hidden=true; return; }
-      const parts=el.getAttribute("data-tip").split("|");
-      tip.innerHTML="<b>"+parts[0]+"</b>"+(parts[1]?parts[1]:"")+
+      const raw=el.getAttribute("data-tip"), bar=raw.indexOf("|"), titulo=bar<0?raw:raw.slice(0,bar), corpo=bar<0?"":raw.slice(bar+1);
+      tip.innerHTML="<b>"+esc(titulo)+"</b>"+esc(corpo)+
         (el.getAttribute("data-leitura")?'<span class="mais">toque para entender este dado</span>':"");
       const r=box.getBoundingClientRect(), b=el.getBoundingClientRect();
       tip.style.left=Math.max(60,Math.min(r.width-60,b.left+b.width/2-r.left))+"px";
@@ -2400,7 +2522,7 @@ function insHTML(list){
   if(!list.length) return "";
   return '<div class="ins">'+list.map(x=>'<div class="ins-r"><span class="ins-i '+(x.tone||"")+'">'+
     '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+ic[x.tone||""]+'</svg>'+
-    '</span><span class="ins-m"><span class="ins-t">'+esc(x.t)+'</span><span class="ins-s">'+x.s+'</span></span></div>').join("")+'</div>'; }
+    '</span><span class="ins-m"><span class="ins-t">'+esc(x.t)+'</span><span class="ins-s">'+esc(x.s)+'</span></span></div>').join("")+'</div>'; }
 /* =================== linhas de extrato =================== */
 function catColorOf(t){ return t.k==="e"?"var(--good)":(t.k==="p"||t.k==="t")?"var(--ink-3)":"var(--accent)"; }
 function rowHTML(t){
@@ -2498,7 +2620,7 @@ function renderDrafts(){
     '<div class="f"><label>Descrição</label><input data-k="desc" value="'+esc(d.desc)+'"></div>'+
     camposDoRascunho(d)+
     '<div class="f"><label>Data</label><input type="date" data-k="date" value="'+d.date+'"></div>'+((d.k||"g")==="g"&&(+d.n||1)<=1?'<div class="f"><label>Fixo todo mês</label><input type="checkbox" data-k="fixo" style="width:20px;height:20px"'+(d.fixo?" checked":"")+'></div>':'')+(d.origem?'<div class="f"><label>Incluir</label><input type="checkbox" data-k="incluir" style="width:20px;height:20px"'+(d.incluir!==false?" checked":"")+'></div>':'')+'</div>'+
-    (d.msg?'<div class="draft-msg">'+esc(d.msg)+'</div>':'')+dupHTML(d,i)+
+    (d.msg?'<div class="draft-msg">'+esc(d.msg)+'</div>':'')+(d.valorInvalido?'<div class="draft-msg">Valor inválido. Use números e até duas casas decimais.</div>':'')+dupHTML(d,i)+
     (d.raw?'<div class="raw">“'+esc(d.raw)+'”</div>':'')+'</div>').join("");
   $$(".draft",box).forEach(el=>{ const i=+el.dataset.i;
     $$("[data-k]",el).forEach(inp=>inp.oninput=()=>{
@@ -2510,13 +2632,13 @@ function renderDrafts(){
         renderDrafts(); return; }
       if(k==="cardId"){ d.cardId=inp.value; const c=S.cfg.cards.find(x=>x.id===inp.value);
         if(c&&d.k!=="p") d.method=c.type; renderDrafts(); return; }
-      if(k==="v") d.v=toCents(inp.value);
+      if(k==="v"){ const p=parseCentsInput(inp.value); d.valorInvalido=!p.ok; d.v=p.ok?p.cents:0; }
       else if(k==="n") d.n=Math.max(1,Math.min(60,parseInt(inp.value)||1));
       else d[k]=inp.value;
       if(k==="v"||k==="desc"){
         $(".draft-v",el).textContent=d.v?((d.k==="e"?"+":"")+fmt(d.v)):"—";
         $(".draft-d",el).textContent=d.desc||"Sem descrição";
-        el.classList.toggle("bad",!d.v); } }); });
+        el.classList.toggle("bad",!d.v||!!d.valorInvalido); } }); });
   $$("[data-dupm]",box).forEach(b=>b.onclick=()=>{ const d=S.drafts[+b.dataset.dupm]; d.incluir=false; d.dupResp=1; renderDrafts(); });
   $$("[data-dupd]",box).forEach(b=>b.onclick=()=>{ const d=S.drafts[+b.dataset.dupd]; d.incluir=true; d.dupResp=1; renderDrafts(); });
   $$("[data-dupv]",box).forEach(b=>b.onclick=()=>{ const d=S.drafts[+b.dataset.dupv]; d.dupResp=0; d.dupAuto=0; renderDrafts(); });
@@ -2532,6 +2654,9 @@ function readInput(){
   st.innerHTML=S.drafts.length+" lançamento"+(S.drafts.length>1?"s lidos":" lido")+(bad?" · "+bad+" sem valor":"");
   renderDrafts(); $("#draftSec").scrollIntoView({behavior:"smooth",block:"start"}); }
 async function saveDrafts(){
+  if(S.drafts.some(d=>d.valorInvalido&&(d.incluir!==false||d.corrigir))){ toast("Corrija os valores inválidos antes de salvar a conferência."); return; }
+  if(S.drafts.some(d=>(d.incluir!==false||d.corrigir)&&(!Number.isSafeInteger(d.v)||!d.v))){
+    toast("Cada lançamento incluído precisa ter um valor válido. Corrija-o ou desmarque-o."); return; }
   const ok=S.drafts.filter(d=>d.v&&d.incluir!==false); let fixos=0, acertadas=0, empurradas=0;
   for(const d of S.drafts) if(d.dupAuto&&d.dup&&(d.ajustarValor||d.moverPara)){ await ajustarParcelaReservada(d); acertadas++; }
   let corrigidos=0;
@@ -2816,7 +2941,9 @@ function openTx(ym,id){
     (kind==="g"&&(+t.n||1)<=1&&!t.fix?'<button class="btn ghost" id="tFix">Tornar fixo</button>':'')+'<button class="btn danger" id="tKill">'+(t.n>1?"Excluir compra":"Excluir")+'</button><button class="btn" id="tOk">Salvar</button>');
   $("#tOk").onclick=async()=>{
     const nd=$("#tDt").value||t.d;
-    const patch={desc:$("#tD").value.trim()||t.desc, v:toCents($("#tV").value)};
+    const valor=parseCentsInput($("#tV").value);
+    if(!valor.ok||!valor.cents){ toast("Informe um valor válido, com até duas casas decimais."); return; }
+    const patch={desc:$("#tD").value.trim()||t.desc, v:valor.cents};
     if($("#tC")) patch.cat=$("#tC").value;
     if($("#tP")){ patch.card=$("#tP").value; const c=S.cfg.cards.find(x=>x.id===patch.card);
       if(c) patch.method=c.type; patch.acct=acctOf(patch.card); }
@@ -2826,14 +2953,17 @@ function openTx(ym,id){
     if($("#tPR")&&kind==="p"&&$("#tPR").value) patch.ref=chaveDaFatura(patch.card!=null?patch.card:t.card,$("#tPR").value);
     if($("#tB")) patch.acct2=$("#tB").value;
     if($("#tTo")) patch.to=$("#tTo").value.trim();
-    /* compra no crédito continua na mesma fatura quando muda a data; virou crédito agora: a fatura sai do dia e do fechamento */
-    if((patch.method||t.method)==="credito"&&!t.fat) patch.fat=t.method==="credito"?ym:txMonth(nd,patch.card||t.card,0);
+    /* A fatura depende da data e do cartão. Ao trocar um dos dois, recalcula o ciclo; ao sair do crédito, remove a referência. */
+    const novoCredito=(patch.method||t.method)==="credito";
+    if(novoCredito) patch.fat=txMonth(nd,patch.card||t.card,0);
+    else delete patch.fat;
+    const atualizar=base=>{ const x=Object.assign({},base,patch,{d:nd,u:Date.now()}); if(!novoCredito) delete x.fat; return x; };
     const newYm=ymOf(nd);
     if(newYm!==ym){ S.months[ym].tx[id]={del:1,u:Date.now()};
       if(!S.months[newYm]) S.months[newYm]={tx:{}};
-      S.months[newYm].tx[id]=Object.assign({},t,patch,{d:nd,u:Date.now()});
+      S.months[newYm].tx[id]=atualizar(t);
       await saveMonth(ym); await saveMonth(newYm); }
-    else { Object.assign(S.months[ym].tx[id],patch,{d:nd,u:Date.now()}); await saveMonth(ym); }
+    else { Object.assign(S.months[ym].tx[id],patch,{d:nd,u:Date.now()}); if(!novoCredito) delete S.months[ym].tx[id].fat; await saveMonth(ym); }
     closeSheet(); render(); toast("Salvo"); };
   const tf=$("#tFix"); if(tf) tf.onclick=async()=>{ const fx={id:uid(),name:t.desc,amount:t.v,day:+t.d.slice(8,10)||1,cat:t.cat,card:t.card}; (S.cfg.fixed=S.cfg.fixed||[]).push(fx); S.months[ym].tx[id].fix=fx.id; S.months[ym].tx[id].u=Date.now(); await saveCfg(); await saveMonth(ym); closeSheet(); render(); toast("Agora é fixo todo mês. Aparece em Ajustes, em Gastos fixos."); };
   $("#tKill").onclick=async()=>{ await removeTx(ym,id,t.n>1); closeSheet(); render();
@@ -2898,15 +3028,19 @@ function openAcct(id){
     const nomePara=(A.find(x=>x.id===para)||{}).n;
     if(!jb.dataset.certeza){ jb.dataset.certeza="1"; jb.textContent="Juntar mesmo?";
       toast("Tudo de "+a.n+" vai para "+nomePara+", e "+a.n+" deixa de existir. Toque de novo para juntar."); return; }
-    const n=juntarContas(a.id,para); closeSheet(); render();
+    const n=juntarContas(a.id,para); if(n===-2){ jb.dataset.certeza=""; jb.textContent="Juntar";
+      toast("As datas de saldo inicial são diferentes. Ajuste-as para a mesma data antes de juntar, para preservar os saldos."); return; }
+    closeSheet(); render();
     toast(n>=0?a.n+" foi juntada a "+nomePara+": "+n+(n===1?" lançamento passou":" lançamentos passaram")+" para lá.":"Não consegui juntar."); };
   const k=$("#aKill");
   if(k) k.onclick=()=>{ if(A.length<=1){ toast("Precisa de pelo menos uma conta."); return; }
     /* excluir fica no lugar do "Cancelar" das outras fichas: pede um segundo toque */
-    const resto=A.filter(x=>x.id!==a.id), destino=resto[0];
+    const resto=A.filter(x=>x.id!==a.id), destino=resto.find(x=>(x.openDate||"")===(a.openDate||""))||resto[0];
     const nTx=allTx().filter(t=>t.acct===a.id||t.acct2===a.id).length;
     if(!k.dataset.certeza){ k.dataset.certeza="1"; k.textContent="Excluir mesmo?";
       toast((nTx?nTx+" lançamentos e os ":"Os ")+"cartões desta conta passam para "+destino.n+". Toque de novo para excluir."); return; }
+    if((a.openDate||"")!==(destino.openDate||"")){ k.dataset.certeza=""; k.textContent="Excluir";
+      toast("A conta de destino tem outra data de saldo inicial. Ajuste as duas para a mesma data antes de excluir esta conta."); return; }
     (S.cfg.cards||[]).forEach(x=>{ if(x.acct===a.id) x.acct=destino.id; });
     const meses=new Set();
     Object.keys(S.months).forEach(ym=>{ const tx=(S.months[ym]||{}).tx||{};
@@ -2924,6 +3058,7 @@ function openAcct(id){
 function juntarContas(deId,paraId){
   const A=S.cfg.accounts||[], de=A.find(a=>a.id===deId), para=A.find(a=>a.id===paraId);
   if(!de||!para||deId===paraId) return -1;
+  if((de.openDate||"")!==(para.openDate||"")) return -2;
   (S.cfg.cards||[]).forEach(x=>{ if(x.acct===deId) x.acct=paraId; });
   (S.cfg.deposits||[]).forEach(x=>{ if(x.de===deId) x.de=paraId; if(x.para===deId) x.para=paraId; });
   (S.cfg.dividas||[]).forEach(x=>{ if(x.conta===deId) x.conta=paraId; });
@@ -2936,8 +3071,7 @@ function juntarContas(deId,paraId){
       if(t.acct===deId){ t.acct=paraId; mudou=true; }
       if(t.acct2===deId){ t.acct2=paraId; mudou=true; }
       if(mudou){ t.u=agora; n++; meses.add(ym); } }); });
-  /* saldo inicial: o de cada uma se soma, e vale a data de início mais antiga */
-  if(de.openDate&&(!para.openDate||de.openDate<para.openDate)) para.openDate=de.openDate;
+  /* Como as datas foram validadas iguais, os saldos iniciais podem ser somados sem mudar a linha de base. */
   para.opening=(para.opening||0)+(de.opening||0);
   S.cfg.accounts=A.filter(a=>a.id!==deId);
   saveCfg(); meses.forEach(ym=>saveMonth(ym));
@@ -3640,7 +3774,11 @@ const AJUDA=[
  {g:"Conta e saldo",t:"Apareceu uma Conta recuperada, ou a mesma conta aparece duas vezes",
   c:"A Conta recuperada aparece quando uma conta foi excluída mas ainda havia lançamentos dela: para não perder nada, o app trazia a conta de volta com esse nome. Com a aplicação automática do Banco do Brasil isso fazia a mesma conta aparecer duas vezes — a Conta recuperada com os meses antigos e uma BB Rende Fácil nova com os seguintes. Desde a versão 1.31.0 a Revisão (Ajustes, Dados, Revisar) mostra A mesma conta aparece duas vezes, com o botão Juntar em BB Rende Fácil (dois toques): os movimentos passam para a BB Rende Fácil e a Conta recuperada deixa de existir. E uma conta de aplicação excluída volta com o próprio nome, não mais como Conta recuperada.",a:"saldos"},
  {g:"Conta e saldo",t:"Como junto duas contas que são a mesma?",
-  c:"Ajustes, Saldo de cada conta, Editar na conta que vai sair. Em Juntar com outra conta, escolha a que fica e toque em Juntar (duas vezes, para confirmar). Os lançamentos, os cartões que tiravam dinheiro dela e o saldo inicial passam para a escolhida, e a outra deixa de existir. Diferente de Excluir: no Juntar você escolhe para onde vai cada coisa.",a:"saldos"},
+  c:"Ajustes, Saldo de cada conta, Editar na conta que vai sair. Em Juntar com outra conta, escolha a que fica e toque em Juntar (duas vezes, para confirmar). Os lançamentos, os cartões que tiravam dinheiro dela e o saldo inicial passam para a escolhida, e a outra deixa de existir. As duas contas precisam ter a mesma data de saldo inicial; se forem diferentes, ajuste ambas para uma data comum com os saldos correspondentes. Se não souber esses saldos, mantenha as contas separadas. Diferente de Excluir: no Juntar você escolhe para onde vai cada coisa.",a:"saldos"},
+ {g:"Conta e saldo",t:"Por que não consigo juntar contas com datas iniciais diferentes?",
+  c:"O saldo inicial é um valor válido numa data específica. Somar dois valores de datas diferentes mudaria o saldo e poderia esconder movimentos antigos. Ajuste as duas contas para a mesma data usando os saldos correspondentes; se não tiver esses valores, deixe as contas separadas.",a:"saldos"},
+ {g:"Dados",t:"O app avisou que os dados locais não puderam ser lidos",
+  c:"A Caderneta não grava por cima do cache danificado. Em Ajustes → Dados → Restaurar de um backup, escolha um arquivo ou uma cópia do Drive. Se você usa Google e há uma cópia de sincronização no Drive, toque em Sincronizar para recuperá-la.",a:"dados"},
  {g:"Conta e saldo",t:"O que é a conta BB Rende Fácil que apareceu?",
   c:"É a aplicação automática do banco. O app criou uma conta para ela: assim a conta corrente fica igual ao saldo impresso no extrato, e o dinheiro aplicado continua sendo seu, só que em outra linha.",a:"extrato"},
  {g:"Conta e saldo",t:"Minha conta corrente sumiu da lista",
@@ -3707,7 +3845,7 @@ const AJUDA=[
  {g:"No dia a dia",t:"Como registro dinheiro que passei de uma conta para outra?",
   c:"Aba Lançar → Transferir entre contas. Não conta como gasto: só muda o dinheiro de lugar. Para mandar dinheiro a outra pessoa, lance como gasto com a forma Transferência ou Pix.",a:"contas"},
  {g:"No dia a dia",t:"Uso em dois aparelhos. Sincroniza?",
-  c:"Sim, pela sua conta Google: o que você lança num aparelho aparece no outro quando os dois abrem com internet. O acesso ao Drive dura cerca de uma hora; depois aparece Sincronizar no alto — um toque e pronto.",a:"dados"},
+  c:"Sim, pela sua conta Google: cada navegador mantém uma réplica no Drive, e as alterações independentes se juntam quando sincroniza. Evite editar o mesmo lançamento em dois aparelhos enquanto ambos estão sem internet; numa edição concorrente do mesmo campo, vale a mais recente. O acesso ao Drive dura cerca de uma hora; depois aparece Sincronizar no alto — um toque e pronto.",a:"dados"},
  {g:"No dia a dia",t:"Funciona sem internet?",
   c:"Funciona. Tudo é salvo no aparelho e sobe para o Drive quando a conexão volta. A leitura de PDF e foto também acontece no próprio aparelho.",a:"dados"},
  {g:"No dia a dia",t:"Minha família pode usar o mesmo app?",
@@ -4183,6 +4321,32 @@ function openKw(){
     saveCfg(); openKw(); render(); }); }
 
 /* =================== importar =================== */
+function parseCsvRows(text){
+  const s=String(text||"").replace(/^\uFEFF/,""); let sep=",", quote=false, counts={",":0,";":0,"\t":0};
+  for(let i=0;i<s.length;i++){
+    const ch=s[i];
+    if(ch==='"'){ if(quote&&s[i+1]==='"'){ i++; continue; } quote=!quote; continue; }
+    if(!quote&&Object.prototype.hasOwnProperty.call(counts,ch)) counts[ch]++;
+    if(!quote&&(ch==="\n"||ch==="\r")) break;
+  }
+  if(counts[";"]>counts[","]&&counts[";"]>=counts["\t"]) sep=";";
+  else if(counts["\t"]>counts[","]) sep="\t";
+  const rows=[]; let row=[],field=""; quote=false;
+  for(let i=0;i<s.length;i++){
+    const ch=s[i];
+    if(ch==='"'){
+      if(quote&&s[i+1]==='"'){ field+='"'; i++; }
+      else if(quote) quote=false;
+      else if(!field) quote=true;
+      else field+='"';
+    }else if(!quote&&ch===sep){ row.push(field.trim()); field=""; }
+    else if(!quote&&(ch==="\n"||ch==="\r")){
+      if(ch==="\r"&&s[i+1]==="\n") i++;
+      row.push(field.trim()); if(row.some(x=>x!=="")) rows.push(row); row=[]; field="";
+    }else field+=ch;
+  }
+  row.push(field.trim()); if(row.some(x=>x!=="")) rows.push(row);
+  return rows; }
 function parseStatement(text,sign){
   const out=[];
   if(/<STMTTRN>|<OFX>/i.test(text)){
@@ -4195,17 +4359,16 @@ function parseStatement(text,sign){
       if(sign==="neg"&&amt>=0) return;
       out.push({d,desc:memo||"Sem descrição",v:Math.round(Math.abs(amt)*100),k:amt>0?"e":"g"}); });
     return out; }
-  text.split(/\r?\n/).forEach(line=>{
-    if(!line.trim()) return;
-    const cells=line.includes(";")?line.split(";"):(line.includes("\t")?line.split("\t"):line.split(","));
+  const moneyCell=/^-?\s*(?:R\$\s*)?(?:(?:\d{1,3}(?:\.\d{3})+|\d+),\d{1,2}|\d+\.\d{2})$/i;
+  parseCsvRows(text).forEach(cells=>{
     if(cells.length<2) return;
     let d="",desc="",v=null;
     cells.forEach(raw=>{
-      const c=raw.trim().replace(/^"|"$/g,""); if(!c) return;
+      const c=String(raw||"").trim(); if(!c) return;
       const md=c.match(/^(\d{2})[\/\-.](\d{2})[\/\-.](\d{2,4})$/), mi=c.match(/^(\d{4})-(\d{2})-(\d{2})/);
       if(mi&&!d){ d=mi[0]; return; }
       if(md&&!d){ const y=md[3].length===2?"20"+md[3]:md[3]; d=y+"-"+md[2]+"-"+md[1]; return; }
-      if(/^-?\s*R?\$?\s*-?[\d.]+,\d{2}$/.test(c)||/^-?\d+\.\d{2}$/.test(c)){ if(v===null) v=toCents(c); return; }
+      if(moneyCell.test(c)){ if(v===null) v=parseCentsInput(c).cents; return; }
       if(c.length>desc.length&&!/^\d+$/.test(c)) desc=c; });
     if(!d||v===null||v===0) return;
     if(sign==="neg"&&v>=0) return;
@@ -4321,7 +4484,7 @@ function setupPTT(){
       rec.onresult=e=>{ if(minha!==sessao) return; rodada=textoDaFala(e.results); mostra(); };
       rec.onerror=ev=>{ if(minha===sessao) erro=ev.error||""; };
       rec.onend=()=>{ if(minha!==sessao) return; acc=juntarFala(acc,rodada); rodada=""; mostra();
-        if(segurando&&!/not-allowed|service-not-allowed|audio-capture/.test(erro)){ erro=""; rodar(); }
+        if(segurando&&!/not-allowed|service-not-allowed|audio-capture|network|language-not-supported|bad-grammar/.test(erro)){ erro=""; rodar(); }
         else terminar(); };
       rec.start();
     }catch(e){ erro="start"; terminar(); } };
@@ -4331,6 +4494,8 @@ function setupPTT(){
     btn.classList.remove("ouvindo"); ov.hidden=true; vibra(15);
     const texto=juntarFala(acc,rodada).trim();
     if(/not-allowed|service-not-allowed/.test(erro)){ toast("O microfone está bloqueado para a Caderneta. Libere nas permissões do navegador e segure de novo."); return; }
+    if(erro==="network"){ toast("O reconhecimento de fala ficou sem conexão. Confira a internet e tente de novo."); return; }
+    if(erro==="audio-capture"){ toast("Não consegui acessar o microfone. Confira as permissões e tente de novo."); return; }
     if(Date.now()-inicio<500&&!texto){ toast("Segure o botão enquanto fala, e solte quando terminar."); return; }
     if(!texto){ toast("Não ouvi nada. Segure o botão e fale perto do celular."); return; }
     if(S.view!=="lancar") setView("lancar");
@@ -5656,7 +5821,7 @@ function diagHTML(list){
   return '<div class="ins">'+list.map((x,i)=>{
     const acs=(x.acoes||[]).map((a,j)=>{ const k="a"+i+"_"+j; ACOES[k]=a.fn; return '<button class="mini" data-acao="'+k+'">'+esc(a.rotulo)+'</button>'; }).join("");
     return '<div class="ins-r"><span class="ins-i '+(x.tone||"")+'"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+ic[x.tone||""]+'</svg></span>'+
-      '<span class="ins-m"><span class="ins-t">'+esc(x.t)+'</span><span class="ins-s">'+x.s+'</span>'+(acs?'<span class="ins-a">'+acs+'</span>':'')+'</span></div>'; }).join("")+'</div>'; }
+      '<span class="ins-m"><span class="ins-t">'+esc(x.t)+'</span><span class="ins-s">'+esc(x.s)+'</span>'+(acs?'<span class="ins-a">'+acs+'</span>':'')+'</span></div>'; }).join("")+'</div>'; }
 
 /* o diagnóstico: cada achado tem gravidade, explicação e, quando dá, uma ação */
 function diagnostico(ym){
@@ -6886,12 +7051,16 @@ async function listarBackupsDrive(){
       try{ await restaurarPacote(await readJson(b.dataset.bk)); }catch(e){ toast("Não consegui abrir esse backup."); b.disabled=false; b.textContent="Restaurar"; } });
   }catch(e){ if($("#rDrive")) $("#rDrive").textContent="Não consegui listar os backups agora."; } }
 async function restaurarPacote(d){
-  if(!d||!/^(caderneta|caderneta-casa|meu-caixa)$/.test(d.app)||!d.cfg){ toast("Não reconheci esse backup. Confira se copiou inteiro."); return; }
+  if(!d||!/^(caderneta|caderneta-casa|meu-caixa)$/.test(d.app)||!isPlainObject(d.cfg)||!isPlainObject(d.months||{})||
+    Object.values(d.months||{}).some(m=>!isPlainObject(m)||(m.tx!=null&&!isPlainObject(m.tx)))){
+    toast("Não reconheci esse backup. Confira se copiou inteiro."); return; }
   const agora=Date.now();
   /* backup de antes de recomeçar: os lançamentos voltam por cima das exclusões */
   if(d.antesDeRecomecar) Object.values(d.months||{}).forEach(m=>Object.values((m&&m.tx)||{}).forEach(t=>{ if(t&&!t.del) t.u=agora; }));
-  const m=mergeData({cfg:S.cfg,months:S.months},{cfg:Object.assign({},d.cfg,{u:agora}),months:d.months||{}});
-  S.cfg=Object.assign(DEFAULTS(),m.cfg); S.months=m.months; migrarCfg();
+  const m=mergeData({cfg:S.localCorrupt?DEFAULTS():S.cfg,months:S.localCorrupt?{}:S.months},
+    {cfg:Object.assign({},d.cfg,{u:agora}),months:d.months||{}});
+  S.cfg=Object.assign(DEFAULTS(),m.cfg); S.months=m.months; S.cfgBase=isPlainObject(d.cfgBase)?cloneJSON(d.cfgBase):null;
+  S.localCorrupt=false; S.localWarned=false; migrarCfg();
   await saveCfg(); for(const ym of Object.keys(S.months)) await saveMonth(ym);
   closeSheet(); render(); toast("Backup restaurado"); }
 

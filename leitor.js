@@ -70,15 +70,19 @@ async function textoDoPdf(arquivo,senha){
   let doc;
   try{ doc=await lib.getDocument({data:await arquivo.arrayBuffer(), password:senha||undefined}).promise; }
   catch(e){ if(e&&e.name==="PasswordException"){ const x=new Error(e.code===2?"Senha errada.":"Esse PDF tem senha."); x.senha=true; x.errada=e.code===2; throw x; } throw e; }
-  const n=Math.min(doc.numPages,15), paginas=[];
+  const n=doc.numPages, paginas=[];
   for(let p=1;p<=n;p++){
+    if(progCb) progCb(Math.round((p-1)/n*100),"lendo a página "+p+" de "+n);
     const pg=await doc.getPage(p);
     let texto=linhasDoPdf((await pg.getTextContent()).items);
     if(texto.replace(/\s/g,"").length<40){
       const vp=pg.getViewport({scale:2}), c=document.createElement("canvas");
       c.width=vp.width; c.height=vp.height;
       await pg.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;
-      texto=await ocr(await paraCanvas(c,2400));
+      const cb=progCb;
+      if(cb) progCb=(percent,label)=>cb(Math.round(((p-1)+(percent||0)/100)/n*100),"lendo a página "+p+" de "+n+" — "+label);
+      try{ texto=await ocr(await paraCanvas(c,2400)); }
+      finally{ progCb=cb; }
     }
     paginas.push(texto);
     if(progCb) progCb(Math.round(p/n*100),"lendo a página "+p+" de "+n);
@@ -118,15 +122,18 @@ function valores(linha){
 
 /* data no começo da linha: 12/08 · 12/08/2026 · 12 AGO · 12 de agosto */
 function dataNoInicio(linha,ano,mesRef){
-  let m=linha.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?(?!\d)/), d,mo,y;
-  if(m){ d=+m[1]; mo=+m[2]; y=m[3]?(m[3].length===2?2000+(+m[3]):+m[3]):0; }
+  let m=linha.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?(?!\d)/), d,mo,y,temAno=false;
+  if(m){ d=+m[1]; mo=+m[2]; temAno=!!m[3]; y=temAno?(m[3].length===2?2000+(+m[3]):+m[3]):0; }
   else {
     m=semAcento(linha).match(/^(\d{1,2})\s*(?:de\s+)?(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*\.?(?:\s*(?:de\s+)?(\d{4}))?/i);
-    if(!m) return null; d=+m[1]; mo=MESES[m[2].toLowerCase()]; y=m[3]?+m[3]:0; }
-  if(d<1||d>31||mo<1||mo>12) return null;
+    if(!m) return null; d=+m[1]; mo=MESES[m[2].toLowerCase()]; temAno=!!m[3]; y=temAno?+m[3]:0; }
+  if(d<1||d>31||mo<1||mo>12) return {iso:"",len:m[0].length,invalid:true};
   /* "20/12" numa fatura de janeiro é do ano anterior; "05/01" numa fatura fechada em dezembro é do ano seguinte */
-  if(!y){ y=ano; const dif=mo-mesRef; if(dif>1) y=ano-1; else if(dif<-10) y=ano+1; }
-  return {iso:y+"-"+pad(mo)+"-"+pad(d), len:m[0].length}; }
+  if(!temAno){ y=Number(ano); const dif=mo-Number(mesRef); if(dif>1) y--; else if(dif<-10) y++; }
+  if(!Number.isInteger(y)||y<0||y>9999) return {iso:"",len:m[0].length,invalid:true};
+  const dias=[31,(y%4===0&&(y%100!==0||y%400===0))?29:28,31,30,31,30,31,31,30,31,30,31];
+  if(d>dias[mo-1]) return {iso:"",len:m[0].length,invalid:true};
+  return {iso:String(y).padStart(4,"0")+"-"+pad(mo)+"-"+pad(d), len:m[0].length}; }
 
 /* linhas que não são lançamento */
 const IGN_COMUM=/\b(saldo|total|subtotal|limite|vencimento|resumo|periodo|pagina|historico|lancamentos futuros)\b/i;
@@ -144,7 +151,7 @@ const RE_OUTRA_COLUNA=/\s{3,}(?=\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?\s)/;
 function dataNaLinha(linha,ano,mesRef){
   const dt=dataNoInicio(linha,ano,mesRef); if(dt) return dt;
   const lead=linha.match(/^(?:\S{1,6}|[A-Za-zÀ-ÿ\-]{3,14},?)\s+/);
-  if(lead){ const d2=dataNoInicio(linha.slice(lead[0].length),ano,mesRef); if(d2) return {iso:d2.iso,len:lead[0].length+d2.len}; }
+  if(lead){ const d2=dataNoInicio(linha.slice(lead[0].length),ano,mesRef); if(d2) return {iso:d2.iso,len:lead[0].length+d2.len,invalid:!!d2.invalid}; }
   return null; }
 
 /* extrato em blocos (Banco do Brasil): cada lançamento tem o histórico numa linha ("Compra com Cartão"), a linha
@@ -339,7 +346,7 @@ function lerExtratoBradesco(texto){
   const nm=sem.match(/^Nome:\s*(.+)$/mi), titular=nm?nm[1].trim():"";
   const per=sem.match(/Movimenta\w*o entre:\s*(\d{2})\/(\d{2})\/(\d{4}) e (\d{2})\/(\d{2})\/(\d{4})/i);
   const fim=per?iso3(+per[4],+per[5],+per[6]):"";
-  const itens=[]; let pend=[], ant=null, dia="", saldo=null, saldoAnt=null, dAnt="", totais=null, ignoradas=0;
+  const itens=[]; let pend=[], ant=null, dia="", saldo=null, saldoAnt=null, dAnt="", totais=null, ignoradas=0, indefinidas=0;
   const ehRuido=sl=>/^(bradesco celular|data: \d|nome: |extrato de: |data\s+historico|extrato inexistente|folha:)/.test(sl);
   for(const bruta of L){
     const t=bruta.replace(/\s+/g," ").trim(), sl=semAcento(t).toLowerCase(); if(!t||ehRuido(sl)) continue;
@@ -353,13 +360,14 @@ function lerExtratoBradesco(texto){
       /* as linhas soltas desde o lançamento anterior: o detalhe dele (se ainda falta) e o histórico deste */
       if(ant&&!ant.det&&pend.length&&(pend.length>=2||!RE_HIST_BRADESCO.test(semAcento(pend[0]).toLowerCase()))) ant.det=pend.shift();
       const v=centavos(m[5]), novo=centavos(m[6]);
-      const k=saldo!=null&&Math.abs(saldo+v-novo)<=1?"e":"g"; saldo=novo;
+      const k=saldo==null?null:(Math.abs(saldo+v-novo)<=1?"e":"g"); saldo=novo;
       ant={d:dia, v, k, hist:pend.join(" ").trim(), det:"", doc:m[4]}; pend=[]; itens.push(ant); continue; }
     pend.push(t); }
   if(ant&&!ant.det&&pend.length) ant.det=pend.shift();
   const linhas=[];
   itens.forEach(it=>{
     if(!it.v) return;
+    if(it.k==null){ indefinidas++; return; }
     const h=semAcento(it.hist).toLowerCase(), nome=it.det.replace(/^(DES|REM):\s*/i,"").replace(/\s+\d{2}\/\d{2}$/,"").trim();
     let desc;
     if(/^compra/.test(h)) desc=capitalizar(nome)||capitalizar(it.hist);
@@ -375,9 +383,11 @@ function lerExtratoBradesco(texto){
     linhas.push(l); });
   const somaE=linhas.filter(x=>x.k==="e").reduce((a,x)=>a+x.v,0), somaS=linhas.filter(x=>x.k==="g").reduce((a,x)=>a+x.v,0);
   const des=desfazerEstornos(linhas);
-  return {linhas:des.linhas, ignoradas, estornos:0, aplicacoes:0, desfeitos:des.desfeitos, banco:"Bradesco", titular,
+  const resultado={linhas:des.linhas, ignoradas, estornos:0, aplicacoes:0, desfeitos:des.desfeitos, banco:"Bradesco", titular,
     saldos:(saldoAnt!=null||saldo!=null)?{anterior:saldoAnt!=null?{v:saldoAnt,d:dAnt}:null, final:saldo!=null?{v:saldo,d:fim||dia}:null}:null,
-    conferencia:totais?{lido:[somaE,somaS,saldo], impresso:totais}:null}; }
+    conferencia:totais?{lido:[somaE,somaS,saldo], impresso:totais}:null};
+  if(indefinidas) resultado.erro="Bradesco: sinal indefinido para "+indefinidas+" lançamento"+(indefinidas===1?"":"s")+" omitido"+(indefinidas===1?"":"s")+" porque não havia saldo anterior conhecido para distinguir crédito de débito.";
+  return resultado; }
 
 /* ---- fatura do cartão do Nubank ----
    "05 MAR   •••• 1234   Loja - Parcela 3/3   R$ 99,90"; o pagamento da fatura anterior é "Pagamento em 05 MAR −R$ …".
@@ -479,6 +489,7 @@ function lerLancamentos(texto,tipo,mes){
           (x.neg||x.cred||/\b(fatura anterior|debito em conta|debito automatico|deb(ito)? autom|creditos?)\b/.test(baixa));
         if(!/minimo/.test(baixa)&&ehBaixa){ pagoAnterior+=x.v; ignoradas++; return; } } }
     let dt=dataNaLinha(linha,ano,mesRef);
+    if(dt&&dt.invalid){ ignoradas++; return; }
     const vals=valores(linha).filter(x=>!dt||x.ini>=dt.len);
     if(dt&&!vals.length){
       const resto=linha.slice(dt.len).trim();
